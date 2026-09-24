@@ -2,6 +2,7 @@
 The MIT License (MIT)
 
 Copyright (c) 2020 Yoooi
+Copyright (c) 2026 HTS0915 (modifications)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
