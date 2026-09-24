@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.Windows.Data;
 
 namespace MultiFunPlayer.UI.Converters;
@@ -8,14 +8,14 @@ internal sealed class InvertValueConverter : IValueConverter
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
     {
         if (parameter is not string s)
-            throw new ArgumentException("Converter parameter must be provided");
+            throw new ArgumentException("必须提供转换器参数");
         return Invert(value, s);
     }
 
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
     {
         if (parameter is not string s)
-            throw new ArgumentException("Converter parameter must be provided");
+            throw new ArgumentException("必须提供转换器参数");
         return Invert(value, s);
     }
 

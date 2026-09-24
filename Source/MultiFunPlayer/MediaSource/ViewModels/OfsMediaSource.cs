@@ -1,4 +1,4 @@
-﻿using MultiFunPlayer.Common;
+using MultiFunPlayer.Common;
 using MultiFunPlayer.Property;
 using MultiFunPlayer.Script;
 using MultiFunPlayer.Shortcut;
@@ -33,7 +33,7 @@ internal sealed class OfsMediaSource(IShortcutManager shortcutManager, IProperty
             Logger.Info("Connecting to {0} at \"{1}\" [Type: {2}]", Name, Uri, connectionType);
 
         if (Uri == null)
-            throw new MediaSourceException("Uri cannot be null");
+            throw new MediaSourceException("地址不能为空");
 
         return ValueTask.FromResult(true);
     }
@@ -55,7 +55,7 @@ internal sealed class OfsMediaSource(IShortcutManager shortcutManager, IProperty
         catch (Exception e) when (connectionType != ConnectionType.AutoConnect)
         {
             Logger.Error(e, "Error when connecting to {0} at \"{1}\"", Name, Uri);
-            _ = DialogHelper.ShowErrorAsync(e, $"Error when connecting to {Name}", "RootDialog");
+            _ = DialogHelper.ShowErrorAsync(e, $"连接 {Name} 时出错", "RootDialog");
             return;
         }
         catch
@@ -75,7 +75,7 @@ internal sealed class OfsMediaSource(IShortcutManager shortcutManager, IProperty
         catch (Exception e)
         {
             Logger.Error(e, $"{Name} failed with exception");
-            _ = DialogHelper.ShowErrorAsync(e, $"{Name} failed with exception", "RootDialog");
+            _ = DialogHelper.ShowErrorAsync(e, $"{Name} 发生异常", "RootDialog");
         }
 
         try { await client.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, null, CancellationToken.None); }
@@ -231,7 +231,7 @@ internal sealed class OfsMediaSource(IShortcutManager shortcutManager, IProperty
         base.RegisterActions(s);
 
         #region Uri
-        s.RegisterAction<string>($"{Name}::Uri::Set", s => s.WithLabel("Uri").WithDescription("ofs websocket uri"), uriString =>
+        s.RegisterAction<string>($"{Name}::Uri::Set", s => s.WithLabel("地址").WithDescription("OFS WebSocket 地址"), uriString =>
         {
             if (Uri.TryCreate(uriString, UriKind.Absolute, out var uri))
                 Uri = uri;

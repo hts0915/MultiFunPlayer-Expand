@@ -1,4 +1,4 @@
-﻿using Microsoft.Win32;
+using Microsoft.Win32;
 using MultiFunPlayer.Common;
 using MultiFunPlayer.Property;
 using MultiFunPlayer.Shortcut;
@@ -60,9 +60,9 @@ internal sealed class MpvMediaSource(IShortcutManager shortcutManager, IProperty
             }
             else
             {
-                var result = await DialogHelper.ShowAsync<MessageBoxResult>(new MessageBoxDialog("Mpv executable not found!\nWould you like to download it now?", MessageBoxButton.YesNo), "RootDialog");
+                var result = await DialogHelper.ShowAsync<MessageBoxResult>(new MessageBoxDialog("未找到 Mpv 可执行文件！\n要立即下载吗？", MessageBoxButton.YesNo), "RootDialog");
                 if (result != MessageBoxResult.Yes)
-                    throw new MediaSourceException("Could not find mpv executable! Set path to mpv.exe manually or download latest release from settings.");
+                    throw new MediaSourceException("找不到 mpv 可执行文件！请在设置中手动指定 mpv.exe 的路径，或从设置中下载最新版本。");
 
                 _ = Task.Run(OnDownloadExecutable);
                 return false;
@@ -108,7 +108,7 @@ internal sealed class MpvMediaSource(IShortcutManager shortcutManager, IProperty
         catch (Exception e) when (connectionType != ConnectionType.AutoConnect)
         {
             Logger.Error(e, "Error when connecting to {0}", Name);
-            _ = DialogHelper.ShowErrorAsync(e, $"Error when connecting to {Name}", "RootDialog");
+            _ = DialogHelper.ShowErrorAsync(e, $"连接 {Name} 时出错", "RootDialog");
             return;
         }
         catch
@@ -138,7 +138,7 @@ internal sealed class MpvMediaSource(IShortcutManager shortcutManager, IProperty
         catch (Exception e)
         {
             Logger.Error(e, $"{Name} failed with exception");
-            _ = DialogHelper.ShowErrorAsync(e, $"{Name} failed with exception", "RootDialog");
+            _ = DialogHelper.ShowErrorAsync(e, $"{Name} 发生异常", "RootDialog");
         }
 
         if (IsDisposing)
@@ -337,7 +337,7 @@ internal sealed class MpvMediaSource(IShortcutManager shortcutManager, IProperty
         catch (Exception e)
         {
             Logger.Error(e, $"{Name} executable download failed with exception");
-            _ = DialogHelper.ShowErrorAsync(e, $"{Name} executable download failed with exception", "RootDialog");
+            _ = DialogHelper.ShowErrorAsync(e, $"{Name} 可执行文件下载失败", "RootDialog");
         }
 
         IsDownloading = false;
@@ -348,7 +348,7 @@ internal sealed class MpvMediaSource(IShortcutManager shortcutManager, IProperty
         base.RegisterActions(s);
 
         #region Arguments
-        s.RegisterAction<string>($"{Name}::Arguments::Set", s => s.WithLabel("Arguments") , arguments => Arguments = arguments);
+        s.RegisterAction<string>($"{Name}::Arguments::Set", s => s.WithLabel("参数") , arguments => Arguments = arguments);
         #endregion
     }
 

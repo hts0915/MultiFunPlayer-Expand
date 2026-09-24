@@ -1,4 +1,4 @@
-﻿using MultiFunPlayer.Common;
+using MultiFunPlayer.Common;
 using MultiFunPlayer.Property;
 using MultiFunPlayer.Shortcut;
 using MultiFunPlayer.UI;
@@ -33,7 +33,7 @@ internal sealed class VlcMediaSource(IShortcutManager shortcutManager, IProperty
             Logger.Info("Connecting to {0} at \"{1}\" [Type: {2}]", Name, Endpoint?.ToUriString(), connectionType);
 
         if (Endpoint == null)
-            throw new MediaSourceException("Endpoint cannot be null");
+            throw new MediaSourceException("端点地址不能为空");
 
         return ValueTask.FromResult(true);
     }
@@ -60,18 +60,18 @@ internal sealed class VlcMediaSource(IShortcutManager shortcutManager, IProperty
             if (!document.TryGetValue("apiversion", out version))
             {
                 Logger.Trace("Unable to determine version from \"{0}\"", message);
-                throw new MediaSourceException("Unable to determine VLC version");
+                throw new MediaSourceException("无法确定 VLC 版本");
             }
 
             if (version is not (3 or 4))
-                throw new MediaSourceException($"Unsupported VLC version \"{version}\"");
+                throw new MediaSourceException($"不支持的 VLC 版本 \"{version}\"");
 
             Status = ConnectionStatus.Connected;
         }
         catch (Exception e) when (connectionType != ConnectionType.AutoConnect)
         {
             Logger.Error(e, "Error when connecting to {0} at \"{1}\"", Name, Endpoint?.ToUriString());
-            _ = DialogHelper.ShowErrorAsync(e, $"Error when connecting to {Name}", "RootDialog");
+            _ = DialogHelper.ShowErrorAsync(e, $"连接 {Name} 时出错", "RootDialog");
             return;
         }
         catch
@@ -91,7 +91,7 @@ internal sealed class VlcMediaSource(IShortcutManager shortcutManager, IProperty
         catch (Exception e)
         {
             Logger.Error(e, $"{Name} failed with exception");
-            _ = DialogHelper.ShowErrorAsync(e, $"{Name} failed with exception", "RootDialog");
+            _ = DialogHelper.ShowErrorAsync(e, $"{Name} 发生异常", "RootDialog");
         }
 
         if (IsDisposing)
@@ -281,7 +281,7 @@ internal sealed class VlcMediaSource(IShortcutManager shortcutManager, IProperty
         base.RegisterActions(s);
 
         #region Endpoint
-        s.RegisterAction<string>($"{Name}::Endpoint::Set", s => s.WithLabel("Endpoint").WithDescription("ipOrHost:port"), endpointString =>
+        s.RegisterAction<string>($"{Name}::Endpoint::Set", s => s.WithLabel("端点地址").WithDescription("IP或主机名:端口"), endpointString =>
         {
             if (NetUtils.TryParseEndpoint(endpointString, out var endpoint))
                 Endpoint = endpoint;

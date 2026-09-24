@@ -1,4 +1,4 @@
-﻿using MultiFunPlayer.Common;
+using MultiFunPlayer.Common;
 using MultiFunPlayer.MediaSource.MediaResource;
 using MultiFunPlayer.Settings.Converters;
 using Newtonsoft.Json;
@@ -172,16 +172,16 @@ internal sealed class StashScriptRepository : AbstractScriptRepository
 
 internal enum StashLocalMatchType
 {
-    [Description("Don't match scripts using local repository")]
+    [Description("不使用本地仓库匹配脚本")]
     None,
-    [Description("Match scripts based on currently playing Stash file name using local repository")]
+    [Description("使用本地仓库，按当前播放的 Stash 文件名匹配脚本")]
     MatchToCurrentFile
 }
 
 internal enum StashDmsMatchType
 {
-    [Description("Don't match scripts using Stash")]
+    [Description("不使用 Stash 匹配脚本")]
     None,
-    [Description("Match Stash scene script to selected axis")]
+    [Description("将 Stash 场景脚本匹配到所选轴")]
     MatchToAxis
 }

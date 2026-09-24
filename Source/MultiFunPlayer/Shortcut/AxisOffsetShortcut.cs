@@ -1,10 +1,10 @@
-﻿using MultiFunPlayer.Common;
+using MultiFunPlayer.Common;
 using MultiFunPlayer.Input;
 using System.ComponentModel;
 
 namespace MultiFunPlayer.Shortcut;
 
-[DisplayName("Axis Offset")]
+[DisplayName("轴偏移")]
 internal sealed class AxisOffsetShortcut(IShortcutActionRunner actionRunner, IAxisInputGestureDescriptor gesture)
     : AbstractShortcut<IAxisInputGesture, IAxisInputGestureData>(actionRunner, gesture)
 {
@@ -37,6 +37,8 @@ internal sealed class AxisOffsetShortcut(IShortcutActionRunner actionRunner, IAx
 
 internal enum AxisOffsetShortcutMode
 {
+    [Description("绝对")]
     Absolute,
+    [Description("摇杆绝对")]
     AbsoluteJoystick
 }

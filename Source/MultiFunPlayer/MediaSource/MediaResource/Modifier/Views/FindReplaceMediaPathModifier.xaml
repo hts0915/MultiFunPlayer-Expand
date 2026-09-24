@@ -1,4 +1,4 @@
-﻿<UserControl x:Class="MultiFunPlayer.MediaSource.MediaResource.Modifier.Views.FindReplaceMediaPathModifier"
+<UserControl x:Class="MultiFunPlayer.MediaSource.MediaResource.Modifier.Views.FindReplaceMediaPathModifier"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -11,23 +11,23 @@
     <StackPanel>
         <TextBox Style="{StaticResource MaterialDesignFloatingHintTextBox}"
                  VerticalAlignment="Center"
-                 material:HintAssist.Hint="Find"
+                 material:HintAssist.Hint="查找"
                  FontFamily="Consolas"
                  Text="{Binding Find}"/>
 
         <TextBox Style="{StaticResource MaterialDesignFloatingHintTextBox}"
                  Margin="0 0 0 10"
                  VerticalAlignment="Center"
-                 material:HintAssist.Hint="Replace"
+                 material:HintAssist.Hint="替换"
                  FontFamily="Consolas"
                  Text="{Binding Replace}"/>
 
         <WrapPanel Margin="-10">
             <CheckBox Margin="10"
-                      Content="Match case"
+                      Content="区分大小写"
                       IsChecked="{Binding MatchCase}"/>
             <CheckBox Margin="10"
-                      Content="Use regular expressions"
+                      Content="使用正则表达式"
                       IsChecked="{Binding UseRegularExpressions}"/>
         </WrapPanel>
     </StackPanel>

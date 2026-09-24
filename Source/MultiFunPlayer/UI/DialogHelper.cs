@@ -1,4 +1,4 @@
-﻿using MahApps.Metro.Controls;
+using MahApps.Metro.Controls;
 using MaterialDesignThemes.Wpf;
 using MultiFunPlayer.UI.Controls.ViewModels;
 using MultiFunPlayer.UI.Dialogs.ViewModels;
@@ -43,7 +43,7 @@ internal static class DialogHelper
         else if (displayType == ErrorDisplayType.Snackbar)
         {
             await Execute.OnUIThreadAsync(() =>
-                SnackbarMessageQueue.Enqueue(message, "Show",
+                SnackbarMessageQueue.Enqueue(message, "查看",
                     async m => await ShowAsync(m, dialogIdentifier), dialogModel,
                     true, true, TimeSpan.FromSeconds(5)));
         }

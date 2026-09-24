@@ -1,4 +1,4 @@
-﻿using MultiFunPlayer.Common;
+using MultiFunPlayer.Common;
 using MultiFunPlayer.Input;
 using NLog;
 using Stylet;
@@ -125,7 +125,7 @@ internal sealed class ShortcutManager : IShortcutManager, IHandle<IInputGesture>
         var builder = new ShortcutActionConfigurationBuilder(actionName, builders);
         var added = _actions.TryAdd(actionName, (action, builder));
         if (!added)
-            throw new ArgumentException($"An item with the same key has already been added. Key: {actionName}");
+            throw new ArgumentException($"已添加具有相同键的项。键: {actionName}");
 
         _availableActions.Add(actionName);
 

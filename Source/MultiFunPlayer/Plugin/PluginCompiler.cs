@@ -1,4 +1,4 @@
-﻿using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Emit;
@@ -186,15 +186,15 @@ internal static partial class PluginCompiler
                                           .ToList();
 
             if (pluginClasses.Count == 0)
-                return PluginCompilationResult.FromFailure(context, new PluginCompileException("Unable to find class inheriting PluginBase"));
+                return PluginCompilationResult.FromFailure(context, new PluginCompileException("找不到继承 PluginBase 的类"));
             if (pluginClasses.Count > 1)
-                return PluginCompilationResult.FromFailure(context, new PluginCompileException("Found more than one class inheriting PluginBase"));
+                return PluginCompilationResult.FromFailure(context, new PluginCompileException("找到了多个继承 PluginBase 的类"));
 
             var pluginHasConstructors = pluginClasses[0].DescendantNodes()
                                                         .OfType<ConstructorDeclarationSyntax>()
                                                         .Any();
             if (pluginHasConstructors)
-                return PluginCompilationResult.FromFailure(context, new PluginCompileException("Constructors in plugin class are not allowed, use OnInitialize instead"));
+                return PluginCompilationResult.FromFailure(context, new PluginCompileException("插件类中不允许定义构造函数，请改用 OnInitialize"));
 
             var assemblyName = $"Plugin_{Path.GetFileNameWithoutExtension(pluginFile.Name)}";
             var encoded = CSharpSyntaxTree.Create(
@@ -236,7 +236,7 @@ internal static partial class PluginCompiler
             if (!emitResult.Success)
             {
                 var diagnostics = emitResult.Diagnostics.Where(diagnostic => diagnostic.IsWarningAsError || diagnostic.Severity == DiagnosticSeverity.Error);
-                return PluginCompilationResult.FromFailure(context, new PluginCompileException("Plugin failed to compile due to errors", diagnostics));
+                return PluginCompilationResult.FromFailure(context, new PluginCompileException("插件因错误编译失败", diagnostics));
             }
 
             peStream.Seek(0, SeekOrigin.Begin);
@@ -245,7 +245,7 @@ internal static partial class PluginCompiler
             var assembly = context.LoadFromStream(peStream, pdbStream);
             var pluginType = assembly.GetExportedTypes().FirstOrDefault(t => t.IsAssignableTo(typeof(PluginBase)));
             if (pluginType == null)
-                return PluginCompilationResult.FromFailure(context, new PluginCompileException("Unable to find exported Plugin type"));
+                return PluginCompilationResult.FromFailure(context, new PluginCompileException("找不到导出的 Plugin 类型"));
 
             try
             {
@@ -279,13 +279,13 @@ internal static partial class PluginCompiler
                 });
 
                 if (view?.GetType().IsAssignableTo(typeof(PluginViewBase)) == false)
-                    throw new PluginCompileException("Plugin view must extend PluginViewBase");
+                    throw new PluginCompileException("插件视图必须继承 PluginViewBase");
             }
         }
         catch (Exception e)
         {
-            Logger.Error(e, "Plugin compiler failed with exception");
-            return PluginCompilationResult.FromFailure(context, new PluginCompileException("Plugin compiler failed with exception", e));
+            Logger.Error(e, "插件编译器发生异常");
+            return PluginCompilationResult.FromFailure(context, new PluginCompileException("插件编译器发生异常", e));
         }
     }
 

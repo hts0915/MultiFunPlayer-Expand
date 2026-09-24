@@ -1,9 +1,9 @@
-﻿using MultiFunPlayer.Input;
+using MultiFunPlayer.Input;
 using System.ComponentModel;
 
 namespace MultiFunPlayer.Shortcut;
 
-[DisplayName("Button Release")]
+[DisplayName("按键松开")]
 internal sealed class ButtonReleaseShortcut(IShortcutActionRunner actionRunner, IButtonInputGestureDescriptor gesture)
     : AbstractShortcut<IButtonInputGesture, IEmptyInputGestureData>(actionRunner, gesture)
 {

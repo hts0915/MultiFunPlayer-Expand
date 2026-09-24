@@ -1,4 +1,4 @@
-﻿using MultiFunPlayer.Common;
+using MultiFunPlayer.Common;
 using MultiFunPlayer.Property;
 using MultiFunPlayer.Shortcut;
 using MultiFunPlayer.UI;
@@ -34,10 +34,10 @@ internal sealed class DeoVRMediaSource(IShortcutManager shortcutManager, IProper
             Logger.Info("Connecting to {0} at \"{1}\" [Type: {2}]", Name, Endpoint?.ToUriString(), connectionType);
 
         if (Endpoint == null)
-            throw new MediaSourceException("Endpoint cannot be null");
+            throw new MediaSourceException("端点地址不能为空");
         if (Endpoint.IsLocalhost())
             if (!Process.GetProcesses().Any(p => Regex.IsMatch(p.ProcessName, "(?i)(?>deovr|slr)")))
-                throw new MediaSourceException($"Could not find a running {Name} process");
+                throw new MediaSourceException($"找不到正在运行的 {Name} 进程");
 
         return ValueTask.FromResult(true);
     }
@@ -59,7 +59,7 @@ internal sealed class DeoVRMediaSource(IShortcutManager shortcutManager, IProper
         catch (Exception e) when (connectionType != ConnectionType.AutoConnect)
         {
             Logger.Error(e, "Error when connecting to {0} at \"{1}\"", Name, Endpoint?.ToUriString());
-            _ = DialogHelper.ShowErrorAsync(e, $"Error when connecting to {Name}", "RootDialog");
+            _ = DialogHelper.ShowErrorAsync(e, $"连接 {Name} 时出错", "RootDialog");
             return;
         }
         catch
@@ -82,7 +82,7 @@ internal sealed class DeoVRMediaSource(IShortcutManager shortcutManager, IProper
         catch (Exception e)
         {
             Logger.Error(e, $"{Name} failed with exception");
-            _ = DialogHelper.ShowErrorAsync(e, $"{Name} failed with exception", "RootDialog");
+            _ = DialogHelper.ShowErrorAsync(e, $"{Name} 发生异常", "RootDialog");
         }
 
         if (IsDisposing)
@@ -247,7 +247,7 @@ internal sealed class DeoVRMediaSource(IShortcutManager shortcutManager, IProper
         base.RegisterActions(s);
 
         #region Endpoint
-        s.RegisterAction<string>($"{Name}::Endpoint::Set", s => s.WithLabel("Endpoint").WithDescription("ipOrHost:port"), endpointString =>
+        s.RegisterAction<string>($"{Name}::Endpoint::Set", s => s.WithLabel("端点地址").WithDescription("IP或主机名:端口"), endpointString =>
         {
             if (NetUtils.TryParseEndpoint(endpointString, out var endpoint))
                 Endpoint = endpoint;

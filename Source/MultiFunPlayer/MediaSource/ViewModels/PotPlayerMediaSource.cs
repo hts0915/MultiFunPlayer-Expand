@@ -1,4 +1,4 @@
-﻿using Microsoft.Win32;
+using Microsoft.Win32;
 using MultiFunPlayer.Common;
 using MultiFunPlayer.Property;
 using MultiFunPlayer.Shortcut;
@@ -35,10 +35,10 @@ internal sealed class PotPlayerMediaSource(IShortcutManager shortcutManager, IPr
         if (!Process.GetProcesses().Any(p => Regex.IsMatch(p.ProcessName, "(?i)(?>potplayer)")))
         {
             if (!AutoStartEnabled)
-                throw new MediaSourceException($"Could not find a running {Name} process");
+                throw new MediaSourceException($"找不到正在运行的 {Name} 进程");
 
             if (GetInstallationPath() == null)
-                throw new MediaSourceException($"Could not find installed {Name} executable to auto-start");
+                throw new MediaSourceException($"找不到已安装的 {Name} 可执行文件，无法自动启动");
         }
 
         return ValueTask.FromResult(true);
@@ -58,14 +58,14 @@ internal sealed class PotPlayerMediaSource(IShortcutManager shortcutManager, IPr
             }
 
             if (process == null)
-                throw new MediaSourceException($"Could not find a running {Name} process");
+                throw new MediaSourceException($"找不到正在运行的 {Name} 进程");
 
             Status = ConnectionStatus.Connected;
         }
         catch (Exception e) when (connectionType != ConnectionType.AutoConnect)
         {
             Logger.Error(e, "Error when connecting to {0}", Name);
-            _ = DialogHelper.ShowErrorAsync(e, $"Error when connecting to {Name}", "RootDialog");
+            _ = DialogHelper.ShowErrorAsync(e, $"连接 {Name} 时出错", "RootDialog");
             return;
         }
         catch
@@ -85,7 +85,7 @@ internal sealed class PotPlayerMediaSource(IShortcutManager shortcutManager, IPr
         catch (Exception e)
         {
             Logger.Error(e, $"{Name} failed with exception");
-            _ = DialogHelper.ShowErrorAsync(e, $"{Name} failed with exception", "RootDialog");
+            _ = DialogHelper.ShowErrorAsync(e, $"{Name} 发生异常", "RootDialog");
         }
 
         if (IsDisposing)

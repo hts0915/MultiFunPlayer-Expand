@@ -1,4 +1,4 @@
-﻿<UserControl x:Class="MultiFunPlayer.OutputTarget.Views.TheHandyOutputTarget"
+<UserControl x:Class="MultiFunPlayer.OutputTarget.Views.TheHandyOutputTarget"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:common="clr-namespace:MultiFunPlayer.Common"
@@ -37,10 +37,10 @@
                         IsEnabled="{Binding CanToggleConnect}">
                     <Button.Style>
                         <Style BasedOn="{StaticResource MaterialDesignProgressToolBarButton}" TargetType="{x:Type ButtonBase}">
-                            <Setter Property="ToolTip" Value="Connect"/>
+                            <Setter Property="ToolTip" Value="连接"/>
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding IsConnected}" Value="True">
-                                    <Setter Property="ToolTip" Value="Disconnect"/>
+                                    <Setter Property="ToolTip" Value="断开连接"/>
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>
@@ -72,7 +72,7 @@
                 <ToggleButton DockPanel.Dock="Left"
                               Style="{StaticResource MaterialDesignToolBarToggleButton}"
                               IsChecked="{Binding AutoConnectEnabled}"
-                              ToolTip="Auto-connect">
+                              ToolTip="自动连接">
                     <material:PackIcon Width="20"
                                        Height="20"
                                        Kind="MotionPlayOutline"
@@ -88,7 +88,7 @@
                                    Style="{StaticResource MaterialDesignToolBarPopupBox}"
                                    PlacementMode="BottomAndAlignRightEdges"
                                    StaysOpen="True"
-                                   ToolTip="Update settings">
+                                   ToolTip="更新设置">
                     <material:PopupBox.ToggleContent>
                         <material:PackIcon Width="20"
                                            Height="20"
@@ -96,7 +96,7 @@
                     </material:PopupBox.ToggleContent>
                     <StackPanel Width="250" Margin="10 0 10 0">
                         <TextBlock FontWeight="Bold"
-                                   Text="Polled Update"
+                                   Text="轮询更新"
                                    Typography.Capitals="AllSmallCaps"/>
                         <ContentControl Content="{Binding UpdateContexts[PolledUpdate]}"/>
                     </StackPanel>
@@ -110,7 +110,7 @@
                        FontSize="12"
                        FontWeight="Bold"
                        Foreground="{DynamicResource MaterialDesignErrorBrush}"
-                       Text="The Handy support is in experimantal state, the device might not behave correctly"
+                       Text="The Handy 支持处于实验阶段，设备可能无法正常工作"
                        Typography.Capitals="AllSmallCaps"/>
 
             <DockPanel IsEnabled="{Binding IsDisconnected}" LastChildFill="True">
@@ -119,7 +119,7 @@
                            LastChildFill="False">
                     <TextBlock Margin="0 0 10 0"
                                VerticalAlignment="Center"
-                               Text="Source axis:"/>
+                               Text="源轴："/>
                     <ComboBox ItemsSource="{Binding Source={x:Static common:DeviceAxis.All}}"
                               SelectedItem="{Binding SourceAxis}"
                               Width="50"
@@ -133,7 +133,7 @@
                              Style="{StaticResource MaterialDesignFloatingHintTextBox}"
                              Margin="0 -12 0 0"
                              VerticalAlignment="Center"
-                             material:HintAssist.Hint="connection key"
+                             material:HintAssist.Hint="连接密钥"
                              Text="{Binding ConnectionKey}"/>
                 </DockPanel>
             </DockPanel>
@@ -141,7 +141,7 @@
             <TextBlock HorizontalAlignment="Left"
                        VerticalAlignment="Center"
                        FontWeight="Bold"
-                       Text="Output Range"
+                       Text="输出范围"
                        Typography.Capitals="AllSmallCaps"/>
             <ItemsControl ItemsSource="{Binding AxisSettings}">
                 <ItemsControl.ItemsPanel>
@@ -175,7 +175,7 @@
 
                                 <TextBlock FontSize="10"
                                            FontWeight="Bold"
-                                           Text="{Binding Key}"/>
+                                           ToolTip="{Binding Key}" Text="{Binding Key.FriendlyName}"/>
                             </ToggleButton>
 
                             <Canvas DockPanel.Dock="Right" HorizontalAlignment="Stretch">

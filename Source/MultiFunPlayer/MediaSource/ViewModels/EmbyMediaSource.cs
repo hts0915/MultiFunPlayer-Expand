@@ -1,4 +1,4 @@
-﻿using MultiFunPlayer.Common;
+using MultiFunPlayer.Common;
 using MultiFunPlayer.Property;
 using MultiFunPlayer.Shortcut;
 using MultiFunPlayer.UI;
@@ -53,9 +53,9 @@ internal sealed class EmbyMediaSource(IShortcutManager shortcutManager, IPropert
             Logger.Info("Connecting to {0} at \"{1}\" [Type: {2}]", Name, ServerBaseUri, connectionType);
 
         if (ServerBaseUri == null)
-            throw new MediaSourceException("Endpoint cannot be null");
+            throw new MediaSourceException("端点地址不能为空");
         if (string.IsNullOrEmpty(ApiKey))
-            throw new MediaSourceException("Api key cannot be empty");
+            throw new MediaSourceException("API 密钥不能为空");
 
         if (SelectedDeviceId == null)
             return false;
@@ -83,7 +83,7 @@ internal sealed class EmbyMediaSource(IShortcutManager shortcutManager, IPropert
         catch (Exception e) when (connectionType != ConnectionType.AutoConnect)
         {
             Logger.Error(e, "Error when connecting to {0} at \"{1}\"", Name, ServerBaseUri);
-            _ = DialogHelper.ShowErrorAsync(e, $"Error when connecting to {Name}", "RootDialog");
+            _ = DialogHelper.ShowErrorAsync(e, $"连接 {Name} 时出错", "RootDialog");
             return;
         }
         catch
@@ -103,7 +103,7 @@ internal sealed class EmbyMediaSource(IShortcutManager shortcutManager, IPropert
         catch (Exception e)
         {
             Logger.Error(e, $"{Name} failed with exception");
-            _ = DialogHelper.ShowErrorAsync(e, $"{Name} failed with exception", "RootDialog");
+            _ = DialogHelper.ShowErrorAsync(e, $"{Name} 发生异常", "RootDialog");
         }
 
         if (IsDisposing)
@@ -330,7 +330,7 @@ internal sealed class EmbyMediaSource(IShortcutManager shortcutManager, IPropert
         base.RegisterActions(s);
 
         #region ServerBaseUri
-        s.RegisterAction<string>($"{Name}::ServerBaseUri::Set", s => s.WithLabel("Endpoint").WithDescription("schema://ipOrHost:port"), serverBaseUri =>
+        s.RegisterAction<string>($"{Name}::ServerBaseUri::Set", s => s.WithLabel("端点地址").WithDescription("协议://IP或主机名:端口"), serverBaseUri =>
         {
             if (Uri.TryCreate(serverBaseUri, UriKind.Absolute, out var uri))
                 ServerBaseUri = uri;
@@ -338,11 +338,11 @@ internal sealed class EmbyMediaSource(IShortcutManager shortcutManager, IPropert
         #endregion
 
         #region ApiKey
-        s.RegisterAction<string>($"{Name}::ApiKey::Set", s => s.WithLabel("Api key"), apiKey => ApiKey = apiKey);
+        s.RegisterAction<string>($"{Name}::ApiKey::Set", s => s.WithLabel("API 密钥"), apiKey => ApiKey = apiKey);
         #endregion
 
         #region SelectedDevice
-        s.RegisterAction<string>($"{Name}::Device::SetByName", s => s.WithLabel("Name"), name => {
+        s.RegisterAction<string>($"{Name}::Device::SetByName", s => s.WithLabel("名称"), name => {
             var devcie = Devices.FirstOrDefault(p => string.Equals(p.Name, name, StringComparison.Ordinal));
             if (devcie == null)
                 return;

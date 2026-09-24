@@ -1,4 +1,4 @@
-﻿using MultiFunPlayer.Common;
+using MultiFunPlayer.Common;
 using MultiFunPlayer.Property;
 using MultiFunPlayer.Shortcut;
 using MultiFunPlayer.UI;
@@ -71,7 +71,7 @@ internal abstract class AbstractMediaSource : Screen, IMediaSource, IHandle<IMed
         catch (Exception e) when (connectionType != ConnectionType.AutoConnect)
         {
             Logger.Error(e, "Error when connecting to {0}", Name);
-            _ = DialogHelper.ShowErrorAsync(e, $"Error when connecting to {Name}", "RootDialog");
+            _ = DialogHelper.ShowErrorAsync(e, $"连接 {Name} 时出错", "RootDialog");
         }
         catch { }
 
@@ -162,7 +162,7 @@ internal abstract class AbstractMediaSource : Screen, IMediaSource, IHandle<IMed
     protected virtual void RegisterActions(IShortcutManager s)
     {
         #region AutoConnectEnabled
-        s.RegisterAction<bool>($"{Name}::AutoConnectEnabled::Set", s => s.WithLabel("Enable auto connect"), enabled => AutoConnectEnabled = enabled);
+        s.RegisterAction<bool>($"{Name}::AutoConnectEnabled::Set", s => s.WithLabel("启用自动连接"), enabled => AutoConnectEnabled = enabled);
         s.RegisterAction($"{Name}::AutoConnectEnabled::Toggle", () => AutoConnectEnabled = !AutoConnectEnabled);
         #endregion
     }

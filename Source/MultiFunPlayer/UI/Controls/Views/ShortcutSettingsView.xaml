@@ -1,4 +1,4 @@
-﻿<UserControl x:Class="MultiFunPlayer.UI.Controls.Views.ShortcutSettingsView"
+<UserControl x:Class="MultiFunPlayer.UI.Controls.Views.ShortcutSettingsView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:converters="clr-namespace:MultiFunPlayer.UI.Converters"
@@ -22,6 +22,7 @@
         <converters:EmptyStringToNullConverter x:Key="EmptyStringToNullConverter"/>
         <converters:GestureDescriptorToBrushConverter x:Key="GestureDescriptorToBrushConverter"/>
         <converters:GestureDescriptorToPackIconConverter x:Key="GestureDescriptorToPackIconConverter"/>
+        <converters:MouseButtonToStringConverter x:Key="MouseButtonToStringConverter"/>
 
         <DataTemplate DataType="{x:Type shortcut:ButtonReleaseShortcut}">
             <DockPanel LastChildFill="False">
@@ -30,7 +31,7 @@
                                Margin="0 0 5 0"
                                VerticalAlignment="Center"
                                FontSize="12"
-                               Text="Handle repeating:"/>
+                               Text="处理重复："/>
 
                     <CheckBox DockPanel.Dock="Left" IsChecked="{Binding HandleRepeating}"/>
                 </DockPanel>
@@ -44,7 +45,7 @@
                                Margin="0 0 5 0"
                                VerticalAlignment="Center"
                                FontSize="12"
-                               Text="Handle repeating:"/>
+                               Text="处理重复："/>
 
                     <CheckBox DockPanel.Dock="Left" IsChecked="{Binding HandleRepeating}"/>
                 </DockPanel>
@@ -58,7 +59,7 @@
                                Margin="0 0 10 0"
                                VerticalAlignment="Center"
                                FontSize="12"
-                               Text="Minimum duration:"/>
+                               Text="最短按住时长："/>
 
                     <metro:NumericUpDown DockPanel.Dock="Left"
                                          Width="120"
@@ -73,7 +74,7 @@
                                Margin="0 0 10 0"
                                VerticalAlignment="Center"
                                FontSize="12"
-                               Text="Maximum duration:"/>
+                               Text="最长按住时长："/>
 
                     <metro:NumericUpDown DockPanel.Dock="Left"
                                          Width="120"
@@ -102,11 +103,17 @@
                                Margin="0 0 10 0"
                                VerticalAlignment="Center"
                                FontSize="12"
-                               Text="Invoke type:"/>
+                               Text="触发方式："/>
 
                     <ComboBox DockPanel.Dock="Left"
                               ItemsSource="{Binding Source={ui:EnumBindingSource {x:Type shortcut:ButtonHoldInvokeType}}}"
-                              SelectedItem="{Binding InvokeType}"/>
+                              SelectedItem="{Binding InvokeType}">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Converter={StaticResource DescriptionConverter}}"/>
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
                 </DockPanel>
             </DockPanel>
         </DataTemplate>
@@ -118,7 +125,7 @@
                                Margin="0 0 10 0"
                                VerticalAlignment="Center"
                                FontSize="12"
-                               Text="Click count:"/>
+                               Text="点击次数："/>
 
                     <metro:NumericUpDown DockPanel.Dock="Left"
                                          Width="80"
@@ -132,7 +139,7 @@
                                Margin="0 0 10 0"
                                VerticalAlignment="Center"
                                FontSize="12"
-                               Text="Maximum click interval:"/>
+                               Text="最大点击间隔："/>
 
                     <metro:NumericUpDown DockPanel.Dock="Left"
                                          Width="150"
@@ -159,21 +166,27 @@
                                Margin="0 0 10 0"
                                VerticalAlignment="Center"
                                FontSize="12"
-                               Text="Mode:"/>
+                               Text="模式："/>
 
                     <ComboBox DockPanel.Dock="Left"
                               ItemsSource="{Binding Source={ui:EnumBindingSource {x:Type shortcut:AxisDriveShortcutMode}}}"
                               SelectedItem="{Binding DriveMode}"
                               Width="150"
                               VerticalAlignment="Center"
-                              FontSize="12"/>
+                              FontSize="12">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Converter={StaticResource DescriptionConverter}}"/>
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
                 </DockPanel>
                 <DockPanel DockPanel.Dock="Top" LastChildFill="False">
                     <TextBlock DockPanel.Dock="Left"
                                Margin="0 0 5 0"
                                VerticalAlignment="Center"
                                FontSize="12"
-                               Text="Invert:"/>
+                               Text="反转："/>
 
                     <CheckBox DockPanel.Dock="Left" IsChecked="{Binding Invert}"/>
                 </DockPanel>
@@ -187,7 +200,7 @@
                                Margin="0 0 10 0"
                                VerticalAlignment="Center"
                                FontSize="12"
-                               Text="Trigger value:"/>
+                               Text="触发值："/>
 
                     <metro:NumericUpDown DockPanel.Dock="Left"
                                          Width="100"
@@ -203,14 +216,20 @@
                                Margin="0 0 10 0"
                                VerticalAlignment="Center"
                                FontSize="12"
-                               Text="Mode:"/>
+                               Text="模式："/>
 
                     <ComboBox DockPanel.Dock="Left"
                               ItemsSource="{Binding Source={ui:EnumBindingSource {x:Type shortcut:AxisThresholdTriggerMode}}}"
                               SelectedItem="{Binding TriggerMode}"
                               Width="100"
                               VerticalAlignment="Center"
-                              FontSize="12"/>
+                              FontSize="12">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Converter={StaticResource DescriptionConverter}}"/>
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
                 </DockPanel>
             </DockPanel>
         </DataTemplate>
@@ -222,21 +241,27 @@
                                Margin="0 0 10 0"
                                VerticalAlignment="Center"
                                FontSize="12"
-                               Text="Mode:"/>
+                               Text="模式："/>
 
                     <ComboBox DockPanel.Dock="Left"
                               ItemsSource="{Binding Source={ui:EnumBindingSource {x:Type shortcut:AxisOffsetShortcutMode}}}"
                               SelectedItem="{Binding OffsetMode}"
                               Width="130"
                               VerticalAlignment="Center"
-                              FontSize="12"/>
+                              FontSize="12">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Converter={StaticResource DescriptionConverter}}"/>
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
                 </DockPanel>
                 <DockPanel DockPanel.Dock="Top" LastChildFill="False">
                     <TextBlock DockPanel.Dock="Left"
                                Margin="0 0 10 0"
                                VerticalAlignment="Center"
                                FontSize="12"
-                               Text="Speed:"/>
+                               Text="速度："/>
 
                     <metro:NumericUpDown DockPanel.Dock="Left"
                                          Width="100"
@@ -252,7 +277,7 @@
                                Margin="0 0 5 0"
                                VerticalAlignment="Center"
                                FontSize="12"
-                               Text="Invert:"/>
+                               Text="反转："/>
 
                     <CheckBox DockPanel.Dock="Left" IsChecked="{Binding Invert}"/>
                 </DockPanel>
@@ -264,7 +289,7 @@
                 <TextBlock Margin="0 0 0 0"
                            VerticalAlignment="Center"
                            FontSize="12"
-                           Text="User:"
+                           Text="用户："
                            Typography.Capitals="AllSmallCaps"/>
 
                 <TextBlock Margin="5 0 0 0"
@@ -277,7 +302,7 @@
                 <TextBlock Margin="10 0 0 0"
                            VerticalAlignment="Center"
                            FontSize="12"
-                           Text="Buttons:"
+                           Text="按钮："
                            Typography.Capitals="AllSmallCaps"/>
 
                 <ItemsControl DockPanel.Dock="Left"
@@ -325,7 +350,7 @@
                 <TextBlock Margin="0 0 0 0"
                            VerticalAlignment="Center"
                            FontSize="12"
-                           Text="User:"
+                           Text="用户："
                            Typography.Capitals="AllSmallCaps"/>
 
                 <TextBlock Margin="5 0 0 0"
@@ -338,13 +363,13 @@
                 <TextBlock Margin="10 0 5 0"
                            VerticalAlignment="Center"
                            FontSize="12"
-                           Text="Axis:"
+                           Text="轴："
                            Typography.Capitals="AllSmallCaps"/>
 
                 <TextBlock VerticalAlignment="Center"
                            FontSize="12"
                            FontWeight="Bold"
-                           Text="{Binding Axis, StringFormat={}{0}}"
+                           Text="{Binding Axis, Converter={StaticResource DescriptionConverter}}"
                            Typography.Capitals="AllSmallCaps"/>
             </DockPanel>
         </DataTemplate>
@@ -354,7 +379,7 @@
                 <TextBlock Margin="0 0 5 0"
                            VerticalAlignment="Center"
                            FontSize="12"
-                           Text="Button:"
+                           Text="按钮："
                            Typography.Capitals="AllSmallCaps"/>
 
                 <TextBlock VerticalAlignment="Center"
@@ -370,7 +395,7 @@
                 <TextBlock Margin="0 0 5 0"
                            VerticalAlignment="Center"
                            FontSize="12"
-                           Text="Axis:"
+                           Text="轴："
                            Typography.Capitals="AllSmallCaps"/>
 
                 <TextBlock VerticalAlignment="Center"
@@ -386,13 +411,13 @@
                 <TextBlock Margin="0 0 5 0"
                            VerticalAlignment="Center"
                            FontSize="12"
-                           Text="Button:"
+                           Text="按钮："
                            Typography.Capitals="AllSmallCaps"/>
 
                 <TextBlock VerticalAlignment="Center"
                            FontSize="12"
                            FontWeight="Bold"
-                           Text="{Binding Button, StringFormat={}{0}}"
+                           Text="{Binding Button, Converter={StaticResource MouseButtonToStringConverter}}"
                            Typography.Capitals="AllSmallCaps"/>
             </DockPanel>
         </DataTemplate>
@@ -402,13 +427,13 @@
                 <TextBlock Margin="0 0 5 0"
                            VerticalAlignment="Center"
                            FontSize="12"
-                           Text="Axis:"
+                           Text="轴："
                            Typography.Capitals="AllSmallCaps"/>
 
                 <TextBlock VerticalAlignment="Center"
                            FontSize="12"
                            FontWeight="Bold"
-                           Text="{Binding Axis, StringFormat={}{0}}"
+                           Text="{Binding Axis, Converter={StaticResource DescriptionConverter}}"
                            Typography.Capitals="AllSmallCaps"/>
             </DockPanel>
         </DataTemplate>
@@ -418,7 +443,7 @@
                 <TextBlock Margin="0 0 5 0"
                            VerticalAlignment="Center"
                            FontSize="12"
-                           Text="Keys:"
+                           Text="按键："
                            Typography.Capitals="AllSmallCaps"/>
 
                 <ItemsControl DockPanel.Dock="Left"
@@ -484,7 +509,7 @@
                                 material:ButtonProgressAssist.Value="{Binding GestureCaptureProgressPercent}"
                                 material:TransitionAssist.DisableTransitions="True"
                                 Click="{s:Action CaptureGestures}"
-                                ToolTip="Start capturing">
+                                ToolTip="开始捕获">
                             <material:PackIcon Width="28"
                                                Height="28"
                                                Kind="Input"/>
@@ -493,7 +518,7 @@
                         <TextBlock DockPanel.Dock="Left"
                                    Margin="5 0 14 0"
                                    VerticalAlignment="Center"
-                                   Text="Gesture:"/>
+                                   Text="手势："/>
 
                         <ComboBox ItemsSource="{Binding CapturedGestures}"
                                   SelectedItem="{Binding SelectedCapturedGesture}"
@@ -502,7 +527,7 @@
                                   material:TextFieldAssist.HasClearButton="True"
                                   IsEnabled="{Binding CapturedGestures.Count, Mode=OneWay, Converter={StaticResource NotZeroConverter}}">
                             <material:HintAssist.Hint>
-                                <TextBlock Text="{Binding CapturedGestures.Count, StringFormat='Captured {0} gestures'}"
+                                <TextBlock Text="{Binding CapturedGestures.Count, StringFormat='已捕获 {0} 个手势'}"
                                            Typography.Capitals="AllSmallCaps"
                                            Visibility="{Binding CapturedGestures.Count, Converter={StaticResource NotZeroToVisibilityConverter}}"/>
                             </material:HintAssist.Hint>
@@ -544,7 +569,7 @@
                         <TextBlock DockPanel.Dock="Left"
                                    Margin="5 0 10 0"
                                    VerticalAlignment="Center"
-                                   Text="Shortcut:"/>
+                                   Text="快捷键："/>
 
                         <Button DockPanel.Dock="Right"
                                 Style="{StaticResource MaterialDesignFlatButton}"
@@ -555,7 +580,7 @@
                                 VerticalAlignment="Center"
                                 Click="{s:Action AddShortcut}"
                                 Foreground="{DynamicResource MaterialDesignSuccessBrush}"
-                                ToolTip="Add shortcut">
+                                ToolTip="添加快捷键">
                             <material:PackIcon Width="28"
                                                Height="28"
                                                Kind="Plus"/>
@@ -615,8 +640,8 @@
                                     material:ColorZoneAssist.Background="{DynamicResource MaterialDesignCardBackground}"
                                     material:ColorZoneAssist.Foreground="{DynamicResource PrimaryHueMidBrush}"
                                     material:ColorZoneAssist.Mode="Custom">
-                            <TabItem Width="100" Header="Actions"/>
-                            <TabItem Width="100" Header="Settings"/>
+                            <TabItem Width="100" Header="动作"/>
+                            <TabItem Width="100" Header="设置"/>
                         </TabControl>
                     </Expander.Header>
 
@@ -628,7 +653,7 @@
                                 <Style TargetType="{x:Type DockPanel}">
                                     <Setter Property="Visibility" Value="Collapsed"/>
                                     <Style.Triggers>
-                                        <DataTrigger Binding="{Binding SelectedItem.Header, ElementName=HeaderTabControl}" Value="Settings">
+                                        <DataTrigger Binding="{Binding SelectedItem.Header, ElementName=HeaderTabControl}" Value="设置">
                                             <DataTrigger.Setters>
                                                 <Setter Property="Visibility" Value="Visible"/>
                                             </DataTrigger.Setters>
@@ -644,7 +669,7 @@
                                            Margin="0 0 10 0"
                                            VerticalAlignment="Center"
                                            FontSize="12"
-                                           Text="Name:"/>
+                                           Text="名称："/>
 
                                 <TextBox DockPanel.Dock="Top"
                                          material:TextFieldAssist.HasClearButton="True"
@@ -661,7 +686,7 @@
                                 <Style TargetType="{x:Type DockPanel}">
                                     <Setter Property="Visibility" Value="Collapsed"/>
                                     <Style.Triggers>
-                                        <DataTrigger Binding="{Binding SelectedItem.Header, ElementName=HeaderTabControl}" Value="Actions">
+                                        <DataTrigger Binding="{Binding SelectedItem.Header, ElementName=HeaderTabControl}" Value="动作">
                                             <DataTrigger.Setters>
                                                 <Setter Property="Visibility" Value="Visible"/>
                                             </DataTrigger.Setters>
@@ -701,7 +726,7 @@
                                                     material:RippleAssist.Feedback="{DynamicResource MaterialDesignErrorBrush}"
                                                     Click="{s:Action RemoveAssignedAction}"
                                                     Foreground="{DynamicResource MaterialDesignErrorBrush}"
-                                                    ToolTip="Remove">
+                                                    ToolTip="移除">
                                                 <material:PackIcon Kind="Delete"/>
                                             </Button>
 
@@ -711,7 +736,7 @@
                                                     Height="24"
                                                     Padding="0"
                                                     Click="{s:Action MoveAssignedActionUp}"
-                                                    ToolTip="Move Up">
+                                                    ToolTip="上移">
                                                 <material:PackIcon Kind="ArrowUp"/>
                                             </Button>
                                             <Button DockPanel.Dock="Right"
@@ -720,7 +745,7 @@
                                                     Height="24"
                                                     Padding="0"
                                                     Click="{s:Action MoveAssignedActionDown}"
-                                                    ToolTip="Move Down">
+                                                    ToolTip="下移">
                                                 <material:PackIcon Kind="ArrowDown"/>
                                             </Button>
 
@@ -729,7 +754,7 @@
                                                     Height="22"
                                                     Padding="0"
                                                     Click="{s:Action ConfigureAssignedAction}"
-                                                    ToolTip="Configure"
+                                                    ToolTip="配置"
                                                     Visibility="{Binding Settings.Count, Converter={StaticResource NotZeroToVisibilityConverter}}">
                                                 <Button.Resources>
                                                     <Style BasedOn="{StaticResource MaterialDesignFlatButton}" TargetType="{x:Type Button}">
@@ -775,7 +800,7 @@
                             <TextBox DockPanel.Dock="Top"
                                      Style="{StaticResource MaterialDesignFloatingHintTextBox}"
                                      Margin="10 0 10 0"
-                                     material:HintAssist.Hint="Filter actions"
+                                     material:HintAssist.Hint="筛选动作"
                                      Text="{Binding ActionsFilter, UpdateSourceTrigger=PropertyChanged, Delay=200}"/>
 
                             <ItemsControl DockPanel.Dock="Top"
@@ -807,7 +832,7 @@
                                                     Margin="0 0 5 0"
                                                     Padding="0"
                                                     Click="{s:Action AssignAction}"
-                                                    ToolTip="Assign action">
+                                                    ToolTip="指定动作">
                                                 <material:PackIcon Kind="Plus"/>
                                             </Button>
 
@@ -898,7 +923,7 @@
                                                 material:RippleAssist.Feedback="{DynamicResource MaterialDesignErrorBrush}"
                                                 Click="{s:Action RemoveShortcut}"
                                                 Foreground="{DynamicResource MaterialDesignErrorBrush}"
-                                                ToolTip="Remove">
+                                                ToolTip="移除">
                                             <material:PackIcon Kind="Delete"/>
                                         </Button>
 
@@ -907,10 +932,10 @@
                                                       IsChecked="{Binding Enabled}">
                                             <ToggleButton.Resources>
                                                 <Style BasedOn="{StaticResource MaterialDesignSwitchToggleButton}" TargetType="{x:Type ToggleButton}">
-                                                    <Setter Property="ToolTip" Value="Enable"/>
+                                                    <Setter Property="ToolTip" Value="启用"/>
                                                     <Style.Triggers>
                                                         <Trigger Property="IsChecked" Value="True">
-                                                            <Setter Property="ToolTip" Value="Disable"/>
+                                                            <Setter Property="ToolTip" Value="禁用"/>
                                                         </Trigger>
                                                     </Style.Triggers>
                                                 </Style>
@@ -921,7 +946,7 @@
                                                    Margin="5 0 10 0"
                                                    VerticalAlignment="Center"
                                                    FontWeight="Medium"
-                                                   Text="{Binding Configurations.Count, StringFormat=Actions: {0}}"
+                                                   Text="{Binding Configurations.Count, StringFormat=动作：{0}}"
                                                    Typography.Capitals="AllSmallCaps"/>
 
                                         <material:ColorZone Width="34"

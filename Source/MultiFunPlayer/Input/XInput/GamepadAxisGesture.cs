@@ -1,12 +1,20 @@
-﻿namespace MultiFunPlayer.Input.XInput;
+using System.ComponentModel;
+
+namespace MultiFunPlayer.Input.XInput;
 
 internal enum GamepadAxis
 {
+    [Description("左扳机")]
     LeftTrigger,
+    [Description("右扳机")]
     RightTrigger,
+    [Description("左摇杆 X")]
     LeftThumbX,
+    [Description("左摇杆 Y")]
     LeftThumbY,
+    [Description("右摇杆 X")]
     RightThumbX,
+    [Description("右摇杆 Y")]
     RightThumbY
 }
 

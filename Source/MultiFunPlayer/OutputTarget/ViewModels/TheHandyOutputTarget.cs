@@ -1,4 +1,4 @@
-﻿using MultiFunPlayer.Common;
+using MultiFunPlayer.Common;
 using MultiFunPlayer.Property;
 using MultiFunPlayer.Shortcut;
 using MultiFunPlayer.UI;
@@ -47,9 +47,9 @@ internal sealed class TheHandyOutputTarget(int instanceIndex, IEventAggregator e
             Logger.Info("Connecting to {0} at \"{1}\" [Type: {2}]", Identifier, ConnectionKey, connectionType);
 
         if (string.IsNullOrWhiteSpace(ConnectionKey))
-            throw new OutputTargetException("Invalid connection key");
+            throw new OutputTargetException("连接密钥无效");
         if (SourceAxis == null)
-            throw new OutputTargetException("Source axis not selected");
+            throw new OutputTargetException("未选择源轴");
 
         return ValueTask.FromResult(true);
     }
@@ -66,25 +66,25 @@ internal sealed class TheHandyOutputTarget(int instanceIndex, IEventAggregator e
             {
                 var response = await ApiGetAsync(client, "connected", token);
                 if (!response.TryGetValue<bool>("connected", out var connected) || !connected)
-                    throw new OutputTargetException("Device is not connected");
+                    throw new OutputTargetException("设备未连接");
             }
 
             {
                 var response = await ApiGetAsync(client, "info", token);
                 if (!response.TryGetValue<int>("fwStatus", out var firmwareStatus) || firmwareStatus == 1)
-                    throw new OutputTargetException("Out of date firmware version, update required");
+                    throw new OutputTargetException("固件版本过旧，需要更新");
             }
 
             {
                 var response = await ApiPutAsync(client, "mode", "{ \"mode\": 2 }", token);
                 if (!response.TryGetValue<int>("result", out var result) || result == -1)
-                    throw new OutputTargetException($"Unable to set HDSP device mode [Response: {response.ToString(Formatting.None)}]");
+                    throw new OutputTargetException($"设置 HDSP 设备模式失败 [响应: {response.ToString(Formatting.None)}]");
             }
         }
         catch (Exception e) when (connectionType != ConnectionType.AutoConnect)
         {
             Logger.Error(e, "Error when connecting to {0}", Name);
-            _ = DialogHelper.ShowErrorAsync(e, $"Error when connecting to {Name}", "RootDialog");
+            _ = DialogHelper.ShowErrorAsync(e, $"连接 {Name} 时出错", "RootDialog");
             return;
         }
         catch
@@ -136,7 +136,7 @@ internal sealed class TheHandyOutputTarget(int instanceIndex, IEventAggregator e
         catch (Exception e)
         {
             Logger.Error(e, $"{Identifier} failed with exception");
-            _ = DialogHelper.ShowErrorAsync(e, $"{Identifier} failed with exception", "RootDialog");
+            _ = DialogHelper.ShowErrorAsync(e, $"{Identifier} 发生异常", "RootDialog");
         }
     }
 
@@ -147,7 +147,7 @@ internal sealed class TheHandyOutputTarget(int instanceIndex, IEventAggregator e
 
         Logger.Trace("{0} api response [Content: {1}]", Identifier, response.ToString(Formatting.None));
         if (response.TryGetObject(out var error, "error"))
-            throw new OutputTargetException($"Api call failed: {error.ToString(Formatting.None)}");
+            throw new OutputTargetException($"API 调用失败：{error.ToString(Formatting.None)}");
 
         return response;
     }
@@ -199,11 +199,11 @@ internal sealed class TheHandyOutputTarget(int instanceIndex, IEventAggregator e
         base.RegisterActions(s);
 
         #region ConnectionKey
-        s.RegisterAction<string>($"{Identifier}::ConnectionKey::Set", s => s.WithLabel("Connection key"), connectionKey => ConnectionKey = connectionKey);
+        s.RegisterAction<string>($"{Identifier}::ConnectionKey::Set", s => s.WithLabel("连接密钥"), connectionKey => ConnectionKey = connectionKey);
         #endregion
 
         #region SourceAxis
-        s.RegisterAction<DeviceAxis>($"{Identifier}::SourceAxis::Set", s => s.WithLabel("Source axis").WithItemsSource(DeviceAxis.All), axis => SourceAxis = axis);
+        s.RegisterAction<DeviceAxis>($"{Identifier}::SourceAxis::Set", s => s.WithLabel("源轴").WithItemsSource(DeviceAxis.All), axis => SourceAxis = axis);
         #endregion
     }
 

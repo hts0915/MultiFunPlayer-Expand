@@ -1,4 +1,4 @@
-﻿using System.Windows.Markup;
+using System.Windows.Markup;
 
 namespace MultiFunPlayer.UI;
 
@@ -12,7 +12,7 @@ public sealed class EnumBindingSourceExtension : MarkupExtension
 
         var actualEnumType = Nullable.GetUnderlyingType(enumType) ?? enumType;
         if (!actualEnumType.IsEnum)
-            throw new ArgumentException($"{enumType} is not an Enum type");
+            throw new ArgumentException($"{enumType} 不是枚举类型");
 
         _enumType = enumType;
     }

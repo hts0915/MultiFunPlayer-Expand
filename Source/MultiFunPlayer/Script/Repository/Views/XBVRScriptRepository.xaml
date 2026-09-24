@@ -15,7 +15,7 @@
             <TextBlock DockPanel.Dock="Left"
                        Margin="0 0 10 0"
                        VerticalAlignment="Center"
-                       Text="Endpoint:"/>
+                       Text="端点地址："/>
 
             <controls:UriBox DockPanel.Dock="Left"
                              Schemes="http https"
@@ -27,24 +27,36 @@
             <TextBlock DockPanel.Dock="Left"
                        Margin="0 0 10 0"
                        VerticalAlignment="Center"
-                       Text="Local match type:"/>
+                       Text="本地匹配方式："/>
 
             <ComboBox DockPanel.Dock="Left"
                       ItemsSource="{Binding Source={ui:EnumBindingSource {x:Type repository:XBVRLocalMatchType}}}"
                       SelectedItem="{Binding LocalMatchType}"
-                      ToolTip="{Binding SelectedItem, RelativeSource={RelativeSource Self}, Converter={StaticResource DescriptionConverter}}"/>
+                      ToolTip="{Binding SelectedItem, RelativeSource={RelativeSource Self}, Converter={StaticResource DescriptionConverter}}">
+                <ComboBox.ItemTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding Converter={StaticResource DescriptionConverter}}"/>
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
         </DockPanel>
 
         <DockPanel LastChildFill="False">
             <TextBlock DockPanel.Dock="Left"
                        Margin="0 0 10 0"
                        VerticalAlignment="Center"
-                       Text="Dms match type:"/>
+                       Text="DMS 匹配方式："/>
 
             <ComboBox DockPanel.Dock="Left"
                       ItemsSource="{Binding Source={ui:EnumBindingSource {x:Type repository:XBVRDmsMatchType}}}"
                       SelectedItem="{Binding DmsMatchType}"
-                      ToolTip="{Binding SelectedItem, RelativeSource={RelativeSource Self}, Converter={StaticResource DescriptionConverter}}"/>
+                      ToolTip="{Binding SelectedItem, RelativeSource={RelativeSource Self}, Converter={StaticResource DescriptionConverter}}">
+                <ComboBox.ItemTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding Converter={StaticResource DescriptionConverter}}"/>
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
         </DockPanel>
     </StackPanel>
 </UserControl>

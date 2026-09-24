@@ -27,7 +27,7 @@
                    Margin="0 0 0 10"
                    FontSize="14"
                    FontWeight="Bold"
-                   Text="Script libraries"
+                   Text="脚本库"
                    Typography.Capitals="AllSmallCaps"/>
 
         <material:Card Margin="0 0 0 10" material:ShadowAssist.ShadowDepth="Depth1">
@@ -54,7 +54,7 @@
                                             material:RippleAssist.Feedback="{DynamicResource MaterialDesignErrorBrush}"
                                             Click="{s:Action OnLibraryDelete}"
                                             Foreground="{DynamicResource MaterialDesignErrorBrush}"
-                                            ToolTip="Remove">
+                                            ToolTip="移除">
                                         <material:PackIcon Kind="Delete"/>
                                     </Button>
                                     <Button DockPanel.Dock="Right"
@@ -63,13 +63,13 @@
                                             Height="24"
                                             Padding="0"
                                             Click="{s:Action OnLibraryOpenFolder}"
-                                            ToolTip="Open location">
+                                            ToolTip="打开所在位置">
                                         <material:PackIcon Kind="FolderOpen"/>
                                     </Button>
                                     <CheckBox DockPanel.Dock="Right"
                                               Width="24"
                                               IsChecked="{Binding Recursive}"
-                                              ToolTip="Recurse subdirectories"/>
+                                              ToolTip="递归子目录"/>
                                     <TextBlock DockPanel.Dock="Left"
                                                Margin="0 0 20 0"
                                                VerticalAlignment="Center"

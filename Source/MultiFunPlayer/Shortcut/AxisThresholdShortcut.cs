@@ -1,10 +1,10 @@
-﻿using MultiFunPlayer.Input;
+using MultiFunPlayer.Input;
 using System.ComponentModel;
 using System.Diagnostics;
 
 namespace MultiFunPlayer.Shortcut;
 
-[DisplayName("Axis Threshold")]
+[DisplayName("轴阈值")]
 internal sealed class AxisThresholdShortcut(IShortcutActionRunner actionRunner, IAxisInputGestureDescriptor gesture)
     : AbstractShortcut<IAxisInputGesture, IEmptyInputGestureData>(actionRunner, gesture)
 {
@@ -33,7 +33,10 @@ internal sealed class AxisThresholdShortcut(IShortcutActionRunner actionRunner, 
 
 internal enum AxisThresholdTriggerMode
 {
+    [Description("上升沿")]
     Rising,
+    [Description("下降沿")]
     Falling,
+    [Description("双向")]
     Both
 }

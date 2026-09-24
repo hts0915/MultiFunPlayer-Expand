@@ -1,4 +1,4 @@
-﻿using MultiFunPlayer.Common;
+using MultiFunPlayer.Common;
 using MultiFunPlayer.UI;
 using NLog;
 using Stylet;
@@ -57,9 +57,9 @@ internal sealed class PlexMediaSource(IShortcutManager shortcutManager, IPropert
             Logger.Info("Connecting to {0} at \"{1}\" [Type: {2}]", Name, ServerBaseUri, connectionType);
 
         if (ServerBaseUri == null)
-            throw new MediaSourceException("Endpoint cannot be null");
+            throw new MediaSourceException("端点地址不能为空");
         if (string.IsNullOrEmpty(PlexToken))
-            throw new MediaSourceException("Plex token cannot be empty");
+            throw new MediaSourceException("Plex 令牌不能为空");
 
         if (SelectedClientMachineIdentifier == null)
             return false;
@@ -87,7 +87,7 @@ internal sealed class PlexMediaSource(IShortcutManager shortcutManager, IPropert
         catch (Exception e) when (connectionType != ConnectionType.AutoConnect)
         {
             Logger.Error(e, "Error when connecting to {0} at \"{1}\"", Name, ServerBaseUri);
-            _ = DialogHelper.ShowErrorAsync(e, $"Error when connecting to {Name}", "RootDialog");
+            _ = DialogHelper.ShowErrorAsync(e, $"连接 {Name} 时出错", "RootDialog");
             return;
         }
         catch
@@ -108,7 +108,7 @@ internal sealed class PlexMediaSource(IShortcutManager shortcutManager, IPropert
         catch (Exception e)
         {
             Logger.Error(e, $"{Name} failed with exception");
-            _ = DialogHelper.ShowErrorAsync(e, $"{Name} failed with exception", "RootDialog");
+            _ = DialogHelper.ShowErrorAsync(e, $"{Name} 发生异常", "RootDialog");
         }
 
         if (IsDisposing)
@@ -444,7 +444,7 @@ internal sealed class PlexMediaSource(IShortcutManager shortcutManager, IPropert
         base.RegisterActions(s);
 
         #region ServerBaseUri
-        s.RegisterAction<string>($"{Name}::ServerBaseUri::Set", s => s.WithLabel("Endpoint").WithDescription("scheme://ipOrHost:port"), serverBaseUri =>
+        s.RegisterAction<string>($"{Name}::ServerBaseUri::Set", s => s.WithLabel("端点地址").WithDescription("协议://IP或主机名:端口"), serverBaseUri =>
         {
             if (Uri.TryCreate(serverBaseUri, UriKind.Absolute, out var uri))
                 ServerBaseUri = uri;
@@ -452,11 +452,11 @@ internal sealed class PlexMediaSource(IShortcutManager shortcutManager, IPropert
         #endregion
 
         #region PlexToken
-        s.RegisterAction<string>($"{Name}::PlexToken::Set", s => s.WithLabel("Token"), token => PlexToken = token);
+        s.RegisterAction<string>($"{Name}::PlexToken::Set", s => s.WithLabel("令牌"), token => PlexToken = token);
         #endregion
 
         #region SelectedClient
-        s.RegisterAction<string>($"{Name}::Client::SetByName", s => s.WithLabel("Name"), name => {
+        s.RegisterAction<string>($"{Name}::Client::SetByName", s => s.WithLabel("名称"), name => {
             var client = Clients.FirstOrDefault(p => string.Equals(p.Name, name, StringComparison.Ordinal));
             if (client == null)
                 return;

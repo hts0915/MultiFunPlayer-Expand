@@ -1,10 +1,16 @@
-﻿namespace MultiFunPlayer.Input.RawInput;
+using System.ComponentModel;
+
+namespace MultiFunPlayer.Input.RawInput;
 
 internal enum MouseAxis
 {
+    [Description("X 轴")]
     X,
+    [Description("Y 轴")]
     Y,
+    [Description("滚轮")]
     MouseWheel,
+    [Description("水平滚轮")]
     MouseHorizontalWheel
 }
 

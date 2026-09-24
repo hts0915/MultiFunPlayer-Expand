@@ -1,9 +1,9 @@
-﻿using MultiFunPlayer.Input;
+using MultiFunPlayer.Input;
 using System.ComponentModel;
 
 namespace MultiFunPlayer.Shortcut;
 
-[DisplayName("Button Hold")]
+[DisplayName("按键长按")]
 internal sealed class ButtonHoldShortcut(IShortcutActionRunner actionRunner, IButtonInputGestureDescriptor gesture)
     : AbstractShortcut<IButtonInputGesture, IEmptyInputGestureData>(actionRunner, gesture)
 {
@@ -46,6 +46,8 @@ internal sealed class ButtonHoldShortcut(IShortcutActionRunner actionRunner, IBu
 
 internal enum ButtonHoldInvokeType
 {
+    [Description("松开时")]
     OnRelease,
+    [Description("按住期间")]
     WhileHolding
 }

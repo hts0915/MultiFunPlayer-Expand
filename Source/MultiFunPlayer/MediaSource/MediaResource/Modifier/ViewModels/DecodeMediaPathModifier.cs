@@ -1,4 +1,4 @@
-﻿using Newtonsoft.Json;
+using Newtonsoft.Json;
 using System.ComponentModel;
 using System.Web;
 
@@ -41,7 +41,10 @@ internal sealed class DecodeMediaPathModifier : AbstractMediaPathModifier
 
 internal enum DecodeType
 {
+    [Description("URI 反转义")]
     UriUnescapeDataString,
+    [Description("HTML 解码")]
     HttpUtilityHtmlDecode,
+    [Description("URL 解码")]
     HttpUtilityUrlDecode
 }

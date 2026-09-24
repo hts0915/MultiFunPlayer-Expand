@@ -39,10 +39,10 @@
                         IsEnabled="{Binding CanToggleConnect}">
                     <Button.Style>
                         <Style BasedOn="{StaticResource MaterialDesignProgressToolBarButton}" TargetType="{x:Type ButtonBase}">
-                            <Setter Property="ToolTip" Value="Connect"/>
+                            <Setter Property="ToolTip" Value="连接"/>
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding IsConnected}" Value="True">
-                                    <Setter Property="ToolTip" Value="Disconnect"/>
+                                    <Setter Property="ToolTip" Value="断开连接"/>
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>
@@ -74,7 +74,7 @@
                 <ToggleButton DockPanel.Dock="Left"
                               Style="{StaticResource MaterialDesignToolBarToggleButton}"
                               IsChecked="{Binding AutoConnectEnabled}"
-                              ToolTip="Auto-connect">
+                              ToolTip="自动连接">
                     <material:PackIcon Width="20"
                                        Height="20"
                                        Kind="MotionPlayOutline"
@@ -90,7 +90,7 @@
                                    Style="{StaticResource MaterialDesignToolBarPopupBox}"
                                    PlacementMode="BottomAndAlignRightEdges"
                                    StaysOpen="True"
-                                   ToolTip="Update settings">
+                                   ToolTip="更新设置">
                     <material:PopupBox.ToggleContent>
                         <material:PackIcon Width="20"
                                            Height="20"
@@ -102,7 +102,7 @@
                                        Margin="0 0 10 0"
                                        VerticalAlignment="Center"
                                        FontWeight="Bold"
-                                       Text="Update type:"/>
+                                       Text="更新类型："/>
 
                             <ComboBox DockPanel.Dock="Left"
                                       ItemsSource="{Binding AvailableUpdateTypes}"
@@ -142,7 +142,7 @@
                               Width="150"
                               Margin="0 -12 10 0"
                               VerticalAlignment="Center"
-                              material:HintAssist.Hint="serial port"
+                              material:HintAssist.Hint="串口"
                               material:TextFieldAssist.HasClearButton="True"
                               IsEnabled="{Binding CanChangePort}">
                         <ComboBox.ItemContainerStyle>
@@ -188,7 +188,7 @@
                             material:ButtonProgressAssist.Value="-1"
                             Command="{s:Action RefreshPorts}"
                             IsEnabled="{Binding CanRefreshPorts}"
-                            ToolTip="Refresh">
+                            ToolTip="刷新">
                         <material:PackIcon Width="16"
                                            Height="16"
                                            HorizontalAlignment="Center"
@@ -200,13 +200,13 @@
                                        PlacementMode="TopAndAlignRightEdges"
                                        PopupMode="Click"
                                        StaysOpen="True"
-                                       ToolTip="Advanced settings">
+                                       ToolTip="高级设置">
                         <StackPanel Margin="10">
                             <DockPanel HorizontalAlignment="Left">
                                 <TextBlock DockPanel.Dock="Left"
                                            Margin="0 0 10 0"
                                            VerticalAlignment="Center"
-                                           Text="Baud rate:"/>
+                                           Text="波特率："/>
                                 <ComboBox DockPanel.Dock="Right"
                                           ItemsSource="{Binding AvailableBaudRates}"
                                           SelectedItem="{Binding BaudRate}"/>
@@ -216,7 +216,7 @@
                                 <TextBlock DockPanel.Dock="Left"
                                            Margin="0 0 10 0"
                                            VerticalAlignment="Center"
-                                           Text="Parity:"/>
+                                           Text="校验位："/>
                                 <ComboBox DockPanel.Dock="Right"
                                           ItemsSource="{Binding Source={ui:EnumBindingSource {x:Type ports:Parity}}}"
                                           SelectedItem="{Binding Parity}"/>
@@ -226,7 +226,7 @@
                                 <TextBlock DockPanel.Dock="Left"
                                            Margin="0 0 10 0"
                                            VerticalAlignment="Center"
-                                           Text="Stop bits:"/>
+                                           Text="停止位："/>
                                 <ComboBox DockPanel.Dock="Right"
                                           ItemsSource="{Binding Source={ui:EnumBindingSource {x:Type ports:StopBits}}}"
                                           SelectedItem="{Binding StopBits}"/>
@@ -236,7 +236,7 @@
                                 <TextBlock DockPanel.Dock="Left"
                                            Margin="0 0 10 0"
                                            VerticalAlignment="Center"
-                                           Text="Data bits:"/>
+                                           Text="数据位："/>
                                 <metro:NumericUpDown DockPanel.Dock="Right"
                                                      HideUpDownButtons="True"
                                                      Maximum="8"
@@ -248,7 +248,7 @@
                                 <TextBlock DockPanel.Dock="Left"
                                            Margin="0 0 10 0"
                                            VerticalAlignment="Center"
-                                           Text="Handshake:"/>
+                                           Text="流控制："/>
                                 <ComboBox DockPanel.Dock="Right"
                                           ItemsSource="{Binding Source={ui:EnumBindingSource {x:Type ports:Handshake}}}"
                                           SelectedItem="{Binding Handshake}"/>
@@ -259,7 +259,7 @@
                                            Width="75"
                                            Margin="0 5 0 5"
                                            VerticalAlignment="Center"
-                                           Text="Enable DTR:"/>
+                                           Text="启用 DTR："/>
                                 <ToggleButton DockPanel.Dock="Right"
                                               Style="{StaticResource MaterialDesignSwitchToggleButton}"
                                               IsChecked="{Binding DtrEnable}"/>
@@ -270,7 +270,7 @@
                                            Width="75"
                                            Margin="0 5 0 5"
                                            VerticalAlignment="Center"
-                                           Text="Enable RTS:"/>
+                                           Text="启用 RTS："/>
                                 <ToggleButton DockPanel.Dock="Right"
                                               Style="{StaticResource MaterialDesignSwitchToggleButton}"
                                               IsChecked="{Binding RtsEnable}"/>
@@ -280,7 +280,7 @@
                                 <TextBlock DockPanel.Dock="Left"
                                            Margin="0 0 10 0"
                                            VerticalAlignment="Center"
-                                           Text="Read timeout:"/>
+                                           Text="读取超时："/>
                                 <metro:NumericUpDown DockPanel.Dock="Right"
                                                      HideUpDownButtons="True"
                                                      Minimum="-1"
@@ -292,7 +292,7 @@
                                 <TextBlock DockPanel.Dock="Left"
                                            Margin="0 0 10 0"
                                            VerticalAlignment="Center"
-                                           Text="Write timeout:"/>
+                                           Text="写入超时："/>
                                 <metro:NumericUpDown DockPanel.Dock="Right"
                                                      HideUpDownButtons="True"
                                                      Minimum="-1"
@@ -304,7 +304,7 @@
                                 <TextBlock DockPanel.Dock="Left"
                                            Margin="0 0 10 0"
                                            VerticalAlignment="Center"
-                                           Text="Read buffer size:"/>
+                                           Text="读取缓冲区大小："/>
                                 <metro:NumericUpDown DockPanel.Dock="Right"
                                                      HideUpDownButtons="True"
                                                      Minimum="2"
@@ -315,7 +315,7 @@
                                 <TextBlock DockPanel.Dock="Left"
                                            Margin="0 0 10 0"
                                            VerticalAlignment="Center"
-                                           Text="Write buffer size:"/>
+                                           Text="写入缓冲区大小："/>
                                 <metro:NumericUpDown DockPanel.Dock="Right"
                                                      HideUpDownButtons="True"
                                                      Minimum="2"
@@ -343,7 +343,7 @@
             <TextBlock HorizontalAlignment="Left"
                        VerticalAlignment="Center"
                        FontWeight="Bold"
-                       Text="Output Range"
+                       Text="输出范围"
                        Typography.Capitals="AllSmallCaps"/>
             <ItemsControl ItemsSource="{Binding AxisSettings}">
                 <ItemsControl.ItemsPanel>
@@ -377,7 +377,7 @@
 
                                 <TextBlock FontSize="10"
                                            FontWeight="Bold"
-                                           Text="{Binding Key}"/>
+                                           ToolTip="{Binding Key}" Text="{Binding Key.FriendlyName}"/>
                             </ToggleButton>
 
                             <Canvas DockPanel.Dock="Right" HorizontalAlignment="Stretch">

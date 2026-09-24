@@ -1,4 +1,4 @@
-﻿using Linearstar.Windows.RawInput;
+using Linearstar.Windows.RawInput;
 using Linearstar.Windows.RawInput.Native;
 using MultiFunPlayer.Common;
 using Newtonsoft.Json;
@@ -192,7 +192,7 @@ internal sealed class RawInputProcessor : AbstractInputProcessor, IHandle<Window
     private void RegisterWindow(HwndSource source)
     {
         if (_source != null)
-            throw new InvalidOperationException("Cannot register more than one window");
+            throw new InvalidOperationException("不能注册多个窗口");
 
         _source = source;
 

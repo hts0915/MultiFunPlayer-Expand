@@ -1,4 +1,4 @@
-﻿using Newtonsoft.Json.Linq;
+using Newtonsoft.Json.Linq;
 using Newtonsoft.Json;
 using MultiFunPlayer.OutputTarget;
 using MultiFunPlayer.Common;
@@ -13,14 +13,14 @@ internal sealed class OutputTargetConverter(IOutputTargetFactory outputTargetFac
         var o = JToken.ReadFrom(reader) as JObject;
 
         var type = o.GetTypeProperty()
-            ?? throw new JsonReaderException($"Failed to find output target type \"{o["$type"]}\"");
+            ?? throw new JsonReaderException($"找不到输出目标类型 \"{o["$type"]}\"");
 
         var index = o["$index"].ToObject<int>();
         o.Remove("$type");
         o.Remove("$index");
 
         var instance = outputTargetFactory.CreateOutputTarget(type, index)
-            ?? throw new JsonReaderException($"Failed to create instance of \"{type}\" with \"{index}\" index");
+            ?? throw new JsonReaderException($"无法创建类型 \"{type}\" 的实例（索引 \"{index}\"）");
 
         instance.HandleSettings(o, SettingsAction.Loading);
         return instance;

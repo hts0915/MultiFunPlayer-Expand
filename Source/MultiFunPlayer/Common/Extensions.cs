@@ -1,4 +1,4 @@
-﻿using Newtonsoft.Json;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Stylet;
 using System.Buffers;
@@ -302,7 +302,7 @@ public static class NetExtensions
         if (endpoint is DnsEndPoint dnsEndPoint)
             return client.ConnectAsync(dnsEndPoint.Host, dnsEndPoint.Port, cancellationToken);
 
-        throw new NotSupportedException($"{endpoint.GetType()} in not supported.");
+        throw new NotSupportedException($"不支持 {endpoint.GetType()}。");
     }
 
     public static void Connect(this TcpClient client, EndPoint endpoint)
@@ -312,7 +312,7 @@ public static class NetExtensions
         else if (endpoint is DnsEndPoint dnsEndPoint)
             client.Connect(dnsEndPoint.Host, dnsEndPoint.Port);
         else
-            throw new NotSupportedException($"{endpoint.GetType()} in not supported.");
+            throw new NotSupportedException($"不支持 {endpoint.GetType()}。");
     }
 
     public static void Connect(this UdpClient client, EndPoint endpoint)
@@ -322,7 +322,7 @@ public static class NetExtensions
         else if (endpoint is DnsEndPoint dnsEndPoint)
             client.Connect(dnsEndPoint.Host, dnsEndPoint.Port);
         else
-            throw new NotSupportedException($"{endpoint.GetType()} in not supported.");
+            throw new NotSupportedException($"不支持 {endpoint.GetType()}。");
     }
 
     public static bool IsLocalhost(this EndPoint endpoint)
@@ -332,7 +332,7 @@ public static class NetExtensions
         if (endpoint is DnsEndPoint dnsEndPoint)
             return string.Equals(dnsEndPoint.Host, "localhost", StringComparison.OrdinalIgnoreCase);
 
-        throw new NotSupportedException($"{endpoint.GetType()} in not supported.");
+        throw new NotSupportedException($"不支持 {endpoint.GetType()}。");
     }
 
     public static IPAddress[] GetAddresses(this EndPoint endpoint)
@@ -370,7 +370,7 @@ public static class NetExtensions
         if (endpoint is DnsEndPoint dnsEndPoint)
             return $"{dnsEndPoint.Host}:{dnsEndPoint.Port}";
 
-        throw new NotSupportedException($"{endpoint.GetType()} in not supported.");
+        throw new NotSupportedException($"不支持 {endpoint.GetType()}。");
     }
 }
 

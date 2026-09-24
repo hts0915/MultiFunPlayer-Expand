@@ -73,7 +73,7 @@
                             <material:PopupBox Style="{StaticResource MaterialDesignToolBarPopupBox}"
                                                PlacementMode="RightAndAlignMiddles"
                                                PopupHorizontalOffset="-5"
-                                               ToolTip="Add output">
+                                               ToolTip="添加输出">
                                 <material:PopupBox.ToggleContent>
                                     <material:PackIcon Width="22"
                                                        Height="22"
@@ -97,7 +97,7 @@
                                                         material:ShadowAssist.ShadowDepth="Depth0"
                                                         Command="{s:Action AddItem}"
                                                         CommandParameter="{Binding}"
-                                                        ToolTip="Add new">
+                                                        ToolTip="新增">
                                                     <TextBlock Margin="10 0 10 0"
                                                                FontSize="12"
                                                                Text="{Binding Converter={StaticResource DisplayNameConverter}}"/>
@@ -111,7 +111,7 @@
                             <Button Style="{StaticResource MaterialDesignToolBarButton}"
                                     Padding="8"
                                     Command="{x:Static material:DialogHost.OpenDialogCommand}"
-                                    ToolTip="Common settings">
+                                    ToolTip="常用设置">
                                 <Button.CommandParameter>
                                     <Grid Width="200"
                                           MaxHeight="400"
@@ -121,7 +121,7 @@
                                                    VerticalAlignment="Top"
                                                    FontSize="14"
                                                    FontWeight="Bold"
-                                                   Text="Output target settings"
+                                                   Text="输出目标设置"
                                                    Typography.Capitals="AllSmallCaps"/>
 
                                         <Button Style="{StaticResource MaterialDesignFlatButton}"
@@ -143,7 +143,7 @@
                                                 <TextBlock DockPanel.Dock="Left"
                                                            Margin="0 0 10 0"
                                                            VerticalAlignment="Center"
-                                                           Text="Scan delay: "/>
+                                                           Text="扫描延迟： "/>
                                                 <material:ColorZone DockPanel.Dock="Right"
                                                                     Width="14"
                                                                     Height="14"
@@ -153,8 +153,8 @@
                                                                     Mode="Custom">
                                                     <material:ColorZone.ToolTip>
                                                         <TextBlock>
-                                                            Initial scan delay after application start.<LineBreak/>
-                                                            Requires application restart.</TextBlock>
+                                                            应用启动后的初始扫描延迟。<LineBreak/>
+                                                            需要重启应用。</TextBlock>
                                                     </material:ColorZone.ToolTip>
                                                     <material:PackIcon Width="10"
                                                                        Height="10"
@@ -176,7 +176,7 @@
                                                 <TextBlock DockPanel.Dock="Left"
                                                            Margin="0 0 10 0"
                                                            VerticalAlignment="Center"
-                                                           Text="Scan interval: "/>
+                                                           Text="扫描间隔： "/>
                                                 <metro:NumericUpDown DockPanel.Dock="Left"
                                                                      Interval="100"
                                                                      Minimum="0"

@@ -1,4 +1,4 @@
-﻿using MultiFunPlayer.Common;
+using MultiFunPlayer.Common;
 using MultiFunPlayer.Input;
 using MultiFunPlayer.Property;
 using MultiFunPlayer.Shortcut;
@@ -44,7 +44,7 @@ internal sealed class ShortcutSettingsViewModel : Screen, IHandle<SettingsMessag
 
     public ShortcutSettingsViewModel(IShortcutManager shortcutManager, IPropertyManager propertyManager, IShortcutFactory shortcutFactory, IEventAggregator eventAggregator)
     {
-        DisplayName = "Shortcut";
+        DisplayName = "快捷键";
         _shortcutManager = shortcutManager;
         _shortcutFactory = shortcutFactory;
 
@@ -281,12 +281,12 @@ internal sealed class ShortcutSettingsViewModel : Screen, IHandle<SettingsMessag
         }
 
         s.RegisterAction<string, bool>("Shortcut::Enabled::Set",
-            s => s.WithLabel("Target shortcut name"),
-            s => s.WithLabel("Enabled"),
+            s => s.WithLabel("目标快捷键名称"),
+            s => s.WithLabel("启用"),
             (shortcutName, enabled) => UpdateSettings(shortcutName, s => s.Enabled = enabled));
 
         s.RegisterAction<string>("Shortcut::Enabled::Toggle",
-            s => s.WithLabel("Target shortcut name"),
+            s => s.WithLabel("目标快捷键名称"),
             shortcutName => UpdateSettings(shortcutName, s => s.Enabled = !s.Enabled));
         #endregion
     }

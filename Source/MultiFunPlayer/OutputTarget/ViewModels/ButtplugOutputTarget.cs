@@ -1,4 +1,4 @@
-﻿using Buttplug;
+using Buttplug;
 using Buttplug.NewtonsoftJson;
 using MultiFunPlayer.Common;
 using MultiFunPlayer.Property;
@@ -85,7 +85,7 @@ internal sealed class ButtplugOutputTarget : AsyncAbstractOutputTarget
             Logger.Info("Connecting to {0} at \"{1}\" [Type: {2}]", Identifier, Endpoint?.ToUriString(), connectionType);
 
         if (Endpoint == null)
-            throw new OutputTargetException("Endpoint cannot be null");
+            throw new OutputTargetException("端点地址不能为空");
 
         return ValueTask.FromResult(true);
     }
@@ -132,7 +132,7 @@ internal sealed class ButtplugOutputTarget : AsyncAbstractOutputTarget
         catch (Exception e) when (connectionType != ConnectionType.AutoConnect)
         {
             Logger.Error(e, "Error when connecting to {0} at \"{1}\"", Name, Endpoint?.ToUriString());
-            _ = DialogHelper.ShowErrorAsync(e, $"Error when connecting to {Name}", "RootDialog");
+            _ = DialogHelper.ShowErrorAsync(e, $"连接 {Name} 时出错", "RootDialog");
             return;
         }
         catch
@@ -156,7 +156,7 @@ internal sealed class ButtplugOutputTarget : AsyncAbstractOutputTarget
         catch (Exception e)
         {
             Logger.Error(e, $"{Identifier} failed with exception");
-            _ = DialogHelper.ShowErrorAsync(e, $"{Identifier} failed with exception", "RootDialog");
+            _ = DialogHelper.ShowErrorAsync(e, $"{Identifier} 发生异常", "RootDialog");
         }
 
         AvailableDevices.Clear();
@@ -406,7 +406,7 @@ internal sealed class ButtplugOutputTarget : AsyncAbstractOutputTarget
         base.RegisterActions(s);
 
         #region Endpoint
-        s.RegisterAction<string>($"{Identifier}::Endpoint::Set", s => s.WithLabel("Endpoint").WithDescription("ipOrHost:port"), endpointString =>
+        s.RegisterAction<string>($"{Identifier}::Endpoint::Set", s => s.WithLabel("端点地址").WithDescription("IP或主机名:端口"), endpointString =>
         {
             if (NetUtils.TryParseEndpoint(endpointString, out var endpoint))
                 Endpoint = endpoint;

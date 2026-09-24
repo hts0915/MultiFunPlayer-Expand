@@ -1,9 +1,9 @@
-﻿using MultiFunPlayer.Input;
+using MultiFunPlayer.Input;
 using System.ComponentModel;
 
 namespace MultiFunPlayer.Shortcut;
 
-[DisplayName("Toggle Flip")]
+[DisplayName("切换翻转")]
 internal sealed class ToggleFlipShortcut(IShortcutActionRunner actionRunner, IToggleInputGestureDescriptor gesture)
     : AbstractShortcut<IToggleInputGesture, IToggleInputGestureData>(actionRunner, gesture)
 {

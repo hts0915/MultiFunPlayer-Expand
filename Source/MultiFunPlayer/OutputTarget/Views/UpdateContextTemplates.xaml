@@ -1,10 +1,10 @@
-﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:material="http://materialdesigninxaml.net/winfx/xaml/themes"
                     xmlns:output="clr-namespace:MultiFunPlayer.OutputTarget">
     <DataTemplate DataType="{x:Type output:ThreadPolledUpdateContext}">
         <DockPanel DockPanel.Dock="Left" HorizontalAlignment="Left">
-            <TextBlock DockPanel.Dock="Left" Text="Error:"/>
+            <TextBlock DockPanel.Dock="Left" Text="错误："/>
             <TextBlock DockPanel.Dock="Right"
                        Width="80"
                        Text="{Binding AverageUpdateError, StringFormat={}{0:F2} ms}"
@@ -14,7 +14,7 @@
 
     <DataTemplate DataType="{x:Type output:AsyncPolledUpdateContext}">
         <DockPanel DockPanel.Dock="Left" HorizontalAlignment="Left">
-            <TextBlock DockPanel.Dock="Left" Text="Error:"/>
+            <TextBlock DockPanel.Dock="Left" Text="错误："/>
             <TextBlock DockPanel.Dock="Right"
                        Width="80"
                        Text="{Binding AverageUpdateError, StringFormat={}{0:F2} ms}"
@@ -28,7 +28,7 @@
                 <TextBlock DockPanel.Dock="Left"
                            Margin="0 0 10 0"
                            VerticalAlignment="Center"
-                           Text="Update rate:"/>
+                           Text="更新频率："/>
                 <TextBlock DockPanel.Dock="Right"
                            Width="40"
                            HorizontalAlignment="Right"
@@ -54,7 +54,7 @@
                 <DockPanel DockPanel.Dock="Left"
                            Width="100"
                            HorizontalAlignment="Left">
-                    <TextBlock DockPanel.Dock="Left" Text="Average:"/>
+                    <TextBlock DockPanel.Dock="Left" Text="平均："/>
                     <TextBlock DockPanel.Dock="Right"
                                Text="{Binding AverageUpdateRate, StringFormat={}{0} hz}"
                                TextAlignment="Right"/>
@@ -63,7 +63,7 @@
                 <DockPanel DockPanel.Dock="Right"
                            Width="80"
                            HorizontalAlignment="Left">
-                    <TextBlock DockPanel.Dock="Left" Text="Jitter:"/>
+                    <TextBlock DockPanel.Dock="Left" Text="抖动："/>
                     <TextBlock DockPanel.Dock="Right"
                                Text="{Binding UpdateRateJitter, StringFormat={}{0} hz}"
                                TextAlignment="Right"/>
@@ -73,7 +73,7 @@
             <DockPanel HorizontalAlignment="Left">
                 <TextBlock DockPanel.Dock="Left"
                            Margin="0 0 5 0"
-                           Text="Precise sleep:"/>
+                           Text="精确休眠："/>
                 <ToggleButton DockPanel.Dock="Left"
                               Style="{StaticResource MaterialDesignSwitchToggleButton}"
                               Margin="0 0 5 0"
@@ -88,8 +88,8 @@
                                     Mode="Custom">
                     <material:ColorZone.ToolTip>
                         <TextBlock>
-                            Sacrifices processor time in exchange for<LineBreak/>
-                            more consistent update ticks (lower jitter)</TextBlock>
+                            牺牲处理器时间以换取<LineBreak/>
+                            更稳定的更新频率（更低的抖动）</TextBlock>
                     </material:ColorZone.ToolTip>
                     <material:PackIcon Width="10"
                                        Height="10"
@@ -108,7 +108,7 @@
                 <TextBlock DockPanel.Dock="Left"
                            Margin="0 0 10 0"
                            VerticalAlignment="Center"
-                           Text="Update rate:"/>
+                           Text="更新频率："/>
                 <TextBlock DockPanel.Dock="Right"
                            Width="40"
                            HorizontalAlignment="Right"
@@ -134,7 +134,7 @@
                 <DockPanel DockPanel.Dock="Left"
                            Width="100"
                            HorizontalAlignment="Left">
-                    <TextBlock DockPanel.Dock="Left" Text="Average:"/>
+                    <TextBlock DockPanel.Dock="Left" Text="平均："/>
                     <TextBlock DockPanel.Dock="Right"
                                Text="{Binding AverageUpdateRate, StringFormat={}{0} hz}"
                                TextAlignment="Right"/>
@@ -143,7 +143,7 @@
                 <DockPanel DockPanel.Dock="Right"
                            Width="80"
                            HorizontalAlignment="Left">
-                    <TextBlock DockPanel.Dock="Left" Text="Jitter:"/>
+                    <TextBlock DockPanel.Dock="Left" Text="抖动："/>
                     <TextBlock DockPanel.Dock="Right"
                                Text="{Binding UpdateRateJitter, StringFormat={}{0} hz}"
                                TextAlignment="Right"/>
@@ -158,7 +158,7 @@
                 <TextBlock DockPanel.Dock="Left"
                            Margin="0 0 10 0"
                            VerticalAlignment="Center"
-                           Text="Update rate:"/>
+                           Text="更新频率："/>
                 <TextBlock DockPanel.Dock="Right"
                            Width="40"
                            HorizontalAlignment="Right"
@@ -184,7 +184,7 @@
                 <DockPanel DockPanel.Dock="Left"
                            Width="100"
                            HorizontalAlignment="Left">
-                    <TextBlock DockPanel.Dock="Left" Text="Average:"/>
+                    <TextBlock DockPanel.Dock="Left" Text="平均："/>
                     <TextBlock DockPanel.Dock="Right"
                                Text="{Binding AverageUpdateRate, StringFormat={}{0} hz}"
                                TextAlignment="Right"/>
@@ -193,7 +193,7 @@
                 <DockPanel DockPanel.Dock="Right"
                            Width="80"
                            HorizontalAlignment="Left">
-                    <TextBlock DockPanel.Dock="Left" Text="Jitter:"/>
+                    <TextBlock DockPanel.Dock="Left" Text="抖动："/>
                     <TextBlock DockPanel.Dock="Right"
                                Text="{Binding UpdateRateJitter, StringFormat={}{0} hz}"
                                TextAlignment="Right"/>
@@ -203,7 +203,7 @@
             <DockPanel HorizontalAlignment="Left">
                 <TextBlock DockPanel.Dock="Left"
                            Margin="0 0 5 0"
-                           Text="Precise sleep:"/>
+                           Text="精确休眠："/>
                 <ToggleButton DockPanel.Dock="Left"
                               Style="{StaticResource MaterialDesignSwitchToggleButton}"
                               Margin="0 0 5 0"
@@ -218,8 +218,8 @@
                                     Mode="Custom">
                     <material:ColorZone.ToolTip>
                         <TextBlock>
-                            Sacrifices processor time in exchange for<LineBreak/>
-                            more consistent update ticks (lower jitter)</TextBlock>
+                            牺牲处理器时间以换取<LineBreak/>
+                            更稳定的更新频率（更低的抖动）</TextBlock>
                     </material:ColorZone.ToolTip>
                     <material:PackIcon Width="10"
                                        Height="10"
@@ -233,7 +233,7 @@
             <DockPanel HorizontalAlignment="Left">
                 <TextBlock DockPanel.Dock="Left"
                            Margin="0 0 5 0"
-                           Text="Offload elapsed time:"/>
+                           Text="间隔交由设备推算："/>
                 <ToggleButton DockPanel.Dock="Left"
                               Style="{StaticResource MaterialDesignSwitchToggleButton}"
                               Margin="0 0 5 0"
@@ -248,8 +248,8 @@
                                     Mode="Custom">
                     <material:ColorZone.ToolTip>
                         <TextBlock>
-                            If enabled: offloads update tick elapsed time calculation to the device<LineBreak/>
-                            If disabled: sends update tick elapsed time calculated by MultiFunPlayer</TextBlock>
+                            启用时：由设备自行推算每次更新的间隔<LineBreak/>
+                            禁用时：由 MultiFunPlayer 计算并发送间隔</TextBlock>
                     </material:ColorZone.ToolTip>
                     <material:PackIcon Width="10"
                                        Height="10"
@@ -263,7 +263,7 @@
             <DockPanel HorizontalAlignment="Left">
                 <TextBlock DockPanel.Dock="Left"
                            Margin="0 0 5 0"
-                           Text="Send dirty axes only:"/>
+                           Text="仅发送变化的轴："/>
                 <ToggleButton DockPanel.Dock="Left"
                               Style="{StaticResource MaterialDesignSwitchToggleButton}"
                               Margin="0 0 5 0"
@@ -278,8 +278,8 @@
                                     Mode="Custom">
                     <material:ColorZone.ToolTip>
                         <TextBlock>
-                            If enabled: only axes with changed values are sent on each update tick<LineBreak/>
-                            If disabled: all axes are sent on each update tick</TextBlock>
+                            启用时：每次更新只发送数值有变化的轴<LineBreak/>
+                            禁用时：每次更新发送所有轴</TextBlock>
                     </material:ColorZone.ToolTip>
                     <material:PackIcon Width="10"
                                        Height="10"
@@ -298,7 +298,7 @@
                 <TextBlock DockPanel.Dock="Left"
                            Margin="0 0 10 0"
                            VerticalAlignment="Center"
-                           Text="Update rate:"/>
+                           Text="更新频率："/>
                 <TextBlock DockPanel.Dock="Right"
                            Width="40"
                            HorizontalAlignment="Right"
@@ -324,7 +324,7 @@
                 <DockPanel DockPanel.Dock="Left"
                            Width="100"
                            HorizontalAlignment="Left">
-                    <TextBlock DockPanel.Dock="Left" Text="Average:"/>
+                    <TextBlock DockPanel.Dock="Left" Text="平均："/>
                     <TextBlock DockPanel.Dock="Right"
                                Text="{Binding AverageUpdateRate, StringFormat={}{0} hz}"
                                TextAlignment="Right"/>
@@ -333,7 +333,7 @@
                 <DockPanel DockPanel.Dock="Right"
                            Width="80"
                            HorizontalAlignment="Left">
-                    <TextBlock DockPanel.Dock="Left" Text="Jitter:"/>
+                    <TextBlock DockPanel.Dock="Left" Text="抖动："/>
                     <TextBlock DockPanel.Dock="Right"
                                Text="{Binding UpdateRateJitter, StringFormat={}{0} hz}"
                                TextAlignment="Right"/>
@@ -343,7 +343,7 @@
             <DockPanel HorizontalAlignment="Left">
                 <TextBlock DockPanel.Dock="Left"
                            Margin="0 0 5 0"
-                           Text="Offload elapsed time:"/>
+                           Text="间隔交由设备推算："/>
                 <ToggleButton DockPanel.Dock="Left"
                               Style="{StaticResource MaterialDesignSwitchToggleButton}"
                               Margin="0 0 5 0"
@@ -358,8 +358,8 @@
                                     Mode="Custom">
                     <material:ColorZone.ToolTip>
                         <TextBlock>
-                            If enabled: offloads update tick elapsed time calculation to the device<LineBreak/>
-                            If disabled: sends update tick elapsed time calculated by MultiFunPlayer</TextBlock>
+                            启用时：由设备自行推算每次更新的间隔<LineBreak/>
+                            禁用时：由 MultiFunPlayer 计算并发送间隔</TextBlock>
                     </material:ColorZone.ToolTip>
                     <material:PackIcon Width="10"
                                        Height="10"
@@ -373,7 +373,7 @@
             <DockPanel HorizontalAlignment="Left">
                 <TextBlock DockPanel.Dock="Left"
                            Margin="0 0 5 0"
-                           Text="Send dirty axes only:"/>
+                           Text="仅发送变化的轴："/>
                 <ToggleButton DockPanel.Dock="Left"
                               Style="{StaticResource MaterialDesignSwitchToggleButton}"
                               Margin="0 0 5 0"
@@ -388,8 +388,8 @@
                                     Mode="Custom">
                     <material:ColorZone.ToolTip>
                         <TextBlock>
-                            If enabled: only axes with changed values are sent on each update tick<LineBreak/>
-                            If disabled: all axes are sent on each update tick</TextBlock>
+                            启用时：每次更新只发送数值有变化的轴<LineBreak/>
+                            禁用时：每次更新发送所有轴</TextBlock>
                     </material:ColorZone.ToolTip>
                     <material:PackIcon Width="10"
                                        Height="10"

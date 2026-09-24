@@ -17,7 +17,7 @@
             <StackPanel DockPanel.Dock="Left" Orientation="Horizontal">
                 <TextBlock Margin="0 0 10 0"
                            VerticalAlignment="Center"
-                           Text="Endpoint:"/>
+                           Text="端点地址："/>
 
                 <controls:UriBox DockPanel.Dock="Left"
                                  Schemes="http https"
@@ -28,10 +28,10 @@
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
                 <TextBlock Margin="0 0 10 0"
                            VerticalAlignment="Center"
-                           Text="Api key:"/>
+                           Text="API 密钥："/>
 
                 <TextBox Width="150"
-                         material:HintAssist.Hint="(optional)"
+                         material:HintAssist.Hint="（可选）"
                          material:TextFieldAssist.HasClearButton="True"
                          Text="{Binding ApiKey}"/>
             </StackPanel>
@@ -41,12 +41,18 @@
             <TextBlock DockPanel.Dock="Left"
                        Margin="0 0 10 0"
                        VerticalAlignment="Center"
-                       Text="Local match type:"/>
+                       Text="本地匹配方式："/>
 
             <ComboBox DockPanel.Dock="Left"
                       ItemsSource="{Binding Source={ui:EnumBindingSource {x:Type repository:StashLocalMatchType}}}"
                       SelectedItem="{Binding LocalMatchType}"
-                      ToolTip="{Binding SelectedItem, RelativeSource={RelativeSource Self}, Converter={StaticResource DescriptionConverter}}"/>
+                      ToolTip="{Binding SelectedItem, RelativeSource={RelativeSource Self}, Converter={StaticResource DescriptionConverter}}">
+                <ComboBox.ItemTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding Converter={StaticResource DescriptionConverter}}"/>
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
         </DockPanel>
 
 
@@ -54,12 +60,18 @@
             <TextBlock DockPanel.Dock="Left"
                        Margin="0 0 10 0"
                        VerticalAlignment="Center"
-                       Text="Dms match type:"/>
+                       Text="DMS 匹配方式："/>
 
             <ComboBox DockPanel.Dock="Left"
                       ItemsSource="{Binding Source={ui:EnumBindingSource {x:Type repository:StashDmsMatchType}}}"
                       SelectedItem="{Binding DmsMatchType}"
-                      ToolTip="{Binding SelectedItem, RelativeSource={RelativeSource Self}, Converter={StaticResource DescriptionConverter}}"/>
+                      ToolTip="{Binding SelectedItem, RelativeSource={RelativeSource Self}, Converter={StaticResource DescriptionConverter}}">
+                <ComboBox.ItemTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding Converter={StaticResource DescriptionConverter}}"/>
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
 
             <StackPanel Orientation="Horizontal">
                 <StackPanel.Resources>
@@ -76,7 +88,7 @@
                     </Style>
                 </StackPanel.Resources>
 
-                <Label Margin="15 0 5 0" Content="Axis:"/>
+                <Label Margin="15 0 5 0" Content="轴："/>
                 <ComboBox DockPanel.Dock="Left"
                           ItemsSource="{Binding Source={x:Static common:DeviceAxis.All}}"
                           SelectedItem="{Binding DmsMatchAxis}"

@@ -1,4 +1,4 @@
-﻿using MultiFunPlayer.Common;
+using MultiFunPlayer.Common;
 using MultiFunPlayer.Property;
 using MultiFunPlayer.Shortcut;
 using Newtonsoft.Json;
@@ -10,11 +10,17 @@ namespace MultiFunPlayer.MotionProvider.ViewModels;
 
 public enum PatternType
 {
+    [Description("三角波")]
     Triangle,
+    [Description("正弦波")]
     Sine,
+    [Description("双跳")]
     DoubleBounce,
+    [Description("尖跳")]
     SharpBounce,
+    [Description("锯齿波")]
     Saw,
+    [Description("方波")]
     Square
 }
 
@@ -71,8 +77,8 @@ internal sealed class PatternMotionProvider(DeviceAxis target, IEventAggregator 
 
         #region PatternMotionProvider::Pattern
         s.RegisterAction<DeviceAxis, PatternType>($"MotionProvider::{name}::Pattern::Set",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
-            s => s.WithLabel("Pattern").WithItemsSource(Enum.GetValues<PatternType>()),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("图案").WithItemsSource(Enum.GetValues<PatternType>()),
             (axis, pattern) => UpdateProperty(axis, p => p.Pattern = pattern));
         #endregion
     }

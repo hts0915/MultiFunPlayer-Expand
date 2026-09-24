@@ -1,4 +1,4 @@
-﻿using MultiFunPlayer.Common;
+using MultiFunPlayer.Common;
 using MultiFunPlayer.Input;
 using MultiFunPlayer.Property;
 using MultiFunPlayer.Shortcut;
@@ -53,49 +53,49 @@ internal abstract class AbstractMotionProvider : Screen, IMotionProvider
 
         #region MotionProvider::Speed
         s.RegisterAction<DeviceAxis, double>($"MotionProvider::{name}::Speed::Offset",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
-            s => s.WithLabel("Value offset").AsNumericUpDown(interval: 0.01, stringFormat: "{0:P0}"),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("数值偏移").AsNumericUpDown(interval: 0.01, stringFormat: "{0:P0}"),
             (axis, offset) => UpdateProperty(axis, p => p.Speed = Math.Max(0.01, p.Speed + offset)));
 
         s.RegisterAction<DeviceAxis, double>($"MotionProvider::{name}::Speed::Set",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
-            s => s.WithLabel("Value").AsNumericUpDown(minimum: 0.01, interval: 0.01, stringFormat: "{0:P0}"),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("数值").AsNumericUpDown(minimum: 0.01, interval: 0.01, stringFormat: "{0:P0}"),
             (axis, value) => UpdateProperty(axis, p => p.Speed = Math.Max(0.01, value)));
 
         s.RegisterAction<IAxisInputGestureData, DeviceAxis>($"MotionProvider::{name}::Speed::Drive",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
             (data, axis) => UpdateProperty(axis, p => p.Speed = Math.Max(0.01, data.ApplyTo(p.Speed))));
         #endregion
 
         #region MotionProvider::Minimum
         s.RegisterAction<DeviceAxis, double>($"MotionProvider::{name}::Minimum::Offset",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
-            s => s.WithLabel("Value offset").AsNumericUpDown(-1, 1, 0.01, "{0:P0}"),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("数值偏移").AsNumericUpDown(-1, 1, 0.01, "{0:P0}"),
             (axis, offset) => UpdateProperty(axis, p => p.Minimum = MathUtils.Clamp01(p.Minimum + offset)));
 
         s.RegisterAction<DeviceAxis, double>($"MotionProvider::{name}::Minimum::Set",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
-            s => s.WithLabel("Value").AsNumericUpDown(0, 1, 0.01, "{0:P0}"),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("数值").AsNumericUpDown(0, 1, 0.01, "{0:P0}"),
             (axis, value) => UpdateProperty(axis, p => p.Minimum = MathUtils.Clamp01(value)));
 
         s.RegisterAction<IAxisInputGestureData, DeviceAxis>($"MotionProvider::{name}::Minimum::Drive",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
             (data, axis) => UpdateProperty(axis, p => p.Minimum = MathUtils.Clamp01(data.ApplyTo(p.Minimum))));
         #endregion
 
         #region MotionProvider::Maximum
         s.RegisterAction<DeviceAxis, double>($"MotionProvider::{name}::Maximum::Offset",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
-            s => s.WithLabel("Value offset").AsNumericUpDown(-1, 1, 0.01, "{0:P0}"),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("数值偏移").AsNumericUpDown(-1, 1, 0.01, "{0:P0}"),
             (axis, offset) => UpdateProperty(axis, p => p.Maximum = MathUtils.Clamp01(p.Maximum + offset)));
 
         s.RegisterAction<DeviceAxis, double>($"MotionProvider::{name}::Maximum::Set",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
-            s => s.WithLabel("Value").AsNumericUpDown(0, 1, 0.01, "{0:P0}"),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("数值").AsNumericUpDown(0, 1, 0.01, "{0:P0}"),
             (axis, value) => UpdateProperty(axis, p => p.Maximum = MathUtils.Clamp01(value)));
 
         s.RegisterAction<IAxisInputGestureData, DeviceAxis>($"MotionProvider::{name}::Maximum::Drive",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
             (data, axis) => UpdateProperty(axis, p => p.Maximum = MathUtils.Clamp01(data.ApplyTo(p.Maximum))));
         #endregion
     }

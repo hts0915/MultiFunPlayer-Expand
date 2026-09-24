@@ -1,4 +1,4 @@
-﻿using MultiFunPlayer.Common;
+using MultiFunPlayer.Common;
 using MultiFunPlayer.MediaSource.MediaResource;
 using Newtonsoft.Json;
 using NLog;
@@ -245,20 +245,20 @@ internal sealed class XBVRScriptRepository : AbstractScriptRepository
 
 internal enum XBVRLocalMatchType
 {
-    [Description("Don't match scripts using local repository")]
+    [Description("不使用本地仓库匹配脚本")]
     None,
-    [Description("Match scripts based on currently playing XBVR file name using local repository")]
+    [Description("使用本地仓库，按当前播放的 XBVR 文件名匹配脚本")]
     MatchToCurrentFile
 }
 
 internal enum XBVRDmsMatchType
 {
-    [Description("Don't match scripts using XBVR")]
+    [Description("不使用 XBVR 匹配脚本")]
     None,
-    [Description("Match all scripts attached to XBVR scene, for each axis only use the first matched script")]
+    [Description("匹配 XBVR 场景的全部脚本，每个轴只取第一个匹配的脚本")]
     MatchAllUseFirst,
-    [Description("Match scripts attached to XBVR scene based on currently playing XBVR file name")]
+    [Description("按当前播放的 XBVR 文件名匹配 XBVR 场景中的脚本")]
     MatchToCurrentFile,
-    [Description("Match only scripts selected in XBVR scene")]
+    [Description("只匹配 XBVR 场景中选中的脚本")]
     MatchSelectedOnly,
 }

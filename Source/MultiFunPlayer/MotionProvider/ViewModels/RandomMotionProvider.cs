@@ -1,4 +1,4 @@
-﻿using MultiFunPlayer.Common;
+using MultiFunPlayer.Common;
 using MultiFunPlayer.Property;
 using MultiFunPlayer.Shortcut;
 using Newtonsoft.Json;
@@ -47,22 +47,22 @@ internal sealed class RandomMotionProvider : AbstractMotionProvider
 
         #region RandomMotionProvider::Octaves
         s.RegisterAction<DeviceAxis, int>($"MotionProvider::{name}::Octaves::Set",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
-            s => s.WithLabel("Octaves").AsNumericUpDown(minimum: 1),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("倍频数").AsNumericUpDown(minimum: 1),
             (axis, octaves) => UpdateProperty(axis, p => p.Octaves = octaves));
         #endregion
 
         #region RandomMotionProvider::Persistence
         s.RegisterAction<DeviceAxis, double>($"MotionProvider::{name}::Persistence::Set",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
-            s => s.WithLabel("Persistence").AsNumericUpDown(minimum: 0.01, interval: 0.01),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("持续度").AsNumericUpDown(minimum: 0.01, interval: 0.01),
             (axis, persistence) => UpdateProperty(axis, p => p.Persistence = persistence));
         #endregion
 
         #region RandomMotionProvider::Lacunarity
         s.RegisterAction<DeviceAxis, double>($"MotionProvider::{name}::Lacunarity::Set",
-           s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
-           s => s.WithLabel("Lacunarity").AsNumericUpDown(minimum: 0.1, maximum: 2, interval: 0.01),
+           s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
+           s => s.WithLabel("间隙度").AsNumericUpDown(minimum: 0.1, maximum: 2, interval: 0.01),
            (axis, lacunarity) => UpdateProperty(axis, p => p.Lacunarity = lacunarity));
         #endregion
     }

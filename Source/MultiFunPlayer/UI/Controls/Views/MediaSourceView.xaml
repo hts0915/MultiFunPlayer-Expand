@@ -1,4 +1,4 @@
-﻿<UserControl x:Class="MultiFunPlayer.UI.Controls.Views.MediaSourceView"
+<UserControl x:Class="MultiFunPlayer.UI.Controls.Views.MediaSourceView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:controls="clr-namespace:MultiFunPlayer.UI.Controls"
@@ -45,7 +45,7 @@
                             <material:PopupBox Style="{StaticResource MaterialDesignToolBarPopupBox}"
                                                PlacementMode="RightAndAlignMiddles"
                                                PopupHorizontalOffset="-5"
-                                               ToolTip="Toggle media source">
+                                               ToolTip="切换媒体源">
                                 <material:PopupBox.ToggleContent>
                                     <material:PackIcon Width="22"
                                                        Height="22"
@@ -70,7 +70,7 @@
                                                         CommandParameter="{Binding}">
                                                     <Button.Resources>
                                                         <Style BasedOn="{StaticResource MaterialDesignPaperButton}" TargetType="{x:Type Button}">
-                                                            <Setter Property="ToolTip" Value="Show"/>
+                                                            <Setter Property="ToolTip" Value="显示"/>
                                                             <Style.Triggers>
                                                                 <DataTrigger Value="True">
                                                                     <DataTrigger.Binding>
@@ -82,7 +82,7 @@
 
                                                                     <Setter Property="Background" Value="{DynamicResource PrimaryHueMidBrush}"/>
                                                                     <Setter Property="Foreground" Value="{DynamicResource PrimaryHueMidForegroundBrush}"/>
-                                                                    <Setter Property="ToolTip" Value="Hide"/>
+                                                                    <Setter Property="ToolTip" Value="隐藏"/>
                                                                 </DataTrigger>
                                                             </Style.Triggers>
                                                         </Style>
@@ -101,7 +101,7 @@
                             <Button Style="{StaticResource MaterialDesignToolBarButton}"
                                     Padding="8"
                                     Command="{x:Static material:DialogHost.OpenDialogCommand}"
-                                    ToolTip="Common settings">
+                                    ToolTip="常用设置">
                                 <Button.CommandParameter>
                                     <Grid Width="200"
                                           MaxHeight="400"
@@ -111,7 +111,7 @@
                                                    VerticalAlignment="Top"
                                                    FontSize="14"
                                                    FontWeight="Bold"
-                                                   Text="Media source settings"
+                                                   Text="媒体源设置"
                                                    Typography.Capitals="AllSmallCaps"/>
 
                                         <Button Style="{StaticResource MaterialDesignFlatButton}"
@@ -133,7 +133,7 @@
                                                 <TextBlock DockPanel.Dock="Left"
                                                            Margin="0 0 10 0"
                                                            VerticalAlignment="Center"
-                                                           Text="Scan delay: "/>
+                                                           Text="扫描延迟： "/>
                                                 <material:ColorZone DockPanel.Dock="Right"
                                                                     Width="14"
                                                                     Height="14"
@@ -143,8 +143,8 @@
                                                                     Mode="Custom">
                                                     <material:ColorZone.ToolTip>
                                                         <TextBlock>
-                                                            Initial scan delay after application start.<LineBreak/>
-                                                            Requires application restart.</TextBlock>
+                                                            应用启动后的初始扫描延迟。<LineBreak/>
+                                                            需要重启应用。</TextBlock>
                                                     </material:ColorZone.ToolTip>
                                                     <material:PackIcon Width="10"
                                                                        Height="10"
@@ -166,7 +166,7 @@
                                                 <TextBlock DockPanel.Dock="Left"
                                                            Margin="0 0 10 0"
                                                            VerticalAlignment="Center"
-                                                           Text="Scan interval: "/>
+                                                           Text="扫描间隔： "/>
                                                 <metro:NumericUpDown DockPanel.Dock="Left"
                                                                      Interval="100"
                                                                      Minimum="0"

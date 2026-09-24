@@ -1,4 +1,4 @@
-﻿using MultiFunPlayer.Common;
+using MultiFunPlayer.Common;
 using NLog;
 
 namespace MultiFunPlayer.Property;
@@ -37,7 +37,7 @@ internal sealed class PropertyManager : IPropertyManager
     {
         var added = _properties.TryAdd(propertyName, propertyDelegate);
         if (!added)
-            throw new ArgumentException($"An item with the same key has already been added. Key: {propertyName}");
+            throw new ArgumentException($"已添加具有相同键的项。键: {propertyName}");
 
         _availableProperties.Add(propertyName);
 

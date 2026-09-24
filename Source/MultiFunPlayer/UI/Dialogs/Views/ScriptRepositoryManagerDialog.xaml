@@ -1,4 +1,4 @@
-﻿<UserControl x:Class="MultiFunPlayer.UI.Dialogs.Views.ScriptRepositoryManagerDialog"
+<UserControl x:Class="MultiFunPlayer.UI.Dialogs.Views.ScriptRepositoryManagerDialog"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:controls="clr-namespace:MultiFunPlayer.UI.Controls"
@@ -16,7 +16,7 @@
                    VerticalAlignment="Top"
                    FontSize="14"
                    FontWeight="Bold"
-                   Text="Script repositories"
+                   Text="脚本仓库"
                    Typography.Capitals="AllSmallCaps"/>
 
         <Button DockPanel.Dock="Top"

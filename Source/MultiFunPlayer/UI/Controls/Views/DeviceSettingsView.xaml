@@ -1,4 +1,4 @@
-﻿<UserControl x:Class="MultiFunPlayer.UI.Controls.Views.DeviceSettingsView"
+<UserControl x:Class="MultiFunPlayer.UI.Controls.Views.DeviceSettingsView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:converters="clr-namespace:MultiFunPlayer.UI.Converters"
@@ -35,8 +35,8 @@
                                Margin="50 0 0 0"
                                HorizontalAlignment="Left"
                                VerticalAlignment="Center">
-                        Changing device and removing or disabling axes will reset certain settings.<LineBreak/>
-                        All changes require application restart to apply.</TextBlock>
+                        更改设备以及移除或禁用轴将重置部分设置。<LineBreak/>
+                        所有更改须重启应用后生效。</TextBlock>
                 </DockPanel>
             </material:Card>
 
@@ -44,7 +44,7 @@
                 <TextBlock DockPanel.Dock="Left"
                            Margin="0 0 10 0"
                            VerticalAlignment="Center"
-                           Text="Selected device:"/>
+                           Text="当前设备："/>
 
                 <Button DockPanel.Dock="Right"
                         Style="{StaticResource MaterialDesignFlatButton}"
@@ -55,7 +55,7 @@
                         Click="{s:Action OnRemoveSelectedDevice}"
                         Foreground="{DynamicResource MaterialDesignErrorBrush}"
                         IsEnabled="{Binding CanRemoveSelectedDevice}"
-                        ToolTip="Remove selected">
+                        ToolTip="移除所选">
                     <material:PackIcon Kind="Delete"/>
                 </Button>
                 <Button DockPanel.Dock="Right"
@@ -65,7 +65,7 @@
                         Padding="0"
                         Click="{s:Action OnRenameSelectedDevice}"
                         IsEnabled="{Binding CanRenameSelectedDevice}"
-                        ToolTip="Rename selected">
+                        ToolTip="重命名所选">
                     <material:PackIcon Kind="Pencil"/>
                 </Button>
                 <Button DockPanel.Dock="Right"
@@ -75,7 +75,7 @@
                         Padding="0"
                         Click="{s:Action OnExportSelectedDevice}"
                         IsEnabled="{Binding CanExportSelectedDevice}"
-                        ToolTip="Export selected to clipboard">
+                        ToolTip="复制所选到剪贴板">
                     <material:PackIcon Kind="Export"/>
                 </Button>
                 <Button DockPanel.Dock="Right"
@@ -84,7 +84,7 @@
                         Height="24"
                         Padding="0"
                         Click="{s:Action OnImportDevice}"
-                        ToolTip="Create from clipboard">
+                        ToolTip="从剪贴板创建">
                     <material:PackIcon Kind="Import"/>
                 </Button>
                 <Button DockPanel.Dock="Right"
@@ -93,7 +93,7 @@
                         Height="24"
                         Padding="0"
                         Click="{s:Action OnCloneDevice}"
-                        ToolTip="Clone selected">
+                        ToolTip="克隆所选">
                     <material:PackIcon Kind="ContentDuplicate"/>
                 </Button>
 
@@ -120,7 +120,7 @@
 
                                 <TextBlock VerticalAlignment="Center"
                                            FontWeight="Bold"
-                                           Text=" (default)"
+                                           Text=" （默认）"
                                            Visibility="{Binding IsDefault, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                             </StackPanel>
                         </DataTemplate>
@@ -145,7 +145,7 @@
                     <TextBlock DockPanel.Dock="Right"
                                Margin="50 0 0 0"
                                VerticalAlignment="Center"
-                               Text="Clone this device to customize all settings."/>
+                               Text="克隆此设备后可自定义全部设置。"/>
                 </DockPanel>
             </material:Card>
 
@@ -161,7 +161,7 @@
                         <TextBlock DockPanel.Dock="Left"
                                    Margin="0 0 10 0"
                                    VerticalAlignment="Center"
-                                   Text="Output precision:"/>
+                                   Text="输出精度："/>
 
                         <metro:NumericUpDown DockPanel.Dock="Left"
                                              Width="50"
@@ -214,19 +214,19 @@
                                                 CellStyle="{StaticResource IsDefaultCellStyle}"
                                                 EditingElementStyle="{StaticResource MaterialDesignDataGridTextColumnEditingStyle}"
                                                 ElementStyle="{StaticResource MaterialDesignDataGridTextColumnStyle}"
-                                                Header="Name"/>
+                                                Header="名称"/>
 
                             <DataGridTextColumn Binding="{Binding FriendlyName}"
                                                 CellStyle="{StaticResource IsDefaultCellStyle}"
                                                 EditingElementStyle="{StaticResource MaterialDesignDataGridTextColumnEditingStyle}"
                                                 ElementStyle="{StaticResource MaterialDesignDataGridTextColumnStyle}"
-                                                Header="Friendly name"/>
+                                                Header="显示名"/>
 
                             <DataGridTextColumn Binding="{Binding FunscriptNames, Converter={StaticResource FunscriptNameListToStringConverter}}"
                                                 CellStyle="{StaticResource IsDefaultCellStyle}"
                                                 EditingElementStyle="{StaticResource MaterialDesignDataGridTextColumnEditingStyle}"
                                                 ElementStyle="{StaticResource MaterialDesignDataGridTextColumnStyle}"
-                                                Header="Funscript names">
+                                                Header="脚本后缀名">
                                 <DataGridTextColumn.HeaderStyle>
                                     <Style BasedOn="{StaticResource MaterialDesignDataGridColumnHeader}" TargetType="{x:Type DataGridColumnHeader}">
                                         <Setter Property="ContentTemplate">
@@ -244,11 +244,11 @@
                                                                             Mode="Custom">
                                                             <material:ColorZone.ToolTip>
                                                                 <TextBlock>
-                                                                    List of names used to match funscript files to this axis<LineBreak/>
-                                                                    The files should be in&#x20;<Italic>&lt;video name&gt;.&lt;funscript name&gt;.funscript</Italic>
-                                                                    format<LineBreak/>
-                                                                    Use * to match files without a funscript name<LineBreak/>
-                                                                    Names are processed in order from left to right</TextBlock>
+                                                                    用于将脚本文件匹配到此轴的名称列表<LineBreak/>
+                                                                    文件应采用&#x20;<Italic>&lt;视频名&gt;.&lt;脚本后缀名&gt;.funscript</Italic>
+                                                                    命名格式<LineBreak/>
+                                                                    使用 * 匹配没有脚本后缀名的文件<LineBreak/>
+                                                                    名称按从左到右的顺序处理</TextBlock>
                                                             </material:ColorZone.ToolTip>
                                                             <material:PackIcon Width="10"
                                                                                Height="10"
@@ -267,7 +267,7 @@
 
                             <metro:DataGridNumericUpDownColumn Binding="{Binding DefaultValue}"
                                                                CellStyle="{StaticResource IsDefaultCellStyle}"
-                                                               Header="Default value"
+                                                               Header="默认值"
                                                                HideUpDownButtons="True"
                                                                Maximum="1"
                                                                Minimum="0"
@@ -276,7 +276,7 @@
                             <DataGridCheckBoxColumn Binding="{Binding Enabled, UpdateSourceTrigger=PropertyChanged}"
                                                     EditingElementStyle="{StaticResource MaterialDesignDataGridCheckBoxColumnEditingStyle}"
                                                     ElementStyle="{StaticResource MaterialDesignDataGridCheckBoxColumnStyle}"
-                                                    Header="Enabled"/>
+                                                    Header="启用"/>
 
                             <DataGridTemplateColumn CellStyle="{StaticResource IsDefaultCellStyle}">
                                 <DataGridTemplateColumn.CellTemplate>
@@ -290,7 +290,7 @@
                                                 material:RippleAssist.Feedback="{DynamicResource MaterialDesignErrorBrush}"
                                                 Click="{s:Action OnDeleteAxis}"
                                                 Foreground="{DynamicResource MaterialDesignErrorBrush}"
-                                                ToolTip="Remove">
+                                                ToolTip="移除">
                                             <material:PackIcon Kind="Delete"/>
                                         </Button>
                                     </DataTemplate>

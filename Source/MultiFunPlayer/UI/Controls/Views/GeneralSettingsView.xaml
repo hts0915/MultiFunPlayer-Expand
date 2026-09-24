@@ -1,4 +1,4 @@
-﻿<UserControl x:Class="MultiFunPlayer.UI.Controls.Views.GeneralSettingsView"
+<UserControl x:Class="MultiFunPlayer.UI.Controls.Views.GeneralSettingsView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -15,7 +15,7 @@
                 <TextBlock DockPanel.Dock="Left"
                            Margin="0 0 10 0"
                            VerticalAlignment="Center"
-                           Text="Always on top:"/>
+                           Text="窗口置顶："/>
 
                 <CheckBox DockPanel.Dock="Left"
                           Margin="0 0 10 0"
@@ -26,7 +26,7 @@
                 <TextBlock DockPanel.Dock="Left"
                            Margin="0 0 10 0"
                            VerticalAlignment="Center"
-                           Text="Allow window resize:"/>
+                           Text="允许调整窗口大小："/>
 
                 <CheckBox DockPanel.Dock="Left"
                           Margin="0 0 10 0"
@@ -37,7 +37,7 @@
                 <TextBlock DockPanel.Dock="Left"
                            Margin="0 0 10 0"
                            VerticalAlignment="Center"
-                           Text="Remember window location:"/>
+                           Text="记住窗口位置："/>
 
                 <CheckBox DockPanel.Dock="Left"
                           Margin="0 0 10 0"
@@ -48,7 +48,7 @@
                 <TextBlock DockPanel.Dock="Left"
                            Margin="0 0 10 0"
                            VerticalAlignment="Center"
-                           Text="App Orientation:"/>
+                           Text="窗口布局："/>
 
                 <ComboBox DockPanel.Dock="Left"
                           ItemsSource="{Binding Source={ui:EnumBindingSource {x:Type Orientation}}}"
@@ -59,18 +59,24 @@
                 <TextBlock DockPanel.Dock="Left"
                            Margin="0 0 10 0"
                            VerticalAlignment="Center"
-                           Text="Show errors as:"/>
+                           Text="错误显示方式："/>
 
                 <ComboBox DockPanel.Dock="Left"
                           ItemsSource="{Binding Source={ui:EnumBindingSource {x:Type vm:ErrorDisplayType}}}"
-                          SelectedItem="{Binding ErrorDisplayType}"/>
+                          SelectedItem="{Binding ErrorDisplayType}">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding Converter={StaticResource DescriptionConverter}}"/>
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
             </DockPanel>
 
             <DockPanel DockPanel.Dock="Top" LastChildFill="False">
                 <TextBlock DockPanel.Dock="Left"
                            Margin="0 0 10 0"
                            VerticalAlignment="Center"
-                           Text="Log level:"/>
+                           Text="日志级别："/>
 
                 <ComboBox DockPanel.Dock="Left"
                           ItemsSource="{Binding LogLevels}"
@@ -82,7 +88,7 @@
                 <TextBlock DockPanel.Dock="Left"
                            Margin="0 0 10 0"
                            VerticalAlignment="Center"
-                           Text="Enable UI logging:"/>
+                           Text="启用界面日志："/>
 
                 <CheckBox DockPanel.Dock="Left"
                           Margin="0 0 10 0"
@@ -93,7 +99,7 @@
                 <TextBlock DockPanel.Dock="Left"
                            Margin="0 0 10 0"
                            VerticalAlignment="Center"
-                           Text="Enable JSON logging:"/>
+                           Text="启用 JSON 日志："/>
 
                 <CheckBox DockPanel.Dock="Left"
                           Margin="0 0 10 0"

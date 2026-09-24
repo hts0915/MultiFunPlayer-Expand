@@ -1,8 +1,12 @@
-﻿namespace MultiFunPlayer.Common;
+using System.ComponentModel;
+
+namespace MultiFunPlayer.Common;
 
 internal enum DeviceAxisUpdateType
 {
+    [Description("固定频率更新")]
     FixedUpdate,
+    [Description("按需轮询更新")]
     PolledUpdate
 }
 

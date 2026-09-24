@@ -1,4 +1,4 @@
-﻿using MultiFunPlayer.Common;
+using MultiFunPlayer.Common;
 using MultiFunPlayer.Input;
 using MultiFunPlayer.Property;
 using MultiFunPlayer.Shortcut;
@@ -74,7 +74,7 @@ internal abstract class AbstractOutputTarget : Screen, IOutputTarget
         catch (Exception e) when (connectionType != ConnectionType.AutoConnect)
         {
             Logger.Error(e, "Error when connecting to {0}", Name);
-            _ = DialogHelper.ShowErrorAsync(e, $"Error when connecting to {Name}", "RootDialog");
+            _ = DialogHelper.ShowErrorAsync(e, $"连接 {Name} 时出错", "RootDialog");
         }
         catch { }
 
@@ -252,83 +252,83 @@ internal abstract class AbstractOutputTarget : Screen, IOutputTarget
         }
 
         #region AutoConnectEnabled
-        s.RegisterAction<bool>($"{Identifier}::AutoConnectEnabled::Set", s => s.WithLabel("Enable auto connect"), enabled => AutoConnectEnabled = enabled);
+        s.RegisterAction<bool>($"{Identifier}::AutoConnectEnabled::Set", s => s.WithLabel("启用自动连接"), enabled => AutoConnectEnabled = enabled);
         s.RegisterAction($"{Identifier}::AutoConnectEnabled::Toggle", () => AutoConnectEnabled = !AutoConnectEnabled);
         #endregion
 
         #region Axis::Range::Minimum
         s.RegisterAction<DeviceAxis, double, double>($"{Identifier}::Axis::Range::Minimum::Offset",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
-            s => s.WithLabel("Value offset").AsNumericUpDown(-1, 1, 0.01, "{0:P0}"),
-            s => s.WithDefaultValue(0).WithLabel("Value limit").AsNumericUpDown(0, 1, 0.01, "{0:P0}"),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("数值偏移").AsNumericUpDown(-1, 1, 0.01, "{0:P0}"),
+            s => s.WithDefaultValue(0).WithLabel("数值限位").AsNumericUpDown(0, 1, 0.01, "{0:P0}"),
             (axis, offset, limit) => UpdateSettings(axis, s => SetMinimum(s, s.Minimum + offset, limit)));
 
         s.RegisterAction<DeviceAxis, double>($"{Identifier}::Axis::Range::Minimum::Set",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
-            s => s.WithLabel("Value").AsNumericUpDown(0, 1, 0.01, "{0:P0}"),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("数值").AsNumericUpDown(0, 1, 0.01, "{0:P0}"),
             (axis, value) => UpdateSettings(axis, s => SetMinimum(s, value, 0)));
 
         s.RegisterAction<IAxisInputGestureData, DeviceAxis, double>($"{Identifier}::Axis::Range::Minimum::Drive",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
-            s => s.WithDefaultValue(0).WithLabel("Value limit").AsNumericUpDown(0, 1, 0.01, "{0:P0}"),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
+            s => s.WithDefaultValue(0).WithLabel("数值限位").AsNumericUpDown(0, 1, 0.01, "{0:P0}"),
             (data, axis, limit) => UpdateSettings(axis, s => SetMinimum(s, data.ApplyTo(s.Minimum), limit)));
         #endregion
 
         #region Axis::Range::Maximum
         s.RegisterAction<DeviceAxis, double, double>($"{Identifier}::Axis::Range::Maximum::Offset",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
-            s => s.WithLabel("Value offset").AsNumericUpDown(-1, 1, 0.01, "{0:P0}"),
-            s => s.WithDefaultValue(1).WithLabel("Value limit").AsNumericUpDown(0, 1, 0.01, "{0:P0}"),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("数值偏移").AsNumericUpDown(-1, 1, 0.01, "{0:P0}"),
+            s => s.WithDefaultValue(1).WithLabel("数值限位").AsNumericUpDown(0, 1, 0.01, "{0:P0}"),
             (axis, offset, limit) => UpdateSettings(axis, s => SetMaximum(s, s.Maximum + offset, limit)));
 
         s.RegisterAction<DeviceAxis, double>($"{Identifier}::Axis::Range::Maximum::Set",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
-            s => s.WithLabel("Value").AsNumericUpDown(0, 1, 0.01, "{0:P0}"),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("数值").AsNumericUpDown(0, 1, 0.01, "{0:P0}"),
             (axis, value) => UpdateSettings(axis, s => SetMaximum(s, value, 1)));
 
         s.RegisterAction<IAxisInputGestureData, DeviceAxis, double>($"{Identifier}::Axis::Range::Maximum::Drive",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
-            s => s.WithDefaultValue(1).WithLabel("Value limit").AsNumericUpDown(0, 1, 0.01, "{0:P0}"),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
+            s => s.WithDefaultValue(1).WithLabel("数值限位").AsNumericUpDown(0, 1, 0.01, "{0:P0}"),
             (gesture, axis, limit) => UpdateSettings(axis, s => SetMaximum(s, gesture.ApplyTo(s.Maximum), limit)));
         #endregion
 
         #region Axis::Range::Middle
         s.RegisterAction<DeviceAxis, double, double, double>($"{Identifier}::Axis::Range::Middle::Offset",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
-            s => s.WithLabel("Value offset").AsNumericUpDown(-1, 1, 0.01, "{0:P0}"),
-            s => s.WithDefaultValue(0).WithLabel("Minimum limit").AsNumericUpDown(0, 1, 0.01, "{0:P0}"),
-            s => s.WithDefaultValue(1).WithLabel("Maximium limit").AsNumericUpDown(0, 1, 0.01, "{0:P0}"),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("数值偏移").AsNumericUpDown(-1, 1, 0.01, "{0:P0}"),
+            s => s.WithDefaultValue(0).WithLabel("下限").AsNumericUpDown(0, 1, 0.01, "{0:P0}"),
+            s => s.WithDefaultValue(1).WithLabel("上限").AsNumericUpDown(0, 1, 0.01, "{0:P0}"),
             (axis, offset, minimumLimit, maximumLimit) => UpdateSettings(axis, s => OffsetMiddle(s, offset, minimumLimit, maximumLimit)));
 
         s.RegisterAction<DeviceAxis, double>($"{Identifier}::Axis::Range::Middle::Set",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
-            s => s.WithLabel("Value").AsNumericUpDown(0, 1, 0.01, "{0:P0}"),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("数值").AsNumericUpDown(0, 1, 0.01, "{0:P0}"),
             (axis, value) => UpdateSettings(axis, s => OffsetMiddle(s, value - (s.Maximum - s.Minimum) / 2, 0, 1)));
 
         s.RegisterAction<IAxisInputGestureData, DeviceAxis, double, double>($"{Identifier}::Axis::Range::Middle::Drive",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
-            s => s.WithDefaultValue(0).WithLabel("Minimum limit").AsNumericUpDown(0, 1, 0.01, "{0:P0}"),
-            s => s.WithDefaultValue(1).WithLabel("Maximium limit").AsNumericUpDown(0, 1, 0.01, "{0:P0}"),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
+            s => s.WithDefaultValue(0).WithLabel("下限").AsNumericUpDown(0, 1, 0.01, "{0:P0}"),
+            s => s.WithDefaultValue(1).WithLabel("上限").AsNumericUpDown(0, 1, 0.01, "{0:P0}"),
             (data, axis, minimumLimit, maximumLimit) => UpdateSettings(axis, s => SetMiddle(s, data, minimumLimit, maximumLimit)));
         #endregion
 
         #region Axis::Range::Size
         s.RegisterAction<DeviceAxis, double, double, double>($"{Identifier}::Axis::Range::Size::Offset",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
-            s => s.WithLabel("Value offset").AsNumericUpDown(-1, 1, 0.01, "{0:P0}"),
-            s => s.WithDefaultValue(0).WithLabel("Minimum limit").AsNumericUpDown(0, 1, 0.01, "{0:P0}"),
-            s => s.WithDefaultValue(1).WithLabel("Maximium limit").AsNumericUpDown(0, 1, 0.01, "{0:P0}"),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("数值偏移").AsNumericUpDown(-1, 1, 0.01, "{0:P0}"),
+            s => s.WithDefaultValue(0).WithLabel("下限").AsNumericUpDown(0, 1, 0.01, "{0:P0}"),
+            s => s.WithDefaultValue(1).WithLabel("上限").AsNumericUpDown(0, 1, 0.01, "{0:P0}"),
             (axis, offset, minimumLimit, maximumLimit) => UpdateSettings(axis, s => OffsetSize(s, offset, minimumLimit, maximumLimit)));
 
         s.RegisterAction<DeviceAxis, double>($"{Identifier}::Axis::Range::Size::Set",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
-            s => s.WithLabel("Value").AsNumericUpDown(0, 1, 0.01, "{0:P0}"),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("数值").AsNumericUpDown(0, 1, 0.01, "{0:P0}"),
             (axis, value) => UpdateSettings(axis, s => OffsetSize(s, value - (s.Maximum - s.Minimum), 0, 1)));
 
         s.RegisterAction<IAxisInputGestureData, DeviceAxis, double, double>($"{Identifier}::Axis::Range::Size::Drive",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
-            s => s.WithDefaultValue(0).WithLabel("Minimum limit").AsNumericUpDown(0, 1, 0.01, "{0:P0}"),
-            s => s.WithDefaultValue(1).WithLabel("Maximium limit").AsNumericUpDown(0, 1, 0.01, "{0:P0}"),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
+            s => s.WithDefaultValue(0).WithLabel("下限").AsNumericUpDown(0, 1, 0.01, "{0:P0}"),
+            s => s.WithDefaultValue(1).WithLabel("上限").AsNumericUpDown(0, 1, 0.01, "{0:P0}"),
             (data, axis, minimumLimit, maximumLimit) => UpdateSettings(axis, s => SetSize(s, data, minimumLimit, maximumLimit)));
         #endregion
     }

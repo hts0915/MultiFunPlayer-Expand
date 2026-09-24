@@ -1,4 +1,5 @@
-﻿using System.Runtime.CompilerServices;
+using System.ComponentModel;
+using System.Runtime.CompilerServices;
 using System.Windows;
 
 #pragma warning disable IDE0130 // Namespace does not match folder structure
@@ -25,9 +26,16 @@ public static class MathUtils
 
 public enum InterpolationType
 {
+    [Description("线性")]
     Linear,
+
+    [Description("Pchip")]
     Pchip,
+
+    [Description("Makima")]
     Makima,
+
+    [Description("阶梯")]
     Step
 }
 

@@ -23,7 +23,7 @@
                        Canvas.Bottom="5"
                        FontSize="11"
                        FontWeight="Bold"
-                       Text="Input"
+                       Text="输入"
                        TextAlignment="Center"
                        TextWrapping="Wrap"
                        Typography.Capitals="AllSmallCaps"/>
@@ -48,7 +48,7 @@
                        Canvas.Bottom="70"
                        FontSize="11"
                        FontWeight="Bold"
-                       Text="Output"
+                       Text="输出"
                        TextAlignment="Center"
                        TextWrapping="Wrap"
                        Typography.Capitals="AllSmallCaps">

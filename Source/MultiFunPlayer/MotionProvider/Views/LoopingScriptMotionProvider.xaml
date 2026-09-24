@@ -1,4 +1,4 @@
-﻿<UserControl x:Class="MultiFunPlayer.MotionProvider.Views.LoopingScriptMotionProvider"
+<UserControl x:Class="MultiFunPlayer.MotionProvider.Views.LoopingScriptMotionProvider"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:common="clr-namespace:MultiFunPlayer.Common"
@@ -21,7 +21,7 @@
             <TextBlock DockPanel.Dock="Left"
                        Margin="0 0 10 0"
                        VerticalAlignment="Center"
-                       Text="Script:"/>
+                       Text="脚本："/>
 
             <Button DockPanel.Dock="Right"
                     Style="{StaticResource MaterialDesignFloatingActionMiniButton}"
@@ -29,7 +29,7 @@
                     Height="24"
                     VerticalAlignment="Center"
                     Click="{s:Action SelectScript}"
-                    ToolTip="Load script">
+                    ToolTip="加载脚本">
                 <material:PackIcon Kind="FileDownload"/>
             </Button>
 
@@ -46,18 +46,24 @@
             <TextBlock DockPanel.Dock="Left"
                        Margin="0 0 10 0"
                        VerticalAlignment="Center"
-                       Text="Interpolation:"/>
+                       Text="插值："/>
 
             <ComboBox DockPanel.Dock="Right"
                       ItemsSource="{Binding Source={ui:EnumBindingSource {x:Type common:InterpolationType}}}"
-                      SelectedItem="{Binding InterpolationType}"/>
+                      SelectedItem="{Binding InterpolationType}">
+                <ComboBox.ItemTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding Converter={StaticResource DescriptionConverter}}"/>
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
         </DockPanel>
 
         <DockPanel Margin="0 0 0 10" LastChildFill="True">
             <TextBlock DockPanel.Dock="Left"
                        Margin="0 0 10 0"
                        VerticalAlignment="Center"
-                       Text="Speed:"/>
+                       Text="速度："/>
 
             <metro:NumericUpDown Style="{StaticResource MaterialDesignNumericUpDown}"
                                  HideUpDownButtons="False"
@@ -72,7 +78,7 @@
             <TextBlock DockPanel.Dock="Left"
                        Margin="0 0 10 0"
                        VerticalAlignment="Center"
-                       Text="Range:"/>
+                       Text="范围："/>
 
             <metro:RangeSlider DockPanel.Dock="Right"
                                Style="{StaticResource MaterialDesignCompactRangeSlider}"

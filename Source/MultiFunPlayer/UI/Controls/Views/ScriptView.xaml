@@ -38,10 +38,10 @@
                                     Click="{s:Action OnPlayPauseClick}">
                                 <Button.Style>
                                     <Style BasedOn="{StaticResource MaterialDesignToolBarButton}" TargetType="{x:Type Button}">
-                                        <Setter Property="ToolTip" Value="Play"/>
+                                        <Setter Property="ToolTip" Value="播放"/>
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding IsPlaying}" Value="True">
-                                                <Setter Property="ToolTip" Value="Pause"/>
+                                                <Setter Property="ToolTip" Value="暂停"/>
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
@@ -68,7 +68,7 @@
                             <material:PopupBox Style="{StaticResource MaterialDesignToolBarPopupBox}"
                                                PlacementMode="BottomAndAlignRightEdges"
                                                StaysOpen="True"
-                                               ToolTip="Sync settings">
+                                               ToolTip="同步设置">
                                 <material:PopupBox.ToggleContent>
                                     <Grid Width="24" Height="24">
                                         <Grid.RowDefinitions>
@@ -119,7 +119,7 @@
                                             <TextBlock DockPanel.Dock="Left"
                                                        Margin="0 0 10 0"
                                                        VerticalAlignment="Center"
-                                                       Text="Duration:"/>
+                                                       Text="时长："/>
                                             <TextBlock DockPanel.Dock="Right"
                                                        Margin="10 0 0 0"
                                                        VerticalAlignment="Center"
@@ -140,7 +140,7 @@
                                                        HorizontalAlignment="Left"
                                                        VerticalAlignment="Center"
                                                        FontWeight="Bold"
-                                                       Text="Sync on:"
+                                                       Text="同步于："
                                                        Typography.Capitals="AllSmallCaps"/>
                                             <material:ColorZone DockPanel.Dock="Left"
                                                                 Width="14"
@@ -151,9 +151,8 @@
                                                                 Mode="Custom">
                                                 <material:ColorZone.ToolTip>
                                                     <TextBlock>
-                                                        The sync feature is there to prevent<LineBreak/>
-                                                        sudden unwanted motion.<LineBreak/>
-                                                        These settings are for advanced usage only.</TextBlock>
+                                                        同步功能用于防止突然出现的意外运动。<LineBreak/>
+                                                        这些设置仅供高级用法使用。</TextBlock>
                                                 </material:ColorZone.ToolTip>
                                                 <material:PackIcon Width="10"
                                                                    Height="10"
@@ -164,37 +163,37 @@
                                             </material:ColorZone>
                                         </DockPanel>
                                         <DockPanel Margin="0 2 0 0" LastChildFill="False">
-                                            <TextBlock DockPanel.Dock="Left" Text="Media resource changed:"/>
+                                            <TextBlock DockPanel.Dock="Left" Text="媒体资源变化："/>
                                             <ToggleButton DockPanel.Dock="Right" IsChecked="{Binding SyncSettings.SyncOnMediaResourceChanged}"/>
                                         </DockPanel>
 
                                         <DockPanel Margin="0 2 0 0" LastChildFill="False">
-                                            <TextBlock DockPanel.Dock="Left" Text="Script resource changed:"/>
+                                            <TextBlock DockPanel.Dock="Left" Text="脚本资源变化："/>
                                             <ToggleButton DockPanel.Dock="Right" IsChecked="{Binding SyncSettings.SyncOnScriptResourceChanged}"/>
                                         </DockPanel>
 
                                         <DockPanel Margin="0 2 0 0" LastChildFill="False">
-                                            <TextBlock DockPanel.Dock="Left" Text="Script start:"/>
+                                            <TextBlock DockPanel.Dock="Left" Text="脚本开始："/>
                                             <ToggleButton DockPanel.Dock="Right" IsChecked="{Binding SyncSettings.SyncOnScriptStart}"/>
                                         </DockPanel>
 
                                         <DockPanel Margin="0 2 0 0" LastChildFill="False">
-                                            <TextBlock DockPanel.Dock="Left" Text="Script end:"/>
+                                            <TextBlock DockPanel.Dock="Left" Text="脚本结束："/>
                                             <ToggleButton DockPanel.Dock="Right" IsChecked="{Binding SyncSettings.SyncOnScriptEnd}"/>
                                         </DockPanel>
 
                                         <DockPanel Margin="0 2 0 0" LastChildFill="False">
-                                            <TextBlock DockPanel.Dock="Left" Text="Media play/pause:"/>
+                                            <TextBlock DockPanel.Dock="Left" Text="媒体播放/暂停："/>
                                             <ToggleButton DockPanel.Dock="Right" IsChecked="{Binding SyncSettings.SyncOnMediaPlayPause}"/>
                                         </DockPanel>
 
                                         <DockPanel Margin="0 2 0 0" LastChildFill="False">
-                                            <TextBlock DockPanel.Dock="Left" Text="Media seek:"/>
+                                            <TextBlock DockPanel.Dock="Left" Text="媒体跳转："/>
                                             <ToggleButton DockPanel.Dock="Right" IsChecked="{Binding SyncSettings.SyncOnSeek}"/>
                                         </DockPanel>
 
                                         <DockPanel Margin="0 2 0 0" LastChildFill="False">
-                                            <TextBlock DockPanel.Dock="Left" Text="Auto-home start/end:"/>
+                                            <TextBlock DockPanel.Dock="Left" Text="自动归位开始/结束："/>
                                             <ToggleButton DockPanel.Dock="Right" IsChecked="{Binding SyncSettings.SyncOnAutoHomeStartEnd}"/>
                                         </DockPanel>
                                     </StackPanel>
@@ -206,7 +205,7 @@
                                     Padding="8"
                                     Click="{s:Action OnOpenMediaLocation}"
                                     IsEnabled="{Binding MediaResource, Converter={StaticResource InvertedNullableToBooleanConverter}}"
-                                    ToolTip="Open media location">
+                                    ToolTip="打开媒体所在位置">
                                 <material:PackIcon Width="19"
                                                    Height="19"
                                                    Kind="FolderOpen"/>
@@ -215,7 +214,7 @@
                             <Button Style="{StaticResource MaterialDesignToolBarButton}"
                                     Padding="8"
                                     Click="{s:Action OnOpenScriptRepositoryManagerDialog}"
-                                    ToolTip="Script repositories">
+                                    ToolTip="脚本仓库">
                                 <material:PackIcon Width="19"
                                                    Height="19"
                                                    Kind="DatabaseSearch"/>
@@ -224,7 +223,7 @@
                             <Button Style="{StaticResource MaterialDesignToolBarButton}"
                                     Padding="8"
                                     Click="{s:Action OnOpenMediaPathModifiersDialog}"
-                                    ToolTip="Media path modifiers">
+                                    ToolTip="媒体路径修改器">
                                 <material:PackIcon Width="19"
                                                    Height="19"
                                                    Kind="FileReplaceOutline"/>
@@ -233,7 +232,7 @@
                             <Button Style="{StaticResource MaterialDesignToolBarButton}"
                                     Padding="8"
                                     Click="{s:Action OnMapCurrentMediaPathToFile}"
-                                    ToolTip="Map media path to file">
+                                    ToolTip="把媒体路径映射到文件">
 
                                 <Button.IsEnabled>
                                     <MultiBinding Converter="{StaticResource BooleanAllConverter}">
@@ -251,7 +250,7 @@
                             <material:PopupBox DockPanel.Dock="Left"
                                                Style="{StaticResource MaterialDesignToolBarPopupBox}"
                                                StaysOpen="True"
-                                               ToolTip="Auto-skip">
+                                               ToolTip="自动跳过">
                                 <material:PopupBox.ToggleContent>
                                     <material:PackIcon Width="22"
                                                        Height="22"
@@ -263,7 +262,7 @@
                                             <TextBlock Width="50"
                                                        Margin="0 0 5 0"
                                                        VerticalAlignment="Center"
-                                                       Text="Enabled:"/>
+                                                       Text="已启用："/>
 
                                             <CheckBox Style="{StaticResource MaterialDesignSwitchToggleButton}" IsChecked="{Binding AutoSkipToScriptStartEnabled}"/>
                                         </StackPanel>
@@ -273,7 +272,7 @@
                                                        Width="50"
                                                        Margin="0 0 5 0"
                                                        VerticalAlignment="Center"
-                                                       Text="Offset:"/>
+                                                       Text="偏移："/>
 
                                             <metro:NumericUpDown DockPanel.Dock="Left"
                                                                  VerticalAlignment="Center"
@@ -288,7 +287,7 @@
                             </material:PopupBox>
 
                             <Menu Background="{DynamicResource MaterialDesignPaper}">
-                                <MenuItem Style="{StaticResource MaterialDesignToolBarMenuItem}" ToolTip="Media loop">
+                                <MenuItem Style="{StaticResource MaterialDesignToolBarMenuItem}" ToolTip="媒体循环">
                                     <MenuItem.Icon>
                                         <TextBlock HorizontalAlignment="Center"
                                                    VerticalAlignment="Center"
@@ -317,7 +316,7 @@
                                     </MenuItem.Icon>
 
                                     <MenuItem Command="{s:Action ClearMediaLoop}"
-                                              Header="Clear"
+                                              Header="清除"
                                               Icon="{material:PackIcon Kind=WindowClose}">
                                         <MenuItem.IsEnabled>
                                             <MultiBinding Converter="{StaticResource BooleanOrConverter}">
@@ -328,15 +327,15 @@
                                     </MenuItem>
 
                                     <MenuItem Command="{s:Action SetMediaLoopStartFromMediaPosition}"
-                                              Header="Set start"
+                                              Header="设为起点"
                                               Icon="{material:PackIcon Kind=ContainStart}"/>
 
                                     <MenuItem Command="{s:Action SetMediaLoopEndFromMediaPosition}"
-                                              Header="Set end"
+                                              Header="设为终点"
                                               Icon="{material:PackIcon Kind=ContainEnd}"/>
 
                                     <MenuItem Command="{s:Action SetMediaLoopFromCurrentChapter}"
-                                              Header="Repeat chapter"
+                                              Header="重复章节"
                                               Icon="{material:PackIcon Kind=Contain}"/>
                                 </MenuItem>
                             </Menu>
@@ -349,7 +348,7 @@
                         <TextBlock DockPanel.Dock="Left"
                                    Margin="0 0 10 0"
                                    VerticalAlignment="Center"
-                                   Text="File:"/>
+                                   Text="文件："/>
 
                         <TextBox DockPanel.Dock="Left"
                                  Style="{StaticResource MaterialDesignFloatingHintTextBox}"
@@ -363,7 +362,7 @@
                         <TextBlock DockPanel.Dock="Left"
                                    Margin="0 0 10 0"
                                    VerticalAlignment="Center"
-                                   Text="Offset:"/>
+                                   Text="偏移："/>
 
                         <metro:NumericUpDown DockPanel.Dock="Left"
                                              Width="100"
@@ -391,27 +390,38 @@
                                    Settings="{Binding AxisSettings, Mode=OneWay}"
                                    ShowRange="{Binding HeatmapShowRange}"
                                    Duration="{Binding MediaDuration, Mode=OneWay}">
+            <!-- 与预设区的时间轴一致：暂停/未播放时置灰，播放中恢复 -->
+            <controls:KeyframesHeatmap.Style>
+                <Style TargetType="{x:Type controls:KeyframesHeatmap}">
+                    <Setter Property="Opacity" Value="0.35"/>
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsPlaying}" Value="True">
+                            <Setter Property="Opacity" Value="1.0"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </controls:KeyframesHeatmap.Style>
             <controls:KeyframesHeatmap.ContextMenu>
                 <ContextMenu>
-                    <MenuItem Header="Show script range"
+                    <MenuItem Header="显示脚本范围"
                               IsCheckable="True"
                               IsChecked="{Binding HeatmapShowRange}"/>
 
-                    <MenuItem Header="Enable script preview"
+                    <MenuItem Header="启用脚本预览"
                               IsCheckable="True"
                               IsChecked="{Binding HeatmapEnablePreview}"/>
 
-                    <MenuItem Header="Combine script heat"
+                    <MenuItem Header="合并脚本热度"
                               IsCheckable="True"
                               IsChecked="{Binding HeatmapCombineHeat}"/>
 
-                    <MenuItem Header="Invert Y"
+                    <MenuItem Header="Y 轴反向"
                               IsCheckable="True"
                               IsChecked="{Binding HeatmapInvertY}"/>
 
                     <Separator/>
 
-                    <MenuItem Header="Quality" IsEnabled="False"/>
+                    <MenuItem Header="质量" IsEnabled="False"/>
                     <MenuItem material:RippleAssist.IsDisabled="True">
                         <MenuItem.Icon>
                             <TextBlock Padding="0"
@@ -488,19 +498,19 @@
                                     <Border.ToolTip>
                                         <StackPanel Typography.Capitals="AllSmallCaps">
                                             <TextBlock FontSize="13">
-                                                <Run FontWeight="Bold" Text="Link axis:"/>
+                                                <Run FontWeight="Bold" Text="链接轴："/>
                                                 <Run>
                                                     <Run.Resources>
                                                         <Style TargetType="{x:Type Run}">
-                                                            <Setter Property="Text" Value="Disabled"/>
+                                                            <Setter Property="Text" Value="已禁用"/>
                                                             <Setter Property="Foreground" Value="{DynamicResource MaterialDesignPaper}"/>
                                                             <Style.Triggers>
                                                                 <DataTrigger Binding="{Binding Value.Settings.LinkAxis, Converter={StaticResource InvertedNullableToBooleanConverter}}" Value="True">
-                                                                    <Setter Property="Text" Value="Enabled"/>
+                                                                    <Setter Property="Text" Value="已启用"/>
                                                                     <Setter Property="Foreground" Value="{DynamicResource MaterialDesignLightSuccessBrush}"/>
                                                                 </DataTrigger>
                                                                 <DataTrigger Binding="{Binding Value.Settings.LinkAxisHasPriority}" Value="True">
-                                                                    <Setter Property="Text" Value="Override"/>
+                                                                    <Setter Property="Text" Value="覆盖"/>
                                                                     <Setter Property="Foreground" Value="{DynamicResource MaterialDesignLightErrorBrush}"/>
                                                                 </DataTrigger>
                                                             </Style.Triggers>
@@ -510,15 +520,15 @@
                                             </TextBlock>
 
                                             <TextBlock Margin="0 -5 0 0" FontSize="13">
-                                                <Run FontWeight="Bold" Text="Motion provider:"/>
+                                                <Run FontWeight="Bold" Text="运动生成器："/>
                                                 <Run>
                                                     <Run.Resources>
                                                         <Style TargetType="{x:Type Run}">
-                                                            <Setter Property="Text" Value="Disabled"/>
+                                                            <Setter Property="Text" Value="已禁用"/>
                                                             <Setter Property="Foreground" Value="{DynamicResource MaterialDesignPaper}"/>
                                                             <Style.Triggers>
                                                                 <DataTrigger Binding="{Binding Value.Settings.SelectedMotionProvider, Converter={StaticResource InvertedNullableToBooleanConverter}}" Value="True">
-                                                                    <Setter Property="Text" Value="Enabled"/>
+                                                                    <Setter Property="Text" Value="已启用"/>
                                                                     <Setter Property="Foreground" Value="{DynamicResource MaterialDesignLightSuccessBrush}"/>
                                                                 </DataTrigger>
                                                                 <DataTrigger Value="True">
@@ -529,11 +539,11 @@
                                                                             <Binding Path="Value.Settings.MotionProviderBlend"/>
                                                                         </MultiBinding>
                                                                     </DataTrigger.Binding>
-                                                                    <Setter Property="Text" Value="Override"/>
+                                                                    <Setter Property="Text" Value="覆盖"/>
                                                                     <Setter Property="Foreground" Value="{DynamicResource MaterialDesignLightErrorBrush}"/>
                                                                 </DataTrigger>
                                                                 <DataTrigger Binding="{Binding Value.Settings.BypassMotionProvider}" Value="True">
-                                                                    <Setter Property="Text" Value="Bypass"/>
+                                                                    <Setter Property="Text" Value="旁路"/>
                                                                     <Setter Property="Foreground" Value="{DynamicResource MaterialDesignPaper}"/>
                                                                 </DataTrigger>
                                                             </Style.Triggers>
@@ -543,19 +553,19 @@
                                             </TextBlock>
 
                                             <TextBlock Margin="0 -5 0 0" FontSize="13">
-                                                <Run FontWeight="Bold" Text="Speed limit:"/>
+                                                <Run FontWeight="Bold" Text="速度限制："/>
                                                 <Run>
                                                     <Run.Resources>
                                                         <Style TargetType="{x:Type Run}">
-                                                            <Setter Property="Text" Value="Disabled"/>
+                                                            <Setter Property="Text" Value="已禁用"/>
                                                             <Setter Property="Foreground" Value="{DynamicResource MaterialDesignPaper}"/>
                                                             <Style.Triggers>
                                                                 <DataTrigger Binding="{Binding Value.Settings.SpeedLimitEnabled}" Value="True">
-                                                                    <Setter Property="Text" Value="Enabled"/>
+                                                                    <Setter Property="Text" Value="已启用"/>
                                                                     <Setter Property="Foreground" Value="{DynamicResource MaterialDesignLightSuccessBrush}"/>
                                                                 </DataTrigger>
                                                                 <DataTrigger Binding="{Binding Value.State.IsSpeedLimited}" Value="True">
-                                                                    <Setter Property="Text" Value="Active"/>
+                                                                    <Setter Property="Text" Value="已生效"/>
                                                                     <Setter Property="Foreground" Value="{DynamicResource MaterialDesignLightErrorBrush}"/>
                                                                 </DataTrigger>
                                                             </Style.Triggers>
@@ -565,19 +575,19 @@
                                             </TextBlock>
 
                                             <TextBlock Margin="0 -5 0 0" FontSize="13">
-                                                <Run FontWeight="Bold" Text="Smart limit:"/>
+                                                <Run FontWeight="Bold" Text="智能限制："/>
                                                 <Run>
                                                     <Run.Resources>
                                                         <Style TargetType="{x:Type Run}">
-                                                            <Setter Property="Text" Value="Disabled"/>
+                                                            <Setter Property="Text" Value="已禁用"/>
                                                             <Setter Property="Foreground" Value="{DynamicResource MaterialDesignPaper}"/>
                                                             <Style.Triggers>
                                                                 <DataTrigger Binding="{Binding Value.Settings.SmartLimitInputAxis, Converter={StaticResource InvertedNullableToBooleanConverter}}" Value="True">
-                                                                    <Setter Property="Text" Value="Enabled"/>
+                                                                    <Setter Property="Text" Value="已启用"/>
                                                                     <Setter Property="Foreground" Value="{DynamicResource MaterialDesignLightSuccessBrush}"/>
                                                                 </DataTrigger>
                                                                 <DataTrigger Binding="{Binding Value.State.IsSmartLimited}" Value="True">
-                                                                    <Setter Property="Text" Value="Active"/>
+                                                                    <Setter Property="Text" Value="已生效"/>
                                                                     <Setter Property="Foreground" Value="{DynamicResource MaterialDesignLightErrorBrush}"/>
                                                                 </DataTrigger>
                                                             </Style.Triggers>
@@ -704,7 +714,7 @@
                                         </StackPanel>
                                         <StackPanel DockPanel.Dock="Left" Orientation="Horizontal">
                                             <Menu Background="{DynamicResource MaterialDesignPaper}">
-                                                <MenuItem Style="{StaticResource MaterialDesignToolBarMenuItem}" ToolTip="Script">
+                                                <MenuItem Style="{StaticResource MaterialDesignToolBarMenuItem}" ToolTip="脚本">
                                                     <MenuItem.Icon>
                                                         <material:PackIcon Width="19"
                                                                            Height="19"
@@ -713,25 +723,25 @@
 
                                                     <MenuItem Command="{s:Action OnAxisOpenFolder}"
                                                               CommandParameter="{Binding Key}"
-                                                              Header="Open folder"
+                                                              Header="打开文件夹"
                                                               Icon="{material:PackIcon Kind=FolderOpen}"
                                                               IsEnabled="{Binding Value.Script, Converter={StaticResource InvertedNullableToBooleanConverter}}"/>
 
                                                     <MenuItem Command="{s:Action OnAxisLoad}"
                                                               CommandParameter="{Binding Key}"
-                                                              Header="Load"
+                                                              Header="加载"
                                                               Icon="{material:PackIcon Kind=FileDownload}"
                                                               IsEnabled="{Binding DataContext.MediaResource, RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type UserControl}}, Converter={StaticResource InvertedNullableToBooleanConverter}}"/>
 
                                                     <MenuItem Command="{s:Action OnAxisClear}"
                                                               CommandParameter="{Binding Key}"
-                                                              Header="Clear"
+                                                              Header="清除"
                                                               Icon="{material:PackIcon Kind=Close}"
                                                               IsEnabled="{Binding Value.Script, Converter={StaticResource InvertedNullableToBooleanConverter}}"/>
 
                                                     <MenuItem Command="{s:Action OnAxisReload}"
                                                               CommandParameter="{Binding Key}"
-                                                              Header="Reload"
+                                                              Header="重新加载"
                                                               Icon="{material:PackIcon Kind=Reload}"
                                                               IsEnabled="{Binding DataContext.MediaResource, RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type UserControl}}, Converter={StaticResource InvertedNullableToBooleanConverter}}"/>
 
@@ -739,12 +749,12 @@
                                                         <MenuItem.Resources>
                                                             <Style BasedOn="{StaticResource MaterialDesignMenuItem}" TargetType="{x:Type MenuItem}">
                                                                 <Setter Property="Icon" Value="{material:PackIcon Kind=LockOpenVariantOutline}"/>
-                                                                <Setter Property="Header" Value="Lock"/>
+                                                                <Setter Property="Header" Value="锁定"/>
                                                                 <Style.Triggers>
                                                                     <DataTrigger Binding="{Binding Value.Settings.LockScript}" Value="True">
                                                                         <DataTrigger.Setters>
                                                                             <Setter Property="Icon" Value="{material:PackIcon Kind=Lock}"/>
-                                                                            <Setter Property="Header" Value="Unlock"/>
+                                                                            <Setter Property="Header" Value="解锁"/>
                                                                             <Setter Property="Foreground" Value="{DynamicResource MaterialDesignErrorBrush}"/>
                                                                         </DataTrigger.Setters>
                                                                     </DataTrigger>
@@ -758,7 +768,7 @@
                                             <ToggleButton Style="{StaticResource MaterialDesignToolBarToggleButton}"
                                                           Checked="{s:Action OnInvertScriptCheckedChanged}"
                                                           IsChecked="{Binding Value.Settings.InvertScript, Mode=OneWay}"
-                                                          ToolTip="Invert script"
+                                                          ToolTip="反转脚本"
                                                           Unchecked="{s:Action OnInvertScriptCheckedChanged}">
                                                 <material:PackIcon Width="20"
                                                                    Height="20"
@@ -775,7 +785,7 @@
                                             <material:PopupBox DockPanel.Dock="Left"
                                                                Style="{StaticResource MaterialDesignToolBarPopupBox}"
                                                                StaysOpen="True"
-                                                               ToolTip="Bypass">
+                                                               ToolTip="旁路">
                                                 <material:PopupBox.ToggleContent>
                                                     <material:PackIcon Width="21"
                                                                        Height="21"
@@ -807,7 +817,7 @@
                                                                     Width="32"
                                                                     Padding="0"
                                                                     Click="{s:Action OnBypassDisableAll}"
-                                                                    ToolTip="Disable all">
+                                                                    ToolTip="全部禁用">
                                                                 <Button.IsEnabled>
                                                                     <MultiBinding Converter="{StaticResource BooleanOrConverter}">
                                                                         <MultiBinding.Bindings>
@@ -826,14 +836,14 @@
                                                                     Style="{StaticResource MaterialDesignPaperButton}"
                                                                     Margin="0 0 10 0"
                                                                     Click="{s:Action OnBypassEnableAll}"
-                                                                    Content="Bypass all"
+                                                                    Content="全部旁路"
                                                                     Typography.Capitals="AllSmallCaps"/>
                                                         </DockPanel>
 
                                                         <TextBlock VerticalAlignment="Center"
                                                                    FontSize="12"
                                                                    FontWeight="Bold"
-                                                                   Text="Bypass:"
+                                                                   Text="旁路："
                                                                    Typography.Capitals="AllSmallCaps"/>
 
                                                         <DockPanel Margin="0 0 0 5" LastChildFill="True">
@@ -842,7 +852,7 @@
                                                                           IsChecked="{Binding Value.Settings.BypassScript}"/>
                                                             <TextBlock DockPanel.Dock="Left"
                                                                        VerticalAlignment="Center"
-                                                                       Text="Script:"/>
+                                                                       Text="脚本："/>
                                                         </DockPanel>
                                                         <DockPanel Margin="0 0 0 5" LastChildFill="True">
                                                             <ToggleButton DockPanel.Dock="Right"
@@ -851,7 +861,7 @@
                                                             <TextBlock DockPanel.Dock="Left"
                                                                        Margin="0 0 10 0"
                                                                        VerticalAlignment="Center"
-                                                                       Text="Motion provider:"/>
+                                                                       Text="运动生成器："/>
                                                         </DockPanel>
                                                         <DockPanel LastChildFill="True">
                                                             <ToggleButton DockPanel.Dock="Right"
@@ -860,7 +870,7 @@
                                                             <TextBlock DockPanel.Dock="Left"
                                                                        Margin="0 0 10 0"
                                                                        VerticalAlignment="Center"
-                                                                       Text="Custom transition:"/>
+                                                                       Text="自定义过渡："/>
                                                         </DockPanel>
                                                     </StackPanel>
                                                 </Grid>
@@ -870,7 +880,7 @@
                                             <material:PopupBox DockPanel.Dock="Left"
                                                                Style="{StaticResource MaterialDesignToolBarPopupBox}"
                                                                StaysOpen="True"
-                                                               ToolTip="Link script">
+                                                               ToolTip="链接脚本">
                                                 <material:PopupBox.ToggleContent>
                                                     <material:PackIcon Width="20"
                                                                        Height="20"
@@ -895,7 +905,7 @@
                                                             <TextBlock DockPanel.Dock="Left"
                                                                        Margin="0 0 10 0"
                                                                        VerticalAlignment="Center"
-                                                                       Text="Target:"/>
+                                                                       Text="目标："/>
                                                             <ComboBox DockPanel.Dock="Left"
                                                                       ItemsSource="{Binding Source={x:Static common:DeviceAxis.All}}"
                                                                       SelectedItem="{Binding Value.Settings.LinkAxis}"
@@ -908,7 +918,7 @@
                                                             <CheckBox DockPanel.Dock="Left"
                                                                       Margin="0 0 5 0"
                                                                       Checked="{s:Action OnLinkAxisPriorityChanged}"
-                                                                      Content="Priority"
+                                                                      Content="优先级"
                                                                       IsChecked="{Binding Value.Settings.LinkAxisHasPriority}"
                                                                       Unchecked="{s:Action OnLinkAxisPriorityChanged}"/>
 
@@ -920,8 +930,7 @@
                                                                                 Mode="PrimaryLight">
                                                                 <material:ColorZone.ToolTip>
                                                                     <TextBlock>
-                                                                        When enabled the link has priority<LineBreak/>
-                                                                        over automatically loaded scripts</TextBlock>
+                                                                        启用后，链接优先于自动加载的脚本</TextBlock>
                                                                 </material:ColorZone.ToolTip>
                                                                 <material:PackIcon Width="10"
                                                                                    Height="10"
@@ -937,7 +946,7 @@
                                             <material:PopupBox DockPanel.Dock="Left"
                                                                Style="{StaticResource MaterialDesignToolBarPopupBox}"
                                                                StaysOpen="True"
-                                                               ToolTip="Motion">
+                                                               ToolTip="运动">
                                                 <material:PopupBox.ToggleContent>
                                                     <material:PackIcon Width="20"
                                                                        Height="20"
@@ -962,7 +971,7 @@
                                                                 <TextBlock DockPanel.Dock="Left"
                                                                            Margin="0 0 10 0"
                                                                            VerticalAlignment="Center"
-                                                                           Text="Motion provider:"/>
+                                                                           Text="运动生成器："/>
                                                                 <ComboBox DockPanel.Dock="Left"
                                                                           ItemsSource="{Binding DataContext.MotionProviderManager.MotionProviderNames, RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type UserControl}}}"
                                                                           behaviours:ComboBoxAssist.PreviewSelectionChanged="{s:Action OnPreviewSelectedMotionProviderChanged}"
@@ -977,7 +986,7 @@
                                                                                    VerticalAlignment="Center"
                                                                                    FontSize="14"
                                                                                    FontWeight="Bold"
-                                                                                   Text="Common settings"
+                                                                                   Text="常用设置"
                                                                                    Typography.Capitals="AllSmallCaps"/>
                                                                     </Expander.Header>
 
@@ -989,7 +998,7 @@
                                                                                            VerticalAlignment="Center"
                                                                                            FontSize="12"
                                                                                            FontWeight="Bold"
-                                                                                           Text="Blend values"
+                                                                                           Text="混合数值"
                                                                                            Typography.Capitals="AllSmallCaps"/>
 
                                                                                 <material:ColorZone DockPanel.Dock="Left"
@@ -1000,10 +1009,10 @@
                                                                                                     Mode="PrimaryLight">
                                                                                     <material:ColorZone.ToolTip>
                                                                                         <TextBlock>
-                                                                                            When a script is loaded for this axis<LineBreak/>
-                                                                                            and motion provider is running<LineBreak/>
-                                                                                            the output value will be a blend of those two<LineBreak/>
-                                                                                            based on the slider below</TextBlock>
+                                                                                            当此轴加载了脚本<LineBreak/>
+                                                                                            且运动生成器正在运行时<LineBreak/>
+                                                                                            输出值将是两者的混合结果<LineBreak/>
+                                                                                            混合比例由下方滑块决定</TextBlock>
                                                                                     </material:ColorZone.ToolTip>
                                                                                     <material:PackIcon Width="10"
                                                                                                        Height="10"
@@ -1026,7 +1035,7 @@
                                                                                 <StackPanel DockPanel.Dock="Left" Orientation="Horizontal">
                                                                                     <TextBlock Margin="0 0 5 0"
                                                                                                VerticalAlignment="Center"
-                                                                                               Text="Script:"
+                                                                                               Text="脚本："
                                                                                                TextAlignment="Center"/>
 
                                                                                     <TextBlock VerticalAlignment="Center"
@@ -1039,7 +1048,7 @@
                                                                                             Orientation="Horizontal">
                                                                                     <TextBlock Margin="0 0 5 0"
                                                                                                VerticalAlignment="Center"
-                                                                                               Text="Provider:"
+                                                                                               Text="提供者："
                                                                                                TextAlignment="Center"/>
 
                                                                                     <TextBlock VerticalAlignment="Center"
@@ -1056,7 +1065,7 @@
                                                                                        VerticalAlignment="Center"
                                                                                        FontSize="12"
                                                                                        FontWeight="Bold"
-                                                                                       Text="Gap fill"
+                                                                                       Text="空隙填充"
                                                                                        Typography.Capitals="AllSmallCaps"/>
 
                                                                             <ToggleButton DockPanel.Dock="Right"
@@ -1070,7 +1079,7 @@
                                                                             <DockPanel DockPanel.Dock="Left">
                                                                                 <TextBlock DockPanel.Dock="Left"
                                                                                            VerticalAlignment="Center"
-                                                                                           Text="Fill atleast"/>
+                                                                                           Text="至少填充"/>
 
                                                                                 <metro:NumericUpDown DockPanel.Dock="Left"
                                                                                                      MinWidth="30"
@@ -1082,7 +1091,7 @@
 
                                                                                 <TextBlock DockPanel.Dock="Left"
                                                                                            VerticalAlignment="Center"
-                                                                                           Text="{Binding Key, StringFormat={}{0} script gaps}"/>
+                                                                                           Text="{Binding Key.FriendlyName, StringFormat={}{0} 脚本空隙}"/>
                                                                             </DockPanel>
                                                                         </DockPanel>
 
@@ -1093,7 +1102,7 @@
                                                                                    Visibility="{Binding Value.Settings.UpdateMotionProviderWithAxis, Converter={StaticResource NullVisibilityConverter}}">
                                                                             <TextBlock DockPanel.Dock="Left"
                                                                                        VerticalAlignment="Center"
-                                                                                       Text="{Binding Value.Settings.UpdateMotionProviderWithAxis, StringFormat={}Match {0} speed}"/>
+                                                                                       Text="{Binding Value.Settings.UpdateMotionProviderWithAxis, StringFormat={}匹配 {0} 的速度}"/>
 
                                                                             <ToggleButton DockPanel.Dock="Right"
                                                                                           Style="{StaticResource MaterialDesignSwitchToggleButton}"
@@ -1103,14 +1112,14 @@
                                                                         <TextBlock VerticalAlignment="Center"
                                                                                    FontSize="12"
                                                                                    FontWeight="Bold"
-                                                                                   Text="Update when..."
+                                                                                   Text="更新时机…"
                                                                                    Typography.Capitals="AllSmallCaps"/>
 
                                                                         <StackPanel Margin="0 5 0 0">
                                                                             <DockPanel LastChildFill="False">
                                                                                 <TextBlock DockPanel.Dock="Left"
                                                                                            VerticalAlignment="Center"
-                                                                                           Text="Media is paused"/>
+                                                                                           Text="媒体已暂停"/>
 
                                                                                 <ToggleButton DockPanel.Dock="Right"
                                                                                               Style="{StaticResource MaterialDesignSwitchToggleButton}"
@@ -1120,7 +1129,7 @@
                                                                             <DockPanel LastChildFill="False">
                                                                                 <TextBlock DockPanel.Dock="Left"
                                                                                            VerticalAlignment="Center"
-                                                                                           Text="{Binding Key, StringFormat={}{0} axis has no script}"/>
+                                                                                           Text="{Binding Key.FriendlyName, StringFormat={}{0} 轴没有脚本}"/>
 
                                                                                 <ToggleButton DockPanel.Dock="Right"
                                                                                               Style="{StaticResource MaterialDesignSwitchToggleButton}"
@@ -1138,7 +1147,7 @@
                                                                                 <TextBlock DockPanel.Dock="Left"
                                                                                            Margin="5 0 0 0"
                                                                                            VerticalAlignment="Center"
-                                                                                           Text="is moving"/>
+                                                                                           Text="正在运动"/>
                                                                             </DockPanel>
                                                                         </StackPanel>
                                                                     </StackPanel>
@@ -1164,7 +1173,7 @@
                                                                Style="{StaticResource MaterialDesignToolBarPopupBox}"
                                                                IsPopupOpen="False"
                                                                StaysOpen="True"
-                                                               ToolTip="Smart limit">
+                                                               ToolTip="智能限制">
                                                 <material:PopupBox.ToggleContent>
                                                     <material:PackIcon Width="18"
                                                                        Height="18"
@@ -1187,7 +1196,7 @@
                                                             <TextBlock DockPanel.Dock="Left"
                                                                        Margin="0 0 10 0"
                                                                        VerticalAlignment="Center"
-                                                                       Text="Input axis:"/>
+                                                                       Text="输入轴："/>
 
                                                             <ComboBox DockPanel.Dock="Left"
                                                                       ItemsSource="{Binding Source={x:Static common:DeviceAxis.All}}"
@@ -1234,12 +1243,18 @@
                                                             <TextBlock DockPanel.Dock="Left"
                                                                        Margin="0 0 10 0"
                                                                        VerticalAlignment="Center"
-                                                                       Text="Mode:"/>
+                                                                       Text="模式："/>
 
                                                             <ComboBox DockPanel.Dock="Left"
                                                                       ItemsSource="{Binding Source={ui:EnumBindingSource {x:Type vm:SmartLimitMode}}}"
                                                                       SelectedItem="{Binding Value.Settings.SmartLimitMode}"
-                                                                      material:TextFieldAssist.HasClearButton="True"/>
+                                                                      material:TextFieldAssist.HasClearButton="True">
+                                                                <ComboBox.ItemTemplate>
+                                                                    <DataTemplate>
+                                                                        <TextBlock Text="{Binding Converter={StaticResource DescriptionConverter}}"/>
+                                                                    </DataTemplate>
+                                                                </ComboBox.ItemTemplate>
+                                                            </ComboBox>
                                                         </DockPanel>
 
                                                         <DockPanel LastChildFill="True">
@@ -1257,7 +1272,7 @@
                                                             <TextBlock DockPanel.Dock="Left"
                                                                        Margin="0 0 10 0"
                                                                        VerticalAlignment="Center"
-                                                                       Text="Target value:"/>
+                                                                       Text="目标值："/>
 
                                                             <metro:NumericUpDown Interval="0.01"
                                                                                  Maximum="1"
@@ -1270,7 +1285,7 @@
                                                                    VerticalAlignment="Center"
                                                                    FontSize="12"
                                                                    FontWeight="Bold"
-                                                                   Text="when..."
+                                                                   Text="当…"
                                                                    Typography.Capitals="AllSmallCaps"/>
 
                                                         <DockPanel>
@@ -1282,7 +1297,7 @@
                                                             <TextBlock DockPanel.Dock="Left"
                                                                        Margin="0 0 5 0"
                                                                        VerticalAlignment="Center"
-                                                                       Text="axis value is at:"/>
+                                                                       Text="轴数值位于："/>
 
                                                             <TextBlock Text="{Binding Input, StringFormat={}{0:F0}%, ElementName=SmartLimitPreview}"/>
                                                         </DockPanel>
@@ -1291,27 +1306,28 @@
                                                                    VerticalAlignment="Center"
                                                                    FontSize="12"
                                                                    FontWeight="Bold"
-                                                                   Text="then..."
+                                                                   Text="然后…"
                                                                    Typography.Capitals="AllSmallCaps"/>
 
                                                         <DockPanel>
                                                             <TextBlock DockPanel.Dock="Left"
                                                                        Margin="0 0 5 0"
                                                                        VerticalAlignment="Center"
-                                                                       Text="Limit"/>
+                                                                       Text="限制"/>
 
                                                             <TextBlock DockPanel.Dock="Left"
                                                                        Margin="0 0 5 0"
                                                                        VerticalAlignment="Center"
-                                                                       Text="{Binding Key}"/>
+                                                                       ToolTip="{Binding Key}"
+                                                                       Text="{Binding Key.FriendlyName}"/>
 
                                                             <TextBlock DockPanel.Dock="Left" VerticalAlignment="Center">
                                                                 <TextBlock.Resources>
                                                                     <Style BasedOn="{StaticResource MaterialDesignTextBlock}" TargetType="{x:Type TextBlock}">
-                                                                        <Setter Property="Text" Value="axis speed to:  "/>
+                                                                        <Setter Property="Text" Value="轴速度至：  "/>
                                                                         <Style.Triggers>
                                                                             <DataTrigger Binding="{Binding Value.Settings.SmartLimitMode}" Value="Value">
-                                                                                <Setter Property="Text" Value="axis range to:  &#x00B1;"/>
+                                                                                <Setter Property="Text" Value="轴范围至：  &#x00B1;"/>
                                                                             </DataTrigger>
                                                                         </Style.Triggers>
                                                                     </Style>
@@ -1338,7 +1354,7 @@
                                                             <TextBlock DockPanel.Dock="Left"
                                                                        Margin="0 0 5 0"
                                                                        VerticalAlignment="Center"
-                                                                       Text="from target value"/>
+                                                                       Text="偏离目标值"/>
                                                         </DockPanel>
                                                     </StackPanel>
                                                 </Grid>
@@ -1347,7 +1363,7 @@
                                             <material:PopupBox DockPanel.Dock="Left"
                                                                Style="{StaticResource MaterialDesignToolBarPopupBox}"
                                                                StaysOpen="True"
-                                                               ToolTip="Speed limit">
+                                                               ToolTip="速度限制">
                                                 <material:PopupBox.ToggleContent>
                                                     <material:PackIcon Width="22"
                                                                        Height="22"
@@ -1370,7 +1386,7 @@
                                                                        Width="50"
                                                                        Margin="0 0 10 0"
                                                                        VerticalAlignment="Center"
-                                                                       Text="Enabled:"/>
+                                                                       Text="已启用："/>
 
                                                             <CheckBox DockPanel.Dock="Left"
                                                                       Style="{StaticResource MaterialDesignSwitchToggleButton}"
@@ -1385,8 +1401,7 @@
                                                                                 Mode="PrimaryLight">
                                                                 <material:ColorZone.ToolTip>
                                                                     <TextBlock>
-                                                                        1 unit is equal to axis value change<LineBreak/>
-                                                                        from 0% to 100% or vice versa</TextBlock>
+                                                                        1 单位 = 轴数值从 0% 到 100%（或反之）的变化量</TextBlock>
                                                                 </material:ColorZone.ToolTip>
                                                                 <material:PackIcon Width="10"
                                                                                    Height="10"
@@ -1400,7 +1415,7 @@
                                                             <TextBlock DockPanel.Dock="Left"
                                                                        Margin="0 0 10 0"
                                                                        VerticalAlignment="Center"
-                                                                       Text="Limit: "/>
+                                                                       Text="限制： "/>
 
                                                             <metro:NumericUpDown DockPanel.Dock="Right"
                                                                                  Width="150"
@@ -1423,7 +1438,7 @@
                                             <material:PopupBox DockPanel.Dock="Left"
                                                                Style="{StaticResource MaterialDesignToolBarPopupBox}"
                                                                StaysOpen="True"
-                                                               ToolTip="Interpolation">
+                                                               ToolTip="插值">
                                                 <material:PopupBox.ToggleContent>
                                                     <material:PackIcon Width="20"
                                                                        Height="20"
@@ -1441,11 +1456,17 @@
                                                                        Width="30"
                                                                        Margin="0 0 10 0"
                                                                        VerticalAlignment="Center"
-                                                                       Text="Type:"/>
+                                                                       Text="类型："/>
 
                                                             <ComboBox DockPanel.Dock="Left"
                                                                       ItemsSource="{Binding Source={ui:EnumBindingSource {x:Type common:InterpolationType}}}"
-                                                                      SelectedItem="{Binding Value.Settings.InterpolationType}"/>
+                                                                      SelectedItem="{Binding Value.Settings.InterpolationType}">
+                                                                <ComboBox.ItemTemplate>
+                                                                    <DataTemplate>
+                                                                        <TextBlock Text="{Binding Converter={StaticResource DescriptionConverter}}"/>
+                                                                    </DataTemplate>
+                                                                </ComboBox.ItemTemplate>
+                                                            </ComboBox>
                                                         </DockPanel>
                                                     </StackPanel>
                                                 </Grid>
@@ -1454,7 +1475,7 @@
                                             <material:PopupBox DockPanel.Dock="Left"
                                                                Style="{StaticResource MaterialDesignToolBarPopupBox}"
                                                                StaysOpen="True"
-                                                               ToolTip="Auto-home">
+                                                               ToolTip="自动归位">
                                                 <material:PopupBox.ToggleContent>
                                                     <material:PackIcon Width="22"
                                                                        Height="22"
@@ -1476,7 +1497,7 @@
                                                             <TextBlock DockPanel.Dock="Left"
                                                                        Margin="0 0 10 0"
                                                                        VerticalAlignment="Center"
-                                                                       Text="Enabled:"/>
+                                                                       Text="已启用："/>
 
                                                             <CheckBox DockPanel.Dock="Left"
                                                                       Style="{StaticResource MaterialDesignSwitchToggleButton}"
@@ -1487,7 +1508,7 @@
                                                             <TextBlock DockPanel.Dock="Left"
                                                                        Margin="0 0 10 0"
                                                                        VerticalAlignment="Center"
-                                                                       Text="Auto-home inside script:"/>
+                                                                       Text="脚本内自动归位："/>
 
                                                             <CheckBox DockPanel.Dock="Left"
                                                                       Style="{StaticResource MaterialDesignSwitchToggleButton}"
@@ -1498,7 +1519,7 @@
                                                             <TextBlock DockPanel.Dock="Left"
                                                                        Margin="0 0 10 0"
                                                                        VerticalAlignment="Center"
-                                                                       Text="Delay:"/>
+                                                                       Text="延迟："/>
 
                                                             <metro:NumericUpDown Interval="0.5"
                                                                                  Minimum="0"
@@ -1510,7 +1531,7 @@
                                                             <TextBlock DockPanel.Dock="Left"
                                                                        Margin="0 0 10 0"
                                                                        VerticalAlignment="Center"
-                                                                       Text="Duration:"/>
+                                                                       Text="时长："/>
 
                                                             <metro:NumericUpDown Interval="0.5"
                                                                                  Minimum="0"
@@ -1522,7 +1543,7 @@
                                                             <TextBlock DockPanel.Dock="Left"
                                                                        Margin="0 0 10 0"
                                                                        VerticalAlignment="Center"
-                                                                       Text="Target value:"/>
+                                                                       Text="目标值："/>
 
                                                             <metro:NumericUpDown Interval="0.01"
                                                                                  Maximum="1"
@@ -1542,7 +1563,7 @@
                                         <TextBlock DockPanel.Dock="Left"
                                                    Margin="0 0 10 0"
                                                    VerticalAlignment="Center"
-                                                   Text="File:"/>
+                                                   Text="文件："/>
 
                                         <TextBox DockPanel.Dock="Right"
                                                  Style="{StaticResource MaterialDesignFloatingHintTextBox}"
@@ -1563,7 +1584,7 @@
                                             <TextBlock DockPanel.Dock="Left"
                                                        Margin="0 0 10 0"
                                                        VerticalAlignment="Center"
-                                                       Text="Offset:"/>
+                                                       Text="偏移："/>
 
                                             <metro:NumericUpDown Width="100"
                                                                  Interval="0.1"
@@ -1576,7 +1597,7 @@
                                             <TextBlock DockPanel.Dock="Left"
                                                        Margin="0 0 10 0"
                                                        VerticalAlignment="Center"
-                                                       Text="Scale:"/>
+                                                       Text="缩放："/>
                                             <TextBlock DockPanel.Dock="Right"
                                                        Width="50"
                                                        VerticalAlignment="Center"
@@ -1613,7 +1634,7 @@
                                VerticalAlignment="Center"
                                FontSize="14"
                                FontWeight="Bold"
-                               Text="Axis values"
+                               Text="轴数值"
                                Typography.Capitals="AllSmallCaps"/>
                 </Expander.Header>
 
@@ -1633,26 +1654,18 @@
                             <DataTemplate>
                                 <DockPanel Margin="0" LastChildFill="True">
                                     <TextBlock DockPanel.Dock="Left"
-                                               Width="15"
+                                               Width="30"
                                                Margin="0 0 5 0"
-                                               Text="{Binding Key, Mode=OneWay}"/>
+                                               ToolTip="{Binding Key}"
+                                               Text="{Binding Key.FriendlyName, Mode=OneWay}"/>
                                     <ProgressBar DockPanel.Dock="Right"
-                                                 Width="155"
+                                                 Width="140"
                                                  Height="10"
                                                  material:TransitionAssist.DisableTransitions="True"
+                                                 Style="{StaticResource MaterialDesignLinearProgressBar}"
                                                  Maximum="100"
                                                  Minimum="0"
-                                                 Value="{Binding Value.Value, Mode=OneWay, Converter={StaticResource DoubleToPercentConverter}}">
-                                        <ProgressBar.Style>
-                                            <Style BasedOn="{StaticResource MaterialDesignLinearProgressBar}" TargetType="ProgressBar">
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding Value.InsideScript}" Value="False">
-                                                        <Setter Property="Foreground" Value="{DynamicResource PrimaryHueMidBrush}"/>
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </ProgressBar.Style>
-                                    </ProgressBar>
+                                                 Value="{Binding Value.Value, Mode=OneWay, Converter={StaticResource DoubleToPercentConverter}}"/>
                                 </DockPanel>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>

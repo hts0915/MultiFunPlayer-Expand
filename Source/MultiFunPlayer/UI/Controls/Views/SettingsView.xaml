@@ -1,4 +1,4 @@
-﻿<UserControl x:Class="MultiFunPlayer.UI.Controls.Views.SettingsView"
+<UserControl x:Class="MultiFunPlayer.UI.Controls.Views.SettingsView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -21,7 +21,7 @@
                                FontSize="14"
                                FontWeight="Bold"
                                Foreground="{DynamicResource PrimaryHueMidForegroundBrush}"
-                               Text="Settings"
+                               Text="设置"
                                Typography.Capitals="AllSmallCaps"/>
 
                     <Button Style="{StaticResource MaterialDesignFlatButton}"

@@ -3,7 +3,7 @@ using System.ComponentModel;
 
 namespace MultiFunPlayer.Shortcut;
 
-[DisplayName("Axis Drive")]
+[DisplayName("轴驱动")]
 internal sealed class AxisDriveShortcut(IShortcutActionRunner actionRunner, IAxisInputGestureDescriptor gesture)
     : AbstractShortcut<IAxisInputGesture, IAxisInputGestureData>(actionRunner, gesture)
 {
@@ -30,9 +30,14 @@ internal sealed class AxisDriveShortcut(IShortcutActionRunner actionRunner, IAxi
 
 internal enum AxisDriveShortcutMode
 {
+    [Description("绝对")]
     Absolute,
+    [Description("相对")]
     Relative,
+    [Description("仅正向相对")]
     RelativePositiveOnly,
+    [Description("仅负向相对")]
     RelativeNegativeOnly,
+    [Description("摇杆相对")]
     RelativeJoystick
 }

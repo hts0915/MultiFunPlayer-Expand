@@ -1,4 +1,4 @@
-﻿<UserControl x:Class="MultiFunPlayer.MediaSource.Views.MpcMediaSource"
+<UserControl x:Class="MultiFunPlayer.MediaSource.Views.MpcMediaSource"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:controls="clr-namespace:MultiFunPlayer.UI.Controls"
@@ -26,10 +26,10 @@
                         IsEnabled="{Binding CanToggleConnect}">
                     <Button.Style>
                         <Style BasedOn="{StaticResource MaterialDesignProgressToolBarButton}" TargetType="{x:Type ButtonBase}">
-                            <Setter Property="ToolTip" Value="Connect"/>
+                            <Setter Property="ToolTip" Value="连接"/>
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding IsConnected}" Value="True">
-                                    <Setter Property="ToolTip" Value="Disconnect"/>
+                                    <Setter Property="ToolTip" Value="断开连接"/>
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>
@@ -61,7 +61,7 @@
                 <ToggleButton DockPanel.Dock="Left"
                               Style="{StaticResource MaterialDesignToolBarToggleButton}"
                               IsChecked="{Binding AutoConnectEnabled}"
-                              ToolTip="Auto-connect">
+                              ToolTip="自动连接">
                     <material:PackIcon Width="20"
                                        Height="20"
                                        Kind="MotionPlayOutline"
@@ -80,7 +80,7 @@
                 <TextBlock DockPanel.Dock="Left"
                            Margin="0 0 10 0"
                            VerticalAlignment="Center"
-                           Text="Endpoint:"/>
+                           Text="端点："/>
 
                 <controls:EndPointBox DockPanel.Dock="Left"
                                       HorizontalAlignment="Left"

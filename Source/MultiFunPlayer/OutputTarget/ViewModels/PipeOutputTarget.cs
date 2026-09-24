@@ -1,4 +1,4 @@
-﻿using MultiFunPlayer.Common;
+using MultiFunPlayer.Common;
 using MultiFunPlayer.Property;
 using MultiFunPlayer.Shortcut;
 using MultiFunPlayer.UI;
@@ -39,7 +39,7 @@ internal sealed class PipeOutputTarget(int instanceIndex, IEventAggregator event
             Logger.Info("Connecting to {0} at \"{1}\"", Identifier, PipeName);
 
         if (string.IsNullOrWhiteSpace(PipeName))
-            throw new OutputTargetException("Pipe name cannot be empty");
+            throw new OutputTargetException("管道名称不能为空");
 
         return ValueTask.FromResult(true);
     }
@@ -62,7 +62,7 @@ internal sealed class PipeOutputTarget(int instanceIndex, IEventAggregator event
             if (connectionType != ConnectionType.AutoConnect)
             {
                 Logger.Error(e, "Error when connecting to {0} at \"{1}\"", Name, PipeName);
-                _ = DialogHelper.ShowErrorAsync(e, $"Error when connecting to {Name}", "RootDialog");
+                _ = DialogHelper.ShowErrorAsync(e, $"连接 {Name} 时出错", "RootDialog");
             }
 
             return;
@@ -125,7 +125,7 @@ internal sealed class PipeOutputTarget(int instanceIndex, IEventAggregator event
         catch (Exception e)
         {
             Logger.Error(e, $"{Identifier} failed with exception");
-            _ = DialogHelper.ShowErrorAsync(e, $"{Identifier} failed with exception", "RootDialog");
+            _ = DialogHelper.ShowErrorAsync(e, $"{Identifier} 发生异常", "RootDialog");
         }
 
         try { client?.Dispose(); }
@@ -155,7 +155,7 @@ internal sealed class PipeOutputTarget(int instanceIndex, IEventAggregator event
         base.RegisterActions(s);
 
         #region PipeName
-        s.RegisterAction<string>($"{Identifier}::PipeName::Set", s => s.WithLabel("Pipe name"), pipeName => PipeName = pipeName);
+        s.RegisterAction<string>($"{Identifier}::PipeName::Set", s => s.WithLabel("管道名称"), pipeName => PipeName = pipeName);
         #endregion
     }
 

@@ -1,4 +1,4 @@
-﻿using Microsoft.Win32;
+using Microsoft.Win32;
 using MultiFunPlayer.Common;
 using MultiFunPlayer.Property;
 using MultiFunPlayer.Script;
@@ -94,15 +94,15 @@ internal sealed class LoopingScriptMotionProvider(DeviceAxis target, IEventAggre
 
         #region LoopingMotionProvider::Script
         s.RegisterAction<DeviceAxis, string>($"MotionProvider::{name}::Script::Set",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
-            s => s.WithLabel("Script path"),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("脚本路径"),
             (axis, script) => UpdateProperty(axis, p => p.SourceFile = new FileInfo(script)));
         #endregion
 
         #region LoopingMotionProvider::Interpolation
         s.RegisterAction<DeviceAxis, InterpolationType>($"MotionProvider::{name}::Interpolation::Set",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
-            s => s.WithLabel("Interpolation type").WithItemsSource(Enum.GetValues<InterpolationType>()),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("插值类型").WithItemsSource(Enum.GetValues<InterpolationType>()),
             (axis, interpolation) => UpdateProperty(axis, p => p.InterpolationType = interpolation));
         #endregion
     }

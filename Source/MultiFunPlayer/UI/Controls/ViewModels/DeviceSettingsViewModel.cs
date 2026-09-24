@@ -1,4 +1,4 @@
-﻿using MultiFunPlayer.Common;
+using MultiFunPlayer.Common;
 using MultiFunPlayer.UI.Dialogs.ViewModels;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -17,7 +17,7 @@ internal sealed class DeviceSettingsViewModel : Screen, IHandle<SettingsMessage>
 
     public DeviceSettingsViewModel(IEventAggregator eventAggregator)
     {
-        DisplayName = "Device";
+        DisplayName = "设备";
         eventAggregator.Subscribe(this);
     }
 
@@ -38,7 +38,7 @@ internal sealed class DeviceSettingsViewModel : Screen, IHandle<SettingsMessage>
         if (!CanRenameSelectedDevice)
             return;
 
-        var result = await DialogHelper.ShowAsync<string>(new TextInputMessageDialog("Device name:", SelectedDevice.Name), "SettingsDialog") as string;
+        var result = await DialogHelper.ShowAsync<string>(new TextInputMessageDialog("设备名称：", SelectedDevice.Name), "SettingsDialog") as string;
         if (string.IsNullOrWhiteSpace(result))
             return;
 
@@ -50,7 +50,7 @@ internal sealed class DeviceSettingsViewModel : Screen, IHandle<SettingsMessage>
 
     public async void OnCloneDevice()
     {
-        var result = await DialogHelper.ShowAsync<string>(new TextInputMessageDialog("Device name:", $"{SelectedDevice.Name} (custom)"), "SettingsDialog").ConfigureAwait(true) as string;
+        var result = await DialogHelper.ShowAsync<string>(new TextInputMessageDialog("设备名称：", $"{SelectedDevice.Name} （自定义）"), "SettingsDialog").ConfigureAwait(true) as string;
         if (string.IsNullOrWhiteSpace(result))
             return;
 
@@ -79,7 +79,7 @@ internal sealed class DeviceSettingsViewModel : Screen, IHandle<SettingsMessage>
         catch (Exception e)
         {
             Logger.Warn(e, "Device export failed");
-            _ = DialogHelper.ShowErrorAsync(e, "Device export failed", "SettingsDialog");
+            _ = DialogHelper.ShowErrorAsync(e, "导出设备失败", "SettingsDialog");
         }
     }
 
@@ -100,7 +100,7 @@ internal sealed class DeviceSettingsViewModel : Screen, IHandle<SettingsMessage>
         catch(Exception e)
         {
             Logger.Warn(e, "Device import failed");
-            _ = DialogHelper.ShowErrorAsync(e, "Device import failed", "SettingsDialog");
+            _ = DialogHelper.ShowErrorAsync(e, "导入设备失败", "SettingsDialog");
         }
     }
 

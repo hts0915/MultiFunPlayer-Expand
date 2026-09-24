@@ -1,4 +1,4 @@
-﻿using MultiFunPlayer.Common;
+using MultiFunPlayer.Common;
 using MultiFunPlayer.Property;
 using MultiFunPlayer.Shortcut;
 using Newtonsoft.Json;
@@ -179,33 +179,33 @@ internal sealed class CustomCurveMotionProvider : AbstractMotionProvider
 
         #region CustomCurveMotionProvider::InterpolationType
         s.RegisterAction<DeviceAxis, InterpolationType>($"MotionProvider::{name}::InterpolationType::Set",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
-            s => s.WithLabel("Interpolation type").WithItemsSource(Enum.GetValues<InterpolationType>()),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("插值类型").WithItemsSource(Enum.GetValues<InterpolationType>()),
             (axis, interpolationType) => UpdateProperty(axis, p => p.InterpolationType = interpolationType));
         #endregion
 
         #region CustomCurveMotionProvider::Duration
         s.RegisterAction<DeviceAxis, double>($"MotionProvider::{name}::Duration::Set",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
-            s => s.WithLabel("Duration").AsNumericUpDown(1, 60, 1, "{0:F2}s"),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("时长").AsNumericUpDown(1, 60, 1, "{0:F2}s"),
             (axis, duration) => UpdateProperty(axis, p => p.Duration = duration));
         #endregion
 
         #region CustomCurveMotionProvider::IsLooping
         s.RegisterAction<DeviceAxis, bool>($"MotionProvider::{name}::IsLooping::Set",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
-            s => s.WithLabel("Enable looping"),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("启用循环"),
             (axis, enabled) => UpdateProperty(axis, p => p.IsLooping = enabled));
 
         s.RegisterAction<DeviceAxis>($"MotionProvider::{name}::IsLooping::Toggle",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
             axis => UpdateProperty(axis, p => p.IsLooping = !p.IsLooping));
         #endregion
 
         #region CustomCurveMotionProvider::Reset
         s.RegisterAction<DeviceAxis, bool>($"MotionProvider::{name}::Reset",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
-            s => s.WithLabel("Request sync").WithDefaultValue(true),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("请求同步").WithDefaultValue(true),
             (axis, sync) => UpdateProperty(axis, p => {
                 if (sync)
                     p.RequestSync();
@@ -215,7 +215,7 @@ internal sealed class CustomCurveMotionProvider : AbstractMotionProvider
 
         #region CustomCurveMotionProvider::Points
         s.RegisterAction<DeviceAxis, PointsActionSettingsViewModel>($"MotionProvider::{name}::Points::Set",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
             s => s.WithDefaultValue(() => new PointsActionSettingsViewModel())
                   .WithTemplateName("CustomCurveMotionProviderPointsTemplate")
                   .WithCustomToString(vm => $"Points({vm.Points.Count})"),

@@ -1,6 +1,7 @@
-﻿using MultiFunPlayer.Common;
+using MultiFunPlayer.Common;
 using Newtonsoft.Json;
 using NLog;
+using System.ComponentModel;
 using System.Globalization;
 using System.IO;
 using System.Text;
@@ -9,7 +10,9 @@ namespace MultiFunPlayer.Script;
 
 public enum ScriptType
 {
+    [Description("Funscript")]
     Funscript,
+    [Description("CSV")]
     Csv
 }
 

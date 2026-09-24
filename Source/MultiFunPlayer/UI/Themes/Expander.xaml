@@ -78,10 +78,10 @@
                                                                                     </material:PackIcon>
                                                                                 </Setter.Value>
                                                                             </Setter>
-                                                                            <Setter Property="ToolTip" Value="Open"/>
+                                                                            <Setter Property="ToolTip" Value="展开"/>
                                                                             <Style.Triggers>
                                                                                 <DataTrigger Binding="{Binding IsExpanded, RelativeSource={RelativeSource AncestorType=Expander, AncestorLevel=1}}" Value="True">
-                                                                                    <Setter Property="ToolTip" Value="Close"/>
+                                                                                    <Setter Property="ToolTip" Value="折叠"/>
                                                                                 </DataTrigger>
                                                                             </Style.Triggers>
                                                                         </Style>

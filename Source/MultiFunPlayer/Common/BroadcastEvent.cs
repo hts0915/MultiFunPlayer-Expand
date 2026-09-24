@@ -19,7 +19,7 @@ internal sealed class BroadcastEvent<T> where T : class
     public void RegisterContext(object context)
     {
         if (!_waitHandles.TryAdd(context, new ManualResetEvent(false)))
-            throw new InvalidOperationException("Context can only be registered once");
+            throw new InvalidOperationException("上下文只能注册一次");
     }
 
     public void UnregisterContext(object context)

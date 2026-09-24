@@ -22,18 +22,24 @@
             <TextBlock DockPanel.Dock="Left"
                        Margin="0 0 10 0"
                        VerticalAlignment="Center"
-                       Text="Interpolation type:"/>
+                       Text="插值类型："/>
 
             <ComboBox DockPanel.Dock="Left"
                       ItemsSource="{Binding Source={ui:EnumBindingSource {x:Type common:InterpolationType}}}"
-                      SelectedItem="{Binding InterpolationType}"/>
+                      SelectedItem="{Binding InterpolationType}">
+                <ComboBox.ItemTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding Converter={StaticResource DescriptionConverter}}"/>
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
         </DockPanel>
 
         <DockPanel LastChildFill="True">
             <TextBlock DockPanel.Dock="Left"
                        Margin="0 0 10 0"
                        VerticalAlignment="Center"
-                       Text="Duration:"/>
+                       Text="时长："/>
 
             <metro:NumericUpDown Maximum="60"
                                  Minimum="1"
@@ -45,7 +51,7 @@
             <TextBlock DockPanel.Dock="Left"
                        Margin="0 0 10 0"
                        VerticalAlignment="Center"
-                       Text="Speed:"/>
+                       Text="速度："/>
 
             <metro:NumericUpDown Style="{StaticResource MaterialDesignNumericUpDown}"
                                  HideUpDownButtons="False"
@@ -60,7 +66,7 @@
             <TextBlock DockPanel.Dock="Left"
                        Margin="0 0 10 0"
                        VerticalAlignment="Center"
-                       Text="Loop:"/>
+                       Text="循环："/>
 
             <CheckBox DockPanel.Dock="Left"
                       Margin="0 0 10 0"
@@ -72,7 +78,7 @@
                     Height="20"
                     VerticalAlignment="Center"
                     Command="{s:Action Reset}"
-                    ToolTip="Reset">
+                    ToolTip="重置">
                 <material:PackIcon Width="16"
                                    Height="16"
                                    HorizontalAlignment="Center"
@@ -86,7 +92,7 @@
 
                 <TextBlock Margin="0 0 10 0"
                            VerticalAlignment="Center"
-                           Text="Sync on end:"/>
+                           Text="结束时同步："/>
 
                 <CheckBox Margin="0 0 10 0" IsChecked="{Binding SyncOnEnd}"/>
             </StackPanel>
@@ -97,7 +103,7 @@
             <TextBlock DockPanel.Dock="Left"
                        Margin="0 0 10 0"
                        VerticalAlignment="Center"
-                       Text="Range:"/>
+                       Text="范围："/>
 
             <metro:RangeSlider DockPanel.Dock="Right"
                                Style="{StaticResource MaterialDesignCompactRangeSlider}"

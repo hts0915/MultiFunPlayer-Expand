@@ -1,4 +1,4 @@
-﻿using Newtonsoft.Json;
+using Newtonsoft.Json;
 using Stylet;
 
 namespace MultiFunPlayer.Common;
@@ -28,15 +28,15 @@ internal sealed class DeviceSettings : PropertyChangedBase
             IsDefault = true,
             Axes =
             [
-                new() { Name = "L0", FriendlyName = "Up/Down", FunscriptNames = ["*", "stroke", "L0", "up"], Enabled = true, DefaultValue = 0.5, },
-                new() { Name = "L1", FriendlyName = "Forward/Backward", FunscriptNames = ["surge", "L1", "forward"], Enabled = true, DefaultValue = 0.5, },
-                new() { Name = "L2", FriendlyName = "Left/Right", FunscriptNames = ["sway", "L2", "left"], Enabled = true, DefaultValue = 0.5, },
-                new() { Name = "R0", FriendlyName = "Twist", FunscriptNames = ["twist", "R0", "yaw"], Enabled = true, DefaultValue = 0.5, },
-                new() { Name = "R1", FriendlyName = "Roll", FunscriptNames = ["roll", "R1"], Enabled = true, DefaultValue = 0.5, },
-                new() { Name = "R2", FriendlyName = "Pitch", FunscriptNames = ["pitch", "R2"], Enabled = true, DefaultValue = 0.5, },
-                new() { Name = "V0", FriendlyName = "Vibrate", FunscriptNames = ["vib", "V0"], Enabled = false, DefaultValue = 0, },
-                new() { Name = "V1", FriendlyName = "Pump", FunscriptNames = ["pump", "lube", "V1"], Enabled = false, DefaultValue = 0, },
-                new() { Name = "L3", FriendlyName = "Suction", FunscriptNames = ["suck", "valve", "L3"], Enabled = false, DefaultValue = 0, }
+                new() { Name = "L0", FriendlyName = "上下", FunscriptNames = ["*", "stroke", "L0", "up"], Enabled = true, DefaultValue = 0.5, },
+                new() { Name = "L1", FriendlyName = "前后", FunscriptNames = ["surge", "L1", "forward"], Enabled = true, DefaultValue = 0.5, },
+                new() { Name = "L2", FriendlyName = "左右", FunscriptNames = ["sway", "L2", "left"], Enabled = true, DefaultValue = 0.5, },
+                new() { Name = "R0", FriendlyName = "扭转", FunscriptNames = ["twist", "R0", "yaw"], Enabled = true, DefaultValue = 0.5, },
+                new() { Name = "R1", FriendlyName = "翻滚", FunscriptNames = ["roll", "R1"], Enabled = true, DefaultValue = 0.5, },
+                new() { Name = "R2", FriendlyName = "俯仰", FunscriptNames = ["pitch", "R2"], Enabled = true, DefaultValue = 0.5, },
+                new() { Name = "V0", FriendlyName = "振动", FunscriptNames = ["vib", "V0"], Enabled = false, DefaultValue = 0, },
+                new() { Name = "V1", FriendlyName = "抽送", FunscriptNames = ["pump", "lube", "V1"], Enabled = false, DefaultValue = 0, },
+                new() { Name = "L3", FriendlyName = "吸吮", FunscriptNames = ["suck", "valve", "L3"], Enabled = false, DefaultValue = 0, }
             ]
         },
         new()
@@ -46,17 +46,17 @@ internal sealed class DeviceSettings : PropertyChangedBase
             IsDefault = true,
             Axes =
             [
-                new() { Name = "L0", FriendlyName = "Up/Down", FunscriptNames = ["*", "stroke", "L0", "up"], Enabled = true, DefaultValue = 0.5, },
-                new() { Name = "L1", FriendlyName = "Forward/Backward", FunscriptNames = ["surge", "L1", "forward"], Enabled = true, DefaultValue = 0.5, },
-                new() { Name = "L2", FriendlyName = "Left/Right", FunscriptNames = ["sway", "L2", "left"], Enabled = true, DefaultValue = 0.5, },
-                new() { Name = "R0", FriendlyName = "Twist", FunscriptNames = ["twist", "R0", "yaw"], Enabled = true, DefaultValue = 0.5, },
-                new() { Name = "R1", FriendlyName = "Roll", FunscriptNames = ["roll", "R1"], Enabled = true, DefaultValue = 0.5, },
-                new() { Name = "R2", FriendlyName = "Pitch", FunscriptNames = ["pitch", "R2"], Enabled = true, DefaultValue = 0.5, },
-                new() { Name = "V0", FriendlyName = "Vibrate", FunscriptNames = ["vib", "V0"], Enabled = false, DefaultValue = 0, },
-                new() { Name = "V1", FriendlyName = "Pump", FunscriptNames = ["pump", "V1"], Enabled = false, DefaultValue = 0, },
-                new() { Name = "A0", FriendlyName = "Valve", FunscriptNames = ["valve", "A0"], Enabled = false, DefaultValue = 0, },
-                new() { Name = "A1", FriendlyName = "Suction", FunscriptNames = ["suck", "A1"], Enabled = false, DefaultValue = 0, },
-                new() { Name = "A2", FriendlyName = "Lube", FunscriptNames = ["lube", "A2"], Enabled = false, DefaultValue = 0, }
+                new() { Name = "L0", FriendlyName = "上下", FunscriptNames = ["*", "stroke", "L0", "up"], Enabled = true, DefaultValue = 0.5, },
+                new() { Name = "L1", FriendlyName = "前后", FunscriptNames = ["surge", "L1", "forward"], Enabled = true, DefaultValue = 0.5, },
+                new() { Name = "L2", FriendlyName = "左右", FunscriptNames = ["sway", "L2", "left"], Enabled = true, DefaultValue = 0.5, },
+                new() { Name = "R0", FriendlyName = "扭转", FunscriptNames = ["twist", "R0", "yaw"], Enabled = true, DefaultValue = 0.5, },
+                new() { Name = "R1", FriendlyName = "翻滚", FunscriptNames = ["roll", "R1"], Enabled = true, DefaultValue = 0.5, },
+                new() { Name = "R2", FriendlyName = "俯仰", FunscriptNames = ["pitch", "R2"], Enabled = true, DefaultValue = 0.5, },
+                new() { Name = "V0", FriendlyName = "振动", FunscriptNames = ["vib", "V0"], Enabled = false, DefaultValue = 0, },
+                new() { Name = "V1", FriendlyName = "抽送", FunscriptNames = ["pump", "V1"], Enabled = false, DefaultValue = 0, },
+                new() { Name = "A0", FriendlyName = "阀门", FunscriptNames = ["valve", "A0"], Enabled = false, DefaultValue = 0, },
+                new() { Name = "A1", FriendlyName = "吸吮", FunscriptNames = ["suck", "A1"], Enabled = false, DefaultValue = 0, },
+                new() { Name = "A2", FriendlyName = "润滑", FunscriptNames = ["lube", "A2"], Enabled = false, DefaultValue = 0, }
             ]
         }
     ];

@@ -1,4 +1,4 @@
-﻿using MultiFunPlayer.Common;
+using MultiFunPlayer.Common;
 using Newtonsoft.Json;
 
 namespace MultiFunPlayer.Settings.Converters;
@@ -31,7 +31,7 @@ internal sealed class ProtectedStringConverter : JsonConverter<string>
         }
         catch (Exception e)
         {
-            throw new JsonWriterException($"Failed to encrypt value. Path '{writer.Path}', value '{value}'.", e);
+            throw new JsonWriterException($"加密值失败。路径 '{writer.Path}'，值 '{value}'。", e);
         }
     }
 }

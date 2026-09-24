@@ -1,4 +1,4 @@
-﻿using MultiFunPlayer.Common;
+using MultiFunPlayer.Common;
 using MultiFunPlayer.Property;
 using MultiFunPlayer.Script;
 using MultiFunPlayer.Script.Repository;
@@ -63,7 +63,7 @@ internal sealed class InternalMediaSource(ILocalScriptRepository localRepository
         catch (Exception e) when (connectionType != ConnectionType.AutoConnect)
         {
             Logger.Error(e, "Error when connecting to {0}", Name);
-            _ = DialogHelper.ShowErrorAsync(e, $"Error when connecting to {Name}", "RootDialog");
+            _ = DialogHelper.ShowErrorAsync(e, $"连接 {Name} 时出错", "RootDialog");
             return;
         }
         catch
@@ -149,7 +149,7 @@ internal sealed class InternalMediaSource(ILocalScriptRepository localRepository
         catch (Exception e)
         {
             Logger.Error(e, $"{Name} failed with exception");
-            _ = DialogHelper.ShowErrorAsync(e, $"{Name} failed with exception", "RootDialog");
+            _ = DialogHelper.ShowErrorAsync(e, $"{Name} 发生异常", "RootDialog");
         }
 
         if (IsDisposing)
@@ -420,17 +420,17 @@ internal sealed class InternalMediaSource(ILocalScriptRepository localRepository
         }
 
         #region IsShuffling
-        s.RegisterAction<bool>($"{Name}::Shuffle::Set", s => s.WithLabel("Enable shuffle"), enabled => IsShuffling = enabled);
+        s.RegisterAction<bool>($"{Name}::Shuffle::Set", s => s.WithLabel("启用随机播放"), enabled => IsShuffling = enabled);
         s.RegisterAction($"{Name}::Shuffle::Toggle", () => IsShuffling = !IsShuffling);
         #endregion
 
         #region IsLooping
-        s.RegisterAction<bool>($"{Name}::Looping::Set", s => s.WithLabel("Enable looping"), enabled => IsLooping = enabled);
+        s.RegisterAction<bool>($"{Name}::Looping::Set", s => s.WithLabel("启用循环"), enabled => IsLooping = enabled);
         s.RegisterAction($"{Name}::Looping::Toggle", () => IsLooping = !IsLooping);
         #endregion
 
         #region LoadAdditionalScripts
-        s.RegisterAction<bool>($"{Name}::LoadAdditionalScripts::Set", s => s.WithLabel("Enable load additional scripts"), enabled => LoadAdditionalScripts = enabled);
+        s.RegisterAction<bool>($"{Name}::LoadAdditionalScripts::Set", s => s.WithLabel("启用加载附加脚本"), enabled => LoadAdditionalScripts = enabled);
         s.RegisterAction($"{Name}::LoadAdditionalScripts::Toggle", () => LoadAdditionalScripts = !LoadAdditionalScripts);
         #endregion
 
@@ -439,9 +439,9 @@ internal sealed class InternalMediaSource(ILocalScriptRepository localRepository
         s.RegisterAction($"{Name}::Playlist::Prev", () => WhenConnected(PlayPrevious));
         s.RegisterAction($"{Name}::Playlist::Next", () => WhenConnected(PlayNext));
         s.RegisterAction<int>($"{Name}::Playlist::PlayByIndex",
-            s => s.WithLabel("Index").AsNumericUpDown(minimum: 0),
+            s => s.WithLabel("索引").AsNumericUpDown(minimum: 0),
             index => WhenConnected(() => WriteMessage(new PlayScriptAtIndexMessage(index))));
-        s.RegisterAction<string>($"{Name}::Playlist::PlayByName", s => s.WithLabel("File name/path"), name => WhenConnected(() =>
+        s.RegisterAction<string>($"{Name}::Playlist::PlayByName", s => s.WithLabel("文件名/路径"), name => WhenConnected(() =>
         {
             var playlist = ScriptPlaylist;
             if (playlist == null)

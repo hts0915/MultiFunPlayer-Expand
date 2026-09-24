@@ -39,10 +39,10 @@
                         IsEnabled="{Binding CanToggleConnect}">
                     <Button.Style>
                         <Style BasedOn="{StaticResource MaterialDesignProgressToolBarButton}" TargetType="{x:Type ButtonBase}">
-                            <Setter Property="ToolTip" Value="Connect"/>
+                            <Setter Property="ToolTip" Value="连接"/>
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding IsConnected}" Value="True">
-                                    <Setter Property="ToolTip" Value="Disconnect"/>
+                                    <Setter Property="ToolTip" Value="断开连接"/>
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>
@@ -75,7 +75,7 @@
                                    Style="{StaticResource MaterialDesignToolBarPopupBox}"
                                    PlacementMode="BottomAndAlignRightEdges"
                                    StaysOpen="True"
-                                   ToolTip="Update settings">
+                                   ToolTip="更新设置">
                     <material:PopupBox.ToggleContent>
                         <material:PackIcon Width="20"
                                            Height="20"
@@ -83,7 +83,7 @@
                     </material:PopupBox.ToggleContent>
                     <StackPanel Width="250" Margin="10 0 10 0">
                         <TextBlock FontWeight="Bold"
-                                   Text="Fixed Update"
+                                   Text="固定更新"
                                    Typography.Capitals="AllSmallCaps"/>
                         <ContentControl Content="{Binding UpdateContexts[FixedUpdate]}"/>
                     </StackPanel>
@@ -98,12 +98,18 @@
                         <TextBlock DockPanel.Dock="Left"
                                    Margin="0 0 10 0"
                                    VerticalAlignment="Center"
-                                   Text="Output format:"/>
+                                   Text="输出格式："/>
 
                         <ComboBox DockPanel.Dock="Left"
                                   ItemsSource="{Binding Source={ui:EnumBindingSource {x:Type script:ScriptType}}}"
                                   SelectedItem="{Binding ScriptType}"
-                                  Width="150"/>
+                                  Width="150">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding Converter={StaticResource DescriptionConverter}}"/>
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
                     </DockPanel>
                 </DockPanel>
 
@@ -111,14 +117,14 @@
                     <TextBlock DockPanel.Dock="Left"
                                Margin="0 0 10 0"
                                VerticalAlignment="Center"
-                               Text="Output directory:"/>
+                               Text="输出目录："/>
 
                     <Button DockPanel.Dock="Right"
                             Style="{StaticResource MaterialDesignFloatingActionMiniButton}"
                             Width="20"
                             Height="20"
                             Click="{s:Action OnSetOutputDirectory}"
-                            ToolTip="Set output directory">
+                            ToolTip="设置输出目录">
                         <material:PackIcon Width="14"
                                            Height="14"
                                            HorizontalAlignment="Center"
@@ -138,7 +144,7 @@
             <TextBlock HorizontalAlignment="Left"
                        VerticalAlignment="Center"
                        FontWeight="Bold"
-                       Text="Output Range"
+                       Text="输出范围"
                        Typography.Capitals="AllSmallCaps"/>
             <ItemsControl ItemsSource="{Binding AxisSettings}">
                 <ItemsControl.ItemsPanel>
@@ -173,7 +179,7 @@
 
                                 <TextBlock FontSize="10"
                                            FontWeight="Bold"
-                                           Text="{Binding Key}"/>
+                                           ToolTip="{Binding Key}" Text="{Binding Key.FriendlyName}"/>
                             </ToggleButton>
 
                             <Canvas DockPanel.Dock="Right" HorizontalAlignment="Stretch">

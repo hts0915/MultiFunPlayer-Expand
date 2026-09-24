@@ -1,4 +1,4 @@
-﻿using Microsoft.Win32;
+using Microsoft.Win32;
 using MultiFunPlayer.Common;
 using MultiFunPlayer.Script;
 using MultiFunPlayer.UI;
@@ -35,9 +35,9 @@ internal sealed class FileOutputTarget(int instanceIndex, IEventAggregator event
             Logger.Info("Connecting to {0} [Type: {1}]", Identifier, connectionType);
 
         if (!AxisSettings.Values.Any(x => x.Enabled))
-            throw new OutputTargetException("At least one axis must be enabled");
+            throw new OutputTargetException("至少要启用一个轴");
         if (OutputDirectory?.AsRefreshed().Exists != true)
-            throw new DirectoryNotFoundException("Output directory does not exist");
+            throw new DirectoryNotFoundException("输出目录不存在");
 
         return ValueTask.FromResult(true);
     }
@@ -67,7 +67,7 @@ internal sealed class FileOutputTarget(int instanceIndex, IEventAggregator event
         catch (Exception e)
         {
             Logger.Error(e, "Error when connecting to {0}", Name);
-            _ = DialogHelper.ShowErrorAsync(e, $"Error when connecting to {Name}", "RootDialog");
+            _ = DialogHelper.ShowErrorAsync(e, $"连接 {Name} 时出错", "RootDialog");
             return;
         }
 
@@ -96,7 +96,7 @@ internal sealed class FileOutputTarget(int instanceIndex, IEventAggregator event
         catch (Exception e)
         {
             Logger.Error(e, $"{Identifier} failed with exception");
-            _ = DialogHelper.ShowErrorAsync(e, $"{Identifier} failed with exception", "RootDialog");
+            _ = DialogHelper.ShowErrorAsync(e, $"{Identifier} 发生异常", "RootDialog");
         }
 
         foreach (var (_, writer) in writers)
