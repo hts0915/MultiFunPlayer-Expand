@@ -1,7 +1,8 @@
-﻿using MaterialDesignThemes.Wpf;
+using MaterialDesignThemes.Wpf;
 using MultiFunPlayer.Common;
 using MultiFunPlayer.UI;
 using MultiFunPlayer.UI.Controls.ViewModels;
+using MultiFunPlayer.UI.Dialogs.ViewModels;
 using Newtonsoft.Json.Linq;
 using Stylet;
 using StyletIoC;
@@ -57,6 +58,7 @@ internal sealed class RootViewModel : Conductor<IScreen>.Collection.AllActive, I
         base.OnActivate();
     }
 
+    public void OnHelpClick() => _ = DialogHelper.ShowAsync(new HelpDialog(), "RootDialog");
     public void OnInformationClick() => _ = DialogHelper.ShowAsync(Information, "RootDialog");
     public void OnSettingsClick() => _ = DialogHelper.ShowAsync(Settings, "RootDialog");
     public void OnPluginClick() => _ = DialogHelper.ShowAsync(PluginStatus, "RootDialog");
@@ -69,6 +71,11 @@ internal sealed class RootViewModel : Conductor<IScreen>.Collection.AllActive, I
 
         window.WindowStartupLocation = Settings.General.RememberWindowLocation ? WindowStartupLocation.Manual
                                                                                : WindowStartupLocation.CenterScreen;
+
+        // 设置是在窗口创建之前加载的（Bootstrapper.Launch 先发布 SettingsMessage 再 base.Launch），
+        // 那时 Application.Current.MainWindow 还是 null，OnAllowWindowResizeChanged 会直接返回，
+        // 所以这里在窗口确实存在之后再应用一次，否则启动后会一直停在 CanMinimize 无法拉伸。
+        Settings.General.OnAllowWindowResizeChanged();
 
         var source = PresentationSource.FromVisual(window) as HwndSource;
         source.AddHook(MessageSink);
@@ -111,12 +118,15 @@ internal sealed class RootViewModel : Conductor<IScreen>.Collection.AllActive, I
         if (message.Action == SettingsAction.Saving)
         {
             settings[nameof(DisablePopup)] = DisablePopup;
+            settings[nameof(WindowWidth)] = WindowWidth;
             settings[nameof(WindowHeight)] = WindowHeight;
             settings[nameof(WindowLeft)] = _lastValidWindowLeft;
             settings[nameof(WindowTop)] = _lastValidWindowTop;
         }
         else if (message.Action == SettingsAction.Loading)
         {
+            if (settings.TryGetValue<double>(nameof(WindowWidth), out var windowWidth))
+                WindowWidth = windowWidth;
             if (settings.TryGetValue<double>(nameof(WindowHeight), out var windowHeight))
                 WindowHeight = windowHeight;
             if (settings.TryGetValue<double>(nameof(WindowLeft), out var windowLeft))
