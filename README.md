@@ -6,15 +6,28 @@
 
 <br/>
 
+> **这是 MultiFunPlayer 的修改版（fork），不是上游官方版本。**
+>
+> 原项目：[Yoooi0/MultiFunPlayer](https://github.com/Yoooi0/MultiFunPlayer) — MIT License，版权归 Yoooi。
+> 本仓库在其基础上做了完整中文化并新增了若干功能，**完整保留了上游的提交历史**，以便继续跟进上游更新。
+
+# 本仓库相对上游的改动
+
+* **界面完整中文化** — 主界面、设置窗口、对话框、工具提示、下拉枚举、异常提示全部中文；轴的显示名改为中文（上下 / 前后 / 左右 / 扭转 / 翻滚 / 俯仰 / 振动 / 抽送 / 吸吮 / 阀门 / 润滑），已有配置会在启动时由迁移自动完成改名。
+* **内置使用说明文档** — 标题栏新增「?」按钮，包含快速上手、界面说明、全部快捷键动作总表、各项参数说明与常见问题。
+* **一键播放预设插件**（`Plugins/ScriptPreset.cs`）— 不打开视频，直接把一组 funscript 当作动作源播放；支持多轴同时、续播位置记忆、循环、拖动时间轴定位，并可绑定快捷键一键播放。播放时会顶掉当前视频脚本，手动停止后自动恢复。
+* **窗口可自由拉伸** — 原版窗口宽度被锁定为固定值，无法左右或斜角拉伸；现在可自由缩放，尺寸会被记住。
+* **串口连接提速** — 直接通过注册表解析串口设备名，省去连接时数秒的设备枚举等待。
+
 # About
 
 MultiFunPlayer synchronizes your devices with video files using scripts. The player has the ability to synchronize multiple devices with multiple scripts at the same time enabling enhanced experience.
 
 # Downloads
 
-* [![release](https://img.shields.io/github/v/release/Yoooi0/MultiFunPlayer?logo=github&label=latest%20release&labelColor=blue&color=blue)](https://github.com/Yoooi0/MultiFunPlayer/releases/latest)
-* [![pre-release](https://img.shields.io/github/actions/workflow/status/Yoooi0/MultiFunPlayer/ci.yml?logo=github&labelColor=green&color=green&label=latest%20pre-release)](https://github.com/Yoooi0/MultiFunPlayer/actions)
-* [![patreon](https://img.shields.io/badge/patreon-orange?logo=patreon)](https://www.patreon.com/yoooi)
+* [![release](https://img.shields.io/github/v/release/HTS0915/MultiFunPlayer-Expand?logo=github&label=latest%20release&labelColor=blue&color=blue)](https://github.com/HTS0915/MultiFunPlayer-Expand/releases/latest)
+* [![pre-release](https://img.shields.io/github/actions/workflow/status/HTS0915/MultiFunPlayer-Expand/ci.yml?logo=github&labelColor=green&color=green&label=latest%20pre-release)](https://github.com/HTS0915/MultiFunPlayer-Expand/actions)
+* [上游项目：Yoooi0/MultiFunPlayer](https://github.com/Yoooi0/MultiFunPlayer)
 
 # Patreon only features
 
