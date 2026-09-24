@@ -7,7 +7,6 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              d:DesignHeight="50"
              d:DesignWidth="800"
-             x:ClassModifier="internal"
              PreviewMouseDown="OnPreviewMouseDown"
              SizeChanged="OnSizeChanged"
              mc:Ignorable="d">

@@ -29,7 +29,7 @@ using System.Text.RegularExpressions;
 namespace MultiFunPlayer.UI.Controls.ViewModels;
 
 [JsonObject(MemberSerialization = MemberSerialization.OptIn)]
-internal sealed class ScriptViewModel : Screen, IDeviceAxisValueProvider, IDisposable,
+internal sealed class ScriptViewModel : Screen, IDeviceAxisValueProvider, IScriptOverrideController, IDisposable,
     IHandle<MediaPositionChangedMessage>, IHandle<MediaPlayingChangedMessage>, IHandle<MediaPathChangedMessage>, IHandle<MediaDurationChangedMessage>,
     IHandle<MediaSpeedChangedMessage>, IHandle<SettingsMessage>, IHandle<SyncRequestMessage>, IHandle<ReloadScriptsRequestMessage>, IHandle<ChangeScriptMessage>,
     IHandle<MediaResetMessage>
@@ -42,7 +42,19 @@ internal sealed class ScriptViewModel : Screen, IDeviceAxisValueProvider, IDispo
     private CancellationTokenSource _cancellationSource;
     private double _internalMediaPosition;
 
+    // 脚本覆盖（IScriptOverrideController）：一套完全独立于媒体源的时间轴
+    private readonly Dictionary<DeviceAxis, IScriptResource> _overrideScripts = [];
+    private double _overridePosition;
+    private double _overrideDuration;
+    private bool _overridePaused;
+
     public bool IsPlaying { get; private set; }
+
+    public bool IsOverrideActive { get; private set; }
+    public bool IsOverridePaused => _overridePaused;
+    public double OverridePosition => _overridePosition;
+    public double OverrideDuration => _overrideDuration;
+    public bool IsOverridePlaying => IsOverrideActive && !_overridePaused;
     public double PlaybackSpeed { get; private set; }
     public double MediaDuration { get; private set; }
 
@@ -150,8 +162,12 @@ internal sealed class ScriptViewModel : Screen, IDeviceAxisValueProvider, IDispo
                 MediaPosition += Math.Clamp(error, deltaTime * PlaybackSpeed * 0.9, deltaTime * PlaybackSpeed * 1.1);
             }
 
+            // 脚本覆盖模式：位置由覆盖时间轴自己推进，MediaPosition 一动不动
+            if (IsOverridePlaying)
+                _overridePosition = Math.Min(_overridePosition + deltaTime * PlaybackSpeed, _overrideDuration);
+
             foreach (var axis in DeviceAxis.All)
-                contexts[axis].BeginUpdate();
+                contexts[axis].BeginUpdate(GetActiveKeyframes(axis));
 
             var dirty = false;
             foreach (var axis in DeviceAxis.All)
@@ -189,7 +205,8 @@ internal sealed class ScriptViewModel : Screen, IDeviceAxisValueProvider, IDispo
                     if (settings.BypassScript)
                         return NoUpdate();
 
-                    if (!AxisKeyframes.TryGetValue(axis, out var keyframes) || keyframes == null || keyframes.Count == 0)
+                    var keyframes = GetActiveKeyframes(axis);
+                    if (keyframes == null || keyframes.Count == 0)
                         return NoUpdate();
 
                     var axisPosition = GetAxisPosition(axis);
@@ -250,7 +267,7 @@ internal sealed class ScriptViewModel : Screen, IDeviceAxisValueProvider, IDispo
 
                     bool ShouldUpdateMotionProvider(bool canFillGap)
                     {
-                        if (!settings.UpdateMotionProviderWhenPaused && !IsPlaying)
+                        if (!settings.UpdateMotionProviderWhenPaused && !IsPlaying && !IsOverridePlaying)
                             return false;
                         if (!canFillGap && !settings.UpdateMotionProviderWithoutScript && !context.InsideScript)
                             return false;
@@ -749,7 +766,18 @@ internal sealed class ScriptViewModel : Screen, IDeviceAxisValueProvider, IDispo
         }
     }
 
-    private double GetAxisPosition(DeviceAxis axis) => MediaPosition - GlobalOffset - AxisSettings[axis].Offset;
+    private double GetAxisPosition(DeviceAxis axis) => IsOverrideActive
+        ? _overridePosition - AxisSettings[axis].Offset
+        : MediaPosition - GlobalOffset - AxisSettings[axis].Offset;
+
+    /// <summary>当前该轴实际生效的关键帧：覆盖模式用覆盖脚本，否则用媒体源加载的脚本。</summary>
+    private KeyframeCollection GetActiveKeyframes(DeviceAxis axis)
+    {
+        if (IsOverrideActive)
+            return _overrideScripts.TryGetValue(axis, out var overrideScript) ? overrideScript?.Keyframes : null;
+
+        return AxisKeyframes.TryGetValue(axis, out var keyframes) ? keyframes : null;
+    }
     public double GetValue(DeviceAxis axis) => MathUtils.Clamp01(AxisStates[axis].Value);
 
     public void BeginEventPolling(object context)
@@ -984,6 +1012,87 @@ internal sealed class ScriptViewModel : Screen, IDeviceAxisValueProvider, IDispo
 
         SeekMediaToTime(skipPosition);
     }
+    #endregion
+
+    #region Script Override
+
+    // IScriptOverrideController：用另一套脚本 + 另一根时间轴驱动设备。
+    // 关键点：全程不碰 MediaPosition / MediaDuration / AxisModels[].Script，
+    // 所以 Script 面板里的时间轴、进度、heatmap、脚本名始终是视频那一套；
+    // 停止后设备自动回到原脚本，不需要任何保存/恢复动作。
+
+    public void StartOverride(IReadOnlyDictionary<DeviceAxis, IScriptResource> scripts, double startPosition)
+    {
+        if (scripts == null || scripts.Count == 0)
+            return;
+
+        _overrideScripts.Clear();
+        foreach (var (axis, script) in scripts)
+        {
+            if (axis != null && script?.Keyframes is { Count: > 0 })
+                _overrideScripts[axis] = script;
+        }
+
+        if (_overrideScripts.Count == 0)
+        {
+            Logger.Warn("Script override ignored because no script contains keyframes");
+            return;
+        }
+
+        _overrideDuration = _overrideScripts.Values.Max(s => s.Keyframes[^1].Position);
+        _overridePosition = Math.Clamp(startPosition, 0, Math.Max(0, _overrideDuration));
+        _overridePaused = false;
+        IsOverrideActive = true;
+
+        Logger.Info("Script override started [Axes: {list}, Duration: {0:F2}s, Position: {1:F2}s]",
+            _overrideScripts.Keys, _overrideDuration, _overridePosition);
+
+        SetSyncBypass(true);
+        InvalidateAxisState(null);
+        ResetSync(true, null);
+        SetSyncBypass(false);
+    }
+
+    public void StopOverride()
+    {
+        if (!IsOverrideActive)
+            return;
+
+        Logger.Info("Script override stopped");
+
+        IsOverrideActive = false;
+        _overrideScripts.Clear();
+        _overrideDuration = 0;
+        _overridePosition = 0;
+        _overridePaused = false;
+
+        SetSyncBypass(true);
+        InvalidateAxisState(null);
+        ResetSync(true, null);
+        SetSyncBypass(false);
+    }
+
+    public void SeekOverride(double position)
+    {
+        if (!IsOverrideActive)
+            return;
+
+        _overridePosition = Math.Clamp(position, 0, Math.Max(0, _overrideDuration));
+
+        SetSyncBypass(true);
+        InvalidateAxisState(null);
+        SetSyncBypass(false);
+    }
+
+    public void SetOverridePaused(bool paused)
+    {
+        if (!IsOverrideActive || _overridePaused == paused)
+            return;
+
+        _overridePaused = paused;
+        Logger.Info("Script override {0}", paused ? "paused" : "resumed");
+    }
+
     #endregion
 
     #region Media
@@ -1411,7 +1520,7 @@ internal sealed class ScriptViewModel : Screen, IDeviceAxisValueProvider, IDispo
 
         #region Media::PlayPause
         s.RegisterAction<bool>("Media::PlayPause::Set",
-            s => s.WithLabel("Play"), play =>
+            s => s.WithLabel("播放"), play =>
             {
                 if (play && !IsPlaying) OnPlayPauseClick();
                 else if (!play && IsPlaying) OnPlayPauseClick();
@@ -1421,15 +1530,15 @@ internal sealed class ScriptViewModel : Screen, IDeviceAxisValueProvider, IDispo
         #endregion
 
         #region Media::Path
-        s.RegisterAction<string>("Media::Path::Set", s => s.WithLabel("Media path"), path => _eventAggregator.Publish(new MediaChangePathMessage(path)));
+        s.RegisterAction<string>("Media::Path::Set", s => s.WithLabel("媒体路径"), path => _eventAggregator.Publish(new MediaChangePathMessage(path)));
         #endregion
 
         #region Media::Speed
         s.RegisterAction<double>("Media::Speed::Offset",
-            s => s.WithLabel("Value offset").AsNumericUpDown(interval: 0.01, stringFormat: "{0:P0}"),
+            s => s.WithLabel("数值偏移").AsNumericUpDown(interval: 0.01, stringFormat: "{0:P0}"),
             offset => _eventAggregator.Publish(new MediaChangeSpeedMessage(CoerceMediaSpeed(PlaybackSpeed + offset))));
         s.RegisterAction<double>("Media::Speed::Set",
-            s => s.WithLabel("Value").AsNumericUpDown(minimum: 0.01, interval: 0.01, stringFormat: "{0:P0}"),
+            s => s.WithLabel("数值").AsNumericUpDown(minimum: 0.01, interval: 0.01, stringFormat: "{0:P0}"),
             value => _eventAggregator.Publish(new MediaChangeSpeedMessage(CoerceMediaSpeed(value))));
 
         static double CoerceMediaSpeed(double speed)
@@ -1442,36 +1551,36 @@ internal sealed class ScriptViewModel : Screen, IDeviceAxisValueProvider, IDispo
 
         #region Media::ScriptOffset
         s.RegisterAction<double>("Media::ScriptOffset::Offset",
-            s => s.WithLabel("Value offset").AsNumericUpDown(stringFormat: "{0:F2}s"), offset => GlobalOffset += offset);
+            s => s.WithLabel("数值偏移").AsNumericUpDown(stringFormat: "{0:F2}s"), offset => GlobalOffset += offset);
         s.RegisterAction<double>("Media::ScriptOffset::Set",
-            s => s.WithLabel("Value").AsNumericUpDown(stringFormat: "{0:F2}s"), value => GlobalOffset = value);
+            s => s.WithLabel("数值").AsNumericUpDown(stringFormat: "{0:F2}s"), value => GlobalOffset = value);
         #endregion
 
         #region Media::Position
         s.RegisterAction<double>("Media::Position::Time::Offset",
-            s => s.WithLabel("Value offset").AsNumericUpDown(stringFormat: "{0:F2}s"), offset => SeekMediaToTime(MediaPosition + offset));
+            s => s.WithLabel("数值偏移").AsNumericUpDown(stringFormat: "{0:F2}s"), offset => SeekMediaToTime(MediaPosition + offset));
         s.RegisterAction<double>("Media::Position::Time::Set",
-            s => s.WithLabel("Value").AsNumericUpDown(minimum: 0, stringFormat: "{0:F2}s"), SeekMediaToTime);
+            s => s.WithLabel("数值").AsNumericUpDown(minimum: 0, stringFormat: "{0:F2}s"), SeekMediaToTime);
 
         s.RegisterAction<double>("Media::Position::Percent::Offset",
-            s => s.WithLabel("Value offset").AsNumericUpDown(-1, 1, 0.01, stringFormat: "{0:P0}"),
+            s => s.WithLabel("数值偏移").AsNumericUpDown(-1, 1, 0.01, stringFormat: "{0:P0}"),
             offset => SeekMediaToPercent(MediaPosition / MediaDuration + offset));
         s.RegisterAction<double>("Media::Position::Percent::Set",
-            s => s.WithLabel("Value").AsNumericUpDown(0, 1, 0.01, "{0:P0}"), SeekMediaToPercent);
+            s => s.WithLabel("数值").AsNumericUpDown(0, 1, 0.01, "{0:P0}"), SeekMediaToPercent);
 
         s.RegisterAction<double>("Media::Position::SkipToScriptStart",
-            s => s.WithLabel("Offset").AsNumericUpDown(stringFormat: "{0:F2}s"), offset => SeekMediaToScriptStart(offset, onlyWhenBefore: false));
+            s => s.WithLabel("偏移").AsNumericUpDown(stringFormat: "{0:F2}s"), offset => SeekMediaToScriptStart(offset, onlyWhenBefore: false));
         #endregion
 
         #region Media::Loop
         s.RegisterAction<double, double>("Media::Loop::Set::FromMediaPositionOffset",
-            s => s.WithLabel("Start offset").AsNumericUpDown(stringFormat: "{0:F2}s").WithDescription("Seconds before current media position"),
-            s => s.WithLabel("End offset").AsNumericUpDown(stringFormat: "{0:F2}s").WithDescription("Seconds after current media position"),
+            s => s.WithLabel("起始偏移").AsNumericUpDown(stringFormat: "{0:F2}s").WithDescription("当前媒体位置之前的秒数"),
+            s => s.WithLabel("结束偏移").AsNumericUpDown(stringFormat: "{0:F2}s").WithDescription("当前媒体位置之后的秒数"),
             (startOffset, endOffset) => SetMediaLoop(MediaPosition - startOffset, MediaPosition + endOffset));
 
         s.RegisterAction<double, double>("Media::Loop::Set",
-            s => s.WithLabel("Start position").AsNumericUpDown(minimum: 0, stringFormat: "{0:F2}s"),
-            s => s.WithLabel("End position").AsNumericUpDown(minimum: 0, stringFormat: "{0:F2}s"),
+            s => s.WithLabel("起始位置").AsNumericUpDown(minimum: 0, stringFormat: "{0:F2}s"),
+            s => s.WithLabel("结束位置").AsNumericUpDown(minimum: 0, stringFormat: "{0:F2}s"),
             SetMediaLoop);
 
         s.RegisterAction("Media::Loop::CycleSetStartEnd", () =>
@@ -1484,8 +1593,8 @@ internal sealed class ScriptViewModel : Screen, IDeviceAxisValueProvider, IDispo
                     SetMediaLoopEndFromMediaPosition();
             });
 
-        s.RegisterAction<double>("Media::Loop::Start::Set", s => s.WithLabel("Position").AsNumericUpDown(minimum: 0, stringFormat: "{0:F2}s"), SetMediaLoopStart);
-        s.RegisterAction<double>("Media::Loop::End::Set", s => s.WithLabel("Position").AsNumericUpDown(minimum: 0, stringFormat: "{0:F2}s"), SetMediaLoopEnd);
+        s.RegisterAction<double>("Media::Loop::Start::Set", s => s.WithLabel("位置").AsNumericUpDown(minimum: 0, stringFormat: "{0:F2}s"), SetMediaLoopStart);
+        s.RegisterAction<double>("Media::Loop::End::Set", s => s.WithLabel("位置").AsNumericUpDown(minimum: 0, stringFormat: "{0:F2}s"), SetMediaLoopEnd);
         s.RegisterAction("Media::Loop::Clear", ClearMediaLoop);
         s.RegisterAction("Media::Loop::Set::FromCurrentChapter", SetMediaLoopFromCurrentChapter);
         s.RegisterAction("Media::Loop::Start::Set::FromMediaPosition", SetMediaLoopStartFromMediaPosition);
@@ -1494,7 +1603,7 @@ internal sealed class ScriptViewModel : Screen, IDeviceAxisValueProvider, IDispo
 
         #region Media::AutoSkipToScriptStartEnabled
         s.RegisterAction<bool>("Media::AutoSkipToScriptStartEnabled::Set",
-            s => s.WithLabel("Auto-skip to script start enabled"), enabled => AutoSkipToScriptStartEnabled = enabled);
+            s => s.WithLabel("启用自动跳到脚本起点"), enabled => AutoSkipToScriptStartEnabled = enabled);
 
         s.RegisterAction("Media::AutoSkipToScriptStartEnabled::Toggle",
             () => AutoSkipToScriptStartEnabled = !AutoSkipToScriptStartEnabled);
@@ -1502,7 +1611,7 @@ internal sealed class ScriptViewModel : Screen, IDeviceAxisValueProvider, IDispo
 
         #region Media::AutoSkipToScriptStartOffset
         s.RegisterAction<double>("Media::AutoSkipToScriptStartOffset::Set",
-            s => s.WithLabel("Value").AsNumericUpDown(stringFormat: "{0:F2}s").WithDescription("Offset from script start"),
+            s => s.WithLabel("数值").AsNumericUpDown(stringFormat: "{0:F2}s").WithDescription("相对脚本起点的偏移"),
             offset => AutoSkipToScriptStartOffset = offset);
         #endregion
 
@@ -1514,14 +1623,14 @@ internal sealed class ScriptViewModel : Screen, IDeviceAxisValueProvider, IDispo
         }
 
         s.RegisterAction<string>("Media::Bookmark::SeekToByName",
-            s => s.WithLabel("Bookmark name"), name =>
+            s => s.WithLabel("书签名"), name =>
             {
                 if (TryGetFirstBookmarks(out var bookmarks) && bookmarks.TryFindByName(name, out var bookmark))
                     SeekMediaToTime(bookmark.Position);
             });
 
         s.RegisterAction<int>("Media::Bookmark::SeekToByIndex",
-            s => s.WithLabel("Bookmark index").AsNumericUpDown(minimum: 0), index =>
+            s => s.WithLabel("书签索引").AsNumericUpDown(minimum: 0), index =>
             {
                 if (TryGetFirstBookmarks(out var bookmarks) && bookmarks.ValidateIndex(index))
                     SeekMediaToTime(bookmarks[index].Position);
@@ -1556,14 +1665,14 @@ internal sealed class ScriptViewModel : Screen, IDeviceAxisValueProvider, IDispo
         }
 
         s.RegisterAction<string>("Media::Chapter::SeekToByName",
-            s => s.WithLabel("Chapter name"), name =>
+            s => s.WithLabel("章节名"), name =>
             {
                 if (TryGetFirstChapters(out var chapters) && chapters.TryFindByName(name, out var chapter))
                     SeekMediaToTime(chapter.StartPosition);
             });
 
         s.RegisterAction<int>("Media::Chapter::SeekToByIndex",
-            s => s.WithLabel("Chapter index").AsNumericUpDown(minimum: 0), index =>
+            s => s.WithLabel("章节索引").AsNumericUpDown(minimum: 0), index =>
             {
                 if (TryGetFirstChapters(out var chapters) && chapters.ValidateIndex(index))
                     SeekMediaToTime(chapters[index].StartPosition);
@@ -1592,35 +1701,35 @@ internal sealed class ScriptViewModel : Screen, IDeviceAxisValueProvider, IDispo
 
         #region Script::SkipGap
         s.RegisterAction<DeviceAxis, double>("Script::SkipGap",
-            s => s.WithLabel("Target").WithItemsSource(DeviceAxis.All).WithDescription("Target axis script to check for gaps\nEmpty to check all scripts"),
-            s => s.WithLabel("Minimum skip").WithDefaultValue(2).AsNumericUpDown(minimum: 0, stringFormat: "{0:F2}s"),
+            s => s.WithLabel("目标").WithItemsSource(DeviceAxis.All).WithDescription("要检查空隙的目标轴脚本\n留空则检查全部脚本"),
+            s => s.WithLabel("最小跳过间隔").WithDefaultValue(2).AsNumericUpDown(minimum: 0, stringFormat: "{0:F2}s"),
             (axis, minimumSkip) => SkipGap(minimumSkip, axis));
         #endregion
 
         #region Axis::Value
         s.RegisterAction<DeviceAxis, double, double>("Axis::Value::Offset",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
-            s => s.WithLabel("Value offset").AsNumericUpDown(-1, 1, 0.01, "{0:P0}"),
-            s => s.WithLabel("Duration").AsNumericUpDown(minimum: 0, stringFormat: "{0:F2}s"),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("数值偏移").AsNumericUpDown(-1, 1, 0.01, "{0:P0}"),
+            s => s.WithLabel("时长").AsNumericUpDown(minimum: 0, stringFormat: "{0:F2}s"),
             (axis, offset, duration) => SetAxisTransition(axis, offset, duration, offset: true));
 
         s.RegisterAction<DeviceAxis, double, double>("Axis::Value::Set",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
-            s => s.WithLabel("Value").AsNumericUpDown(0, 1, 0.01, "{0:P0}"),
-            s => s.WithLabel("Duration").AsNumericUpDown(minimum: 0, stringFormat: "{0:F2}s"),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("数值").AsNumericUpDown(0, 1, 0.01, "{0:P0}"),
+            s => s.WithLabel("时长").AsNumericUpDown(minimum: 0, stringFormat: "{0:F2}s"),
             (axis, value, duration) => SetAxisTransition(axis, value, duration));
 
         s.RegisterAction<IAxisInputGestureData, DeviceAxis>("Axis::Value::Drive",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
             (data, axis) => SetAxisTransition(axis, data.ValueOrDelta, data.DeltaTime, offset: data.IsRelative));
         #endregion
 
         #region Axis::Sync
         s.RegisterAction<DeviceAxis>("Axis::Sync",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All), axis => { if (axis != null) ResetSync(true, axis); });
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All), axis => { if (axis != null) ResetSync(true, axis); });
 
         s.RegisterAction<DeviceAxis>("Axis::Sync::Cancel",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All), axis => { if (axis != null) ResetSync(false, axis); });
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All), axis => { if (axis != null) ResetSync(false, axis); });
 
         s.RegisterAction("Axis::SyncAll", () => ResetSync(true, null));
         s.RegisterAction("Axis::SyncAll::Cancel", () => ResetSync(false, null));
@@ -1628,15 +1737,15 @@ internal sealed class ScriptViewModel : Screen, IDeviceAxisValueProvider, IDispo
 
         #region Axis::Lock
         s.RegisterAction<DeviceAxis, bool>("Axis::Lock::Set",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
-            s => s.WithLabel("Lock axis"),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("锁定轴"),
             (axis, enabled) => UpdateSettings(axis, s => s.LockScript = enabled));
 
         s.RegisterAction<DeviceAxis>("Axis::Lock::Toggle",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All), axis => UpdateSettings(axis, s => s.LockScript = !s.LockScript));
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All), axis => UpdateSettings(axis, s => s.LockScript = !s.LockScript));
 
         s.RegisterAction<bool>("Axis::LockAll::Set",
-            s => s.WithLabel("Lock axes"),
+            s => s.WithLabel("锁定轴"),
             enabled => UpdateAllSettings(s => s.LockScript = enabled));
 
         s.RegisterAction("Axis::LockAll::Toggle", () => UpdateAllSettings(s => s.LockScript = !s.LockScript));
@@ -1644,8 +1753,8 @@ internal sealed class ScriptViewModel : Screen, IDeviceAxisValueProvider, IDispo
 
         #region Axis::Bypass::All
         s.RegisterAction<DeviceAxis, bool>("Axis::Bypass::All::Set",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
-            s => s.WithLabel("Bypass all"),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("全部绕过"),
             (axis, enabled) =>
             {
                 if (axis == null)
@@ -1658,7 +1767,7 @@ internal sealed class ScriptViewModel : Screen, IDeviceAxisValueProvider, IDispo
             });
 
         s.RegisterAction<DeviceAxis>("Axis::Bypass::All::Toggle",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All), axis =>
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All), axis =>
             {
                 if (axis == null)
                     return;
@@ -1673,75 +1782,75 @@ internal sealed class ScriptViewModel : Screen, IDeviceAxisValueProvider, IDispo
 
         #region Axis::Bypass::Script
         s.RegisterAction<DeviceAxis, bool>("Axis::Bypass::Script::Set",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
-            s => s.WithLabel("Bypass script"),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("绕过脚本"),
             (axis, enabled) => UpdateSettings(axis, s => s.BypassScript = enabled));
 
         s.RegisterAction<DeviceAxis>("Axis::Bypass::Script::Toggle",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All), axis => UpdateSettings(axis, s => s.BypassScript = !s.BypassScript));
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All), axis => UpdateSettings(axis, s => s.BypassScript = !s.BypassScript));
         #endregion
 
         #region Axis::Bypass::MotionProvider
         s.RegisterAction<DeviceAxis, bool>("Axis::Bypass::MotionProvider::Set",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
-            s => s.WithLabel("Bypass motion provider"),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("绕过运动提供器"),
             (axis, enabled) => UpdateSettings(axis, s => s.BypassMotionProvider = enabled));
 
         s.RegisterAction<DeviceAxis>("Axis::Bypass::MotionProvider::Toggle",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All), axis => UpdateSettings(axis, s => s.BypassMotionProvider = !s.BypassMotionProvider));
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All), axis => UpdateSettings(axis, s => s.BypassMotionProvider = !s.BypassMotionProvider));
         #endregion
 
         #region Axis::Bypass::Transition
         s.RegisterAction<DeviceAxis, bool>("Axis::Bypass::Transition::Set",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
-            s => s.WithLabel("Bypass custom transition"),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("绕过自定义过渡"),
             (axis, enabled) => UpdateSettings(axis, s => s.BypassTransition = enabled));
 
         s.RegisterAction<DeviceAxis>("Axis::Bypass::Transition::Toggle",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All), axis => UpdateSettings(axis, s => s.BypassTransition = !s.BypassTransition));
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All), axis => UpdateSettings(axis, s => s.BypassTransition = !s.BypassTransition));
         #endregion
 
         #region Axis::ClearScript
         s.RegisterAction<DeviceAxis>("Axis::ClearScript",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All), axis => { if (axis != null) OnAxisClear(axis); });
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All), axis => { if (axis != null) OnAxisClear(axis); });
         #endregion
 
         #region Axis::ReloadScript
         s.RegisterAction<DeviceAxis>("Axis::ReloadScript",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All), axis => { if (axis != null) OnAxisReload(axis); });
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All), axis => { if (axis != null) OnAxisReload(axis); });
         #endregion
 
         #region Axis::InterpolationType
         s.RegisterAction<DeviceAxis, InterpolationType>("Axis::InterpolationType::Set",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
-            s => s.WithLabel("Interpolation").WithItemsSource(Enum.GetValues<InterpolationType>()),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("插值").WithItemsSource(Enum.GetValues<InterpolationType>()),
             (axis, type) => UpdateSettings(axis, s => s.InterpolationType = type));
         #endregion
 
         #region Axis::InvertScript
         s.RegisterAction<DeviceAxis, bool>("Axis::InvertScript::Set",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
-            s => s.WithLabel("Invert script"),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("反转脚本"),
             (axis, enabled) => UpdateSettings(axis, s => s.InvertScript = enabled));
 
         s.RegisterAction<DeviceAxis>("Axis::InvertScript::Toggle",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All), axis => UpdateSettings(axis, s => s.InvertScript = !s.InvertScript));
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All), axis => UpdateSettings(axis, s => s.InvertScript = !s.InvertScript));
         #endregion
 
         #region Axis::LinkPriority
         s.RegisterAction<DeviceAxis, bool>("Axis::LinkPriority::Set",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
-            s => s.WithLabel("Link has priority").WithDescription("When enabled the link has priority\nover automatically loaded scripts"),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("链接优先").WithDescription("启用后链接优先于\n自动加载的脚本"),
             (axis, enabled) => UpdateSettings(axis, s => s.LinkAxisHasPriority = enabled));
 
         s.RegisterAction<DeviceAxis>("Axis::LinkPriority::Toggle",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All), axis => UpdateSettings(axis, s => s.LinkAxisHasPriority = !s.LinkAxisHasPriority));
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All), axis => UpdateSettings(axis, s => s.LinkAxisHasPriority = !s.LinkAxisHasPriority));
         #endregion
 
         #region Axis::SmartLimitInputAxis
         s.RegisterAction<DeviceAxis, DeviceAxis>("Axis::SmartLimitInputAxis::Set",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
-            s => s.WithLabel("Input axis").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("输入轴").WithItemsSource(DeviceAxis.All),
             (source, input) =>
             {
                 if (source == null || source == input)
@@ -1754,26 +1863,26 @@ internal sealed class ScriptViewModel : Screen, IDeviceAxisValueProvider, IDispo
 
         #region Axis::SmartLimitMode
         s.RegisterAction<DeviceAxis, SmartLimitMode>("Axis::SmartLimitMode::Set",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
-            s => s.WithLabel("Smart limit mode").WithItemsSource(Enum.GetValues<SmartLimitMode>()),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("智能限速模式").WithItemsSource(Enum.GetValues<SmartLimitMode>()),
             (axis, mode) => UpdateSettings(axis, s => s.SmartLimitMode = mode));
         #endregion
 
         #region Axis::SmartLimitTargetValue
         s.RegisterAction<DeviceAxis, double>("Axis::SmartLimitTargetValue::Offset",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
-            s => s.WithLabel("Value offset").AsNumericUpDown(-1, 1, 0.01, "{0:P0}"),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("数值偏移").AsNumericUpDown(-1, 1, 0.01, "{0:P0}"),
             (axis, offset) => UpdateSettings(axis, s => s.SmartLimitTargetValue = MathUtils.Clamp01(s.SmartLimitTargetValue + offset)));
 
         s.RegisterAction<DeviceAxis, double>("Axis::SmartLimitTargetValue::Set",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
-            s => s.WithLabel("Value").AsNumericUpDown(0, 1, 0.01, "{0:P0}"),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("数值").AsNumericUpDown(0, 1, 0.01, "{0:P0}"),
             (axis, value) => UpdateSettings(axis, s => s.SmartLimitTargetValue = MathUtils.Clamp01(value)));
         #endregion
 
         #region Axis::SmartLimitPoints
         s.RegisterAction<DeviceAxis, ObservableConcurrentCollection<Point>>("Axis::SmartLimitPoints::Set",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
             s => s.WithDefaultValue([new(50, 50)])
                   .WithTemplateName("SmartLimitPointsTemplate")
                   .WithCustomToString(x => $"Points({x.Count})"),
@@ -1782,8 +1891,8 @@ internal sealed class ScriptViewModel : Screen, IDeviceAxisValueProvider, IDispo
 
         #region Axis::LinkAxis
         s.RegisterAction<DeviceAxis, DeviceAxis>("Axis::LinkAxis::Set",
-            s => s.WithLabel("Source axis").WithItemsSource(DeviceAxis.All),
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("源轴").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
             (source, target) =>
             {
                 if (source == null || source == target)
@@ -1796,12 +1905,12 @@ internal sealed class ScriptViewModel : Screen, IDeviceAxisValueProvider, IDispo
 
         #region Axis::SpeedLimitEnabled
         s.RegisterAction<DeviceAxis, bool>("Axis::SpeedLimitEnabled::Set",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
-            s => s.WithLabel("Speed limit enabled"),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("启用速度限制"),
             (axis, enabled) => UpdateSettings(axis, s => s.SpeedLimitEnabled = enabled));
 
         s.RegisterAction<DeviceAxis>("Axis::SpeedLimitEnabled::Toggle",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All), axis => UpdateSettings(axis, s => s.SpeedLimitEnabled = !s.SpeedLimitEnabled));
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All), axis => UpdateSettings(axis, s => s.SpeedLimitEnabled = !s.SpeedLimitEnabled));
         #endregion
 
         #region Axis::SpeedLimitSecondsPerUnit
@@ -1809,113 +1918,113 @@ internal sealed class ScriptViewModel : Screen, IDeviceAxisValueProvider, IDispo
         static double NormalizeSpeedUnits(double value) => Math.Round(Math.Max(0, value), 2);
 
         s.RegisterAction<DeviceAxis, double>("Axis::SpeedLimitSecondsPerUnit::Offset",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
-            s => s.WithLabel("Value offset").AsNumericUpDown(stringFormat: "{0:F3} s/unit"),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("数值偏移").AsNumericUpDown(stringFormat: "{0:F3} s/unit"),
             (axis, offset) => UpdateSettings(axis, s => s.SpeedLimitUnitsPerSecond = NormalizeSpeedUnits(InvertSpeedUnits(InvertSpeedUnits(s.SpeedLimitUnitsPerSecond) + offset))));
 
         s.RegisterAction<DeviceAxis, double>("Axis::SpeedLimitSecondsPerUnit::Set",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
-            s => s.WithLabel("Value").AsNumericUpDown(minimum: 0, stringFormat: "{0:F3} s/unit"),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("数值").AsNumericUpDown(minimum: 0, stringFormat: "{0:F3} s/unit"),
             (axis, value) => UpdateSettings(axis, s => s.SpeedLimitUnitsPerSecond = NormalizeSpeedUnits(InvertSpeedUnits(value))));
         #endregion
 
         #region Axis::SpeedLimitUnitsPerSecond
         s.RegisterAction<DeviceAxis, double>("Axis::SpeedLimitUnitsPerSecond::Offset",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
-            s => s.WithLabel("Value offset").AsNumericUpDown(stringFormat: "{0:F2} units/s"),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("数值偏移").AsNumericUpDown(stringFormat: "{0:F2} units/s"),
             (axis, offset) => UpdateSettings(axis, s => s.SpeedLimitUnitsPerSecond = NormalizeSpeedUnits(s.SpeedLimitUnitsPerSecond + offset)));
 
         s.RegisterAction<DeviceAxis, double>("Axis::SpeedLimitUnitsPerSecond::Set",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
-            s => s.WithLabel("Value").AsNumericUpDown(minimum: 0, stringFormat: "{0:F2} units/s"),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("数值").AsNumericUpDown(minimum: 0, stringFormat: "{0:F2} units/s"),
             (axis, value) => UpdateSettings(axis, s => s.SpeedLimitUnitsPerSecond = NormalizeSpeedUnits(value)));
         #endregion
 
         #region Axis::AutoHomeEnabled
         s.RegisterAction<DeviceAxis, bool>("Axis::AutoHomeEnabled::Set",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
-            s => s.WithLabel("Auto home enabled"),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("启用自动归位"),
             (axis, enabled) => UpdateSettings(axis, s => s.AutoHomeEnabled = enabled));
 
         s.RegisterAction<DeviceAxis>("Axis::AutoHomeEnabled::Toggle",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All), axis => UpdateSettings(axis, s => s.AutoHomeEnabled = !s.AutoHomeEnabled));
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All), axis => UpdateSettings(axis, s => s.AutoHomeEnabled = !s.AutoHomeEnabled));
         #endregion
 
         #region Axis::AutoHomeDelay
         s.RegisterAction<DeviceAxis, double>("Axis::AutoHomeDelay::Offset",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
-            s => s.WithLabel("Value offset").AsNumericUpDown(stringFormat: "{0:F2}s"),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("数值偏移").AsNumericUpDown(stringFormat: "{0:F2}s"),
             (axis, offset) => UpdateSettings(axis, s => s.AutoHomeDelay = Math.Max(0, s.AutoHomeDelay + offset)));
 
         s.RegisterAction<DeviceAxis, double>("Axis::AutoHomeDelay::Set",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
-            s => s.WithLabel("Value").AsNumericUpDown(minimum: 0, stringFormat: "{0:F2}s"),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("数值").AsNumericUpDown(minimum: 0, stringFormat: "{0:F2}s"),
             (axis, value) => UpdateSettings(axis, s => s.AutoHomeDelay = Math.Max(0, value)));
         #endregion
 
         #region Axis::AutoHomeInsideScript
         s.RegisterAction<DeviceAxis, bool>("Axis::AutoHomeInsideScript::Set",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
-            s => s.WithLabel("Auto home inside script"),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("脚本内自动归位"),
             (axis, enabled) => UpdateSettings(axis, s => s.AutoHomeInsideScript = enabled));
 
         s.RegisterAction<DeviceAxis>("Axis::AutoHomeInsideScript::Toggle",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All), axis => UpdateSettings(axis, s => s.AutoHomeInsideScript = !s.AutoHomeInsideScript));
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All), axis => UpdateSettings(axis, s => s.AutoHomeInsideScript = !s.AutoHomeInsideScript));
         #endregion
 
         #region Axis::AutoHomeDuration
         s.RegisterAction<DeviceAxis, double>("Axis::AutoHomeDuration::Offset",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
-            s => s.WithLabel("Value offset").AsNumericUpDown(stringFormat: "{0:F2}s"),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("数值偏移").AsNumericUpDown(stringFormat: "{0:F2}s"),
             (axis, offset) => UpdateSettings(axis, s => s.AutoHomeDuration = Math.Max(0, s.AutoHomeDuration + offset)));
 
         s.RegisterAction<DeviceAxis, double>("Axis::AutoHomeDuration::Set",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
-            s => s.WithLabel("Value").AsNumericUpDown(minimum: 0, stringFormat: "{0:F2}s"),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("数值").AsNumericUpDown(minimum: 0, stringFormat: "{0:F2}s"),
             (axis, value) => UpdateSettings(axis, s => s.AutoHomeDuration = Math.Max(0, value)));
         #endregion
 
         #region Axis::AutoHomeTargetValue
         s.RegisterAction<DeviceAxis, double>("Axis::AutoHomeTargetValue::Offset",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
-            s => s.WithLabel("Value offset").AsNumericUpDown(-1, 1, 0.01, "{0:P0}"),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("数值偏移").AsNumericUpDown(-1, 1, 0.01, "{0:P0}"),
             (axis, offset) => UpdateSettings(axis, s => s.AutoHomeTargetValue = MathUtils.Clamp01(s.AutoHomeTargetValue + offset)));
 
         s.RegisterAction<DeviceAxis, double>("Axis::AutoHomeTargetValue::Set",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
-            s => s.WithLabel("Value").AsNumericUpDown(0, 1, 0.01, "{0:P0}"),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("数值").AsNumericUpDown(0, 1, 0.01, "{0:P0}"),
             (axis, value) => UpdateSettings(axis, s => s.AutoHomeTargetValue = MathUtils.Clamp01(value)));
         #endregion
 
         #region Axis::ScriptOffset
         s.RegisterAction<DeviceAxis, double>("Axis::ScriptOffset::Offset",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
-            s => s.WithLabel("Value offset").AsNumericUpDown(stringFormat: "{0:F2}s"),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("数值偏移").AsNumericUpDown(stringFormat: "{0:F2}s"),
             (axis, offset) => UpdateSettings(axis, s => s.Offset += offset));
 
         s.RegisterAction<DeviceAxis, double>("Axis::ScriptOffset::Set",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
-            s => s.WithLabel("Value").AsNumericUpDown(stringFormat: "{0:F2}s"),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("数值").AsNumericUpDown(stringFormat: "{0:F2}s"),
             (axis, value) => UpdateSettings(axis, s => s.Offset = value));
         #endregion
 
         #region Axis::ScriptScale
         s.RegisterAction<DeviceAxis, double>("Axis::ScriptScale::Offset",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
-            s => s.WithLabel("Value offset").AsNumericUpDown(-4, 4, 0.01, "{0:P0}"),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("数值偏移").AsNumericUpDown(-4, 4, 0.01, "{0:P0}"),
             (axis, offset) => UpdateSettings(axis, s => s.ScriptScale = Math.Clamp(s.ScriptScale + offset, 0.01, 4)));
 
         s.RegisterAction<DeviceAxis, double>("Axis::ScriptScale::Set",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
-            s => s.WithLabel("Value").AsNumericUpDown(0.01, 4, 0.01, "{0:P0}"),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("数值").AsNumericUpDown(0.01, 4, 0.01, "{0:P0}"),
             (axis, value) => UpdateSettings(axis, s => s.ScriptScale = Math.Clamp(value, 0.01, 4)));
         #endregion
 
         #region Axis::MotionProvider
         var motionProviderNames = MotionProviderManager.MotionProviderNames;
         s.RegisterAction<DeviceAxis, string>("Axis::MotionProvider::Set",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
-            s => s.WithLabel("Motion provider").WithItemsSource(motionProviderNames),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("运动提供器").WithItemsSource(motionProviderNames),
             (axis, motionProviderName) => UpdateSettings(axis, s => s.SelectedMotionProvider = motionProviderNames.Contains(motionProviderName) ? motionProviderName : null));
 
         MotionProviderManager.RegisterActions(s);
@@ -1923,46 +2032,46 @@ internal sealed class ScriptViewModel : Screen, IDeviceAxisValueProvider, IDispo
 
         #region Axis::MotionProviderBlend
         s.RegisterAction<DeviceAxis, double>("Axis::MotionProviderBlend::Offset",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
-            s => s.WithLabel("Value offset").AsNumericUpDown(-1, 1, 0.01, "{0:P0}"),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("数值偏移").AsNumericUpDown(-1, 1, 0.01, "{0:P0}"),
             (axis, offset) => UpdateSettings(axis, s => s.MotionProviderBlend = MathUtils.Clamp01(s.MotionProviderBlend + offset)));
 
         s.RegisterAction<DeviceAxis, double>("Axis::MotionProviderBlend::Set",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
-            s => s.WithLabel("Value").AsNumericUpDown(0, 1, 0.01, "{0:P0}"),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("数值").AsNumericUpDown(0, 1, 0.01, "{0:P0}"),
             (axis, value) => UpdateSettings(axis, s => s.MotionProviderBlend = MathUtils.Clamp01(value)));
 
         s.RegisterAction<IAxisInputGestureData, DeviceAxis>("Axis::MotionProviderBlend::Drive",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
             (data, axis) => UpdateSettings(axis, s => s.MotionProviderBlend = MathUtils.Clamp01(data.ApplyTo(s.MotionProviderBlend))));
         #endregion
 
         #region Axis::MotionProviderFillGaps
         s.RegisterAction<DeviceAxis, bool>("Axis::MotionProviderFillGaps::Set",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
-            s => s.WithLabel("Fill gaps"),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("填充空隙"),
             (axis, enabled) => UpdateSettings(axis, s => s.MotionProviderFillGaps = enabled));
 
         s.RegisterAction<DeviceAxis>("Axis::MotionProviderFillGaps::Toggle",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All), axis => UpdateSettings(axis, s => s.MotionProviderFillGaps = !s.MotionProviderFillGaps));
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All), axis => UpdateSettings(axis, s => s.MotionProviderFillGaps = !s.MotionProviderFillGaps));
         #endregion
 
         #region Axis::MotionProviderMinimumGapDuration
         s.RegisterAction<DeviceAxis, double>("Axis::MotionProviderMinimumGapDuration::Offset",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
-            s => s.WithLabel("Value offset").AsNumericUpDown(stringFormat: "{0:F2}s"),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("数值偏移").AsNumericUpDown(stringFormat: "{0:F2}s"),
             (axis, offset) => UpdateSettings(axis, s => s.MotionProviderMinimumGapDuration = Math.Max(0, s.MotionProviderMinimumGapDuration + offset)));
 
         s.RegisterAction<DeviceAxis, double>("Axis::MotionProviderMinimumGapDuration::Set",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
-            s => s.WithLabel("Value").AsNumericUpDown(minimum: 0, stringFormat: "{0:F2}s"),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("数值").AsNumericUpDown(minimum: 0, stringFormat: "{0:F2}s"),
             (axis, value) => UpdateSettings(axis, s => s.MotionProviderMinimumGapDuration = Math.Max(0, value)));
         #endregion
 
         #region Axis::UpdateMotionProviderWithAxis
         s.RegisterAction<DeviceAxis, DeviceAxis>("Axis::UpdateMotionProviderWithAxis::Set",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
-            s => s.WithLabel("Input axis").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("输入轴").WithItemsSource(DeviceAxis.All),
             (source, input) =>
             {
                 if (source == null || source == input)
@@ -1975,53 +2084,53 @@ internal sealed class ScriptViewModel : Screen, IDeviceAxisValueProvider, IDispo
 
         #region Axis::UpdateMotionProviderWhenPaused
         s.RegisterAction<DeviceAxis, bool>("Axis::UpdateMotionProviderWhenPaused::Set",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
-            s => s.WithLabel("Update motion providers when paused"),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("暂停时更新运动提供器"),
             (axis, enabled) => UpdateSettings(axis, s => s.UpdateMotionProviderWhenPaused = enabled));
 
         s.RegisterAction<DeviceAxis>("Axis::UpdateMotionProviderWhenPaused::Toggle",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All), axis => UpdateSettings(axis, s => s.UpdateMotionProviderWhenPaused = !s.UpdateMotionProviderWhenPaused));
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All), axis => UpdateSettings(axis, s => s.UpdateMotionProviderWhenPaused = !s.UpdateMotionProviderWhenPaused));
         #endregion
 
         #region Axis::UpdateMotionProviderWithoutScript
         s.RegisterAction<DeviceAxis, bool>("Axis::UpdateMotionProviderWithoutScript::Set",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All),
-            s => s.WithLabel("Update motion providers without script"),
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("无脚本时更新运动提供器"),
             (axis, enabled) => UpdateSettings(axis, s => s.UpdateMotionProviderWithoutScript = enabled));
 
         s.RegisterAction<DeviceAxis>("Axis::UpdateMotionProviderWithoutScript::Toggle",
-            s => s.WithLabel("Target axis").WithItemsSource(DeviceAxis.All), axis => UpdateSettings(axis, s => s.UpdateMotionProviderWithoutScript = !s.UpdateMotionProviderWithoutScript));
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All), axis => UpdateSettings(axis, s => s.UpdateMotionProviderWithoutScript = !s.UpdateMotionProviderWithoutScript));
         #endregion
 
         #region Sync::Duration
         s.RegisterAction<double>("Sync::Duration::Set",
-            s => s.WithLabel("Value").WithDefaultValue(4).AsNumericUpDown(0.5, 8, 0.5, "{0:F1}"),
+            s => s.WithLabel("数值").WithDefaultValue(4).AsNumericUpDown(0.5, 8, 0.5, "{0:F1}"),
             value => SyncSettings.Duration = Math.Clamp(value, 0.5, 8));
         #endregion
 
         #region Sync::SyncOnMediaResourceChanged
         s.RegisterAction<bool>("Sync::SyncOnMediaResourceChanged::Set",
-            s => s.WithLabel("Sync on media resource changed enabled"), value => SyncSettings.SyncOnMediaResourceChanged = value);
+            s => s.WithLabel("媒体资源变化时同步"), value => SyncSettings.SyncOnMediaResourceChanged = value);
         #endregion
 
         #region Sync::SyncOnScriptResourceChanged
         s.RegisterAction<bool>("Sync::SyncOnScriptResourceChanged::Set",
-            s => s.WithLabel("Sync on script resource changed enabled"), value => SyncSettings.SyncOnScriptResourceChanged = value);
+            s => s.WithLabel("脚本资源变化时同步"), value => SyncSettings.SyncOnScriptResourceChanged = value);
         #endregion
 
         #region Sync::SyncOnMediaPlayPause
         s.RegisterAction<bool>("Sync::SyncOnMediaPlayPause::Set",
-            s => s.WithLabel("Sync on media play/pause enabled"), value => SyncSettings.SyncOnMediaPlayPause = value);
+            s => s.WithLabel("媒体播放/暂停时同步"), value => SyncSettings.SyncOnMediaPlayPause = value);
         #endregion
 
         #region Sync::SyncOnSeek
         s.RegisterAction<bool>("Sync::SyncOnSeek::Set",
-            s => s.WithLabel("Sync on media seek enabled"), value => SyncSettings.SyncOnSeek = value);
+            s => s.WithLabel("媒体跳转时同步"), value => SyncSettings.SyncOnSeek = value);
         #endregion
 
         #region Sync::SyncOnAutoHomeStartEnd
         s.RegisterAction<bool>("Sync::SyncOnAutoHomeStartEnd::Set",
-            s => s.WithLabel("Sync on auto-home start/end enabled"), value => SyncSettings.SyncOnAutoHomeStartEnd = value);
+            s => s.WithLabel("自动归位开始/结束时同步"), value => SyncSettings.SyncOnAutoHomeStartEnd = value);
         #endregion
     }
     #endregion
@@ -2240,9 +2349,11 @@ internal sealed class AxisValueTransition
 
 internal sealed class AxisStateUpdateContext(AxisModel model)
 {
-    private readonly AxisModel _model = model;
     private readonly AxisState _state = model.State;
     private readonly AxisSettings _settings = model.Settings;
+
+    /// <summary>本帧该轴实际使用的关键帧（媒体源脚本或覆盖脚本）。</summary>
+    public KeyframeCollection ActiveKeyframes { get; private set; }
 
     public int Index { get; set; }
     public bool Invalid => Index == AxisState.InvalidIndex;
@@ -2285,8 +2396,10 @@ internal sealed class AxisStateUpdateContext(AxisModel model)
     private static bool ValueChanged(double last, double current, double epsilon)
         => Math.Abs(last - current) > epsilon || (double.IsFinite(current) ^ double.IsFinite(last));
 
-    public void BeginUpdate()
+    public void BeginUpdate(KeyframeCollection keyframes)
     {
+        ActiveKeyframes = keyframes;
+
         _state.BeginUpdate();
 
         Value = double.NaN;
@@ -2328,7 +2441,7 @@ internal sealed class AxisStateUpdateContext(AxisModel model)
         }
         else if (LastIndex != Index)
         {
-            var keyframes = _model.Script?.Keyframes;
+            var keyframes = ActiveKeyframes;
             var scriptEvent = new DeviceAxisScriptEvent(
                 keyframes?.ValidateIndex(Index) == true ? keyframes[Index] : null,
                 keyframes?.ValidateIndex(Index + 1) == true ? keyframes[Index + 1] : null);
@@ -2342,7 +2455,7 @@ internal sealed class AxisStateUpdateContext(AxisModel model)
 }
 
 [JsonObject(MemberSerialization.OptIn)]
-internal sealed class AxisSettings : PropertyChangedBase
+public sealed class AxisSettings : PropertyChangedBase
 {
     [JsonProperty] public bool LinkAxisHasPriority { get; set; } = false;
     [JsonProperty] public DeviceAxis LinkAxis { get; set; } = null;
@@ -2403,7 +2516,10 @@ internal sealed class AxisSettings : PropertyChangedBase
 
 public enum SmartLimitMode
 {
+    [Description("数值")]
     Value,
+
+    [Description("速度")]
     Speed
 }
 

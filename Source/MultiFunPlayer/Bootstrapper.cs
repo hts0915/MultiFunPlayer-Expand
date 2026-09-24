@@ -1,4 +1,4 @@
-﻿using MaterialDesignThemes.Wpf;
+using MaterialDesignThemes.Wpf;
 using Microsoft.Win32;
 using MultiFunPlayer.Common;
 using MultiFunPlayer.Input;
@@ -10,6 +10,7 @@ using MultiFunPlayer.MotionProvider;
 using MultiFunPlayer.OutputTarget;
 using MultiFunPlayer.Plugin;
 using MultiFunPlayer.Property;
+using MultiFunPlayer.Script;
 using MultiFunPlayer.Script.Repository;
 using MultiFunPlayer.Script.Repository.ViewModels;
 using MultiFunPlayer.Settings;
@@ -61,7 +62,7 @@ internal sealed class Bootstrapper : Bootstrapper<RootViewModel>
 
         builder.Bind<OutputTargetViewModel>().ToSelf().InSingletonScope();
         builder.Bind<SettingsViewModel>().ToSelf().InSingletonScope();
-        builder.Bind<ScriptViewModel>().And<IDeviceAxisValueProvider>().To<ScriptViewModel>().InSingletonScope();
+        builder.Bind<ScriptViewModel>().And<IDeviceAxisValueProvider>().And<IScriptOverrideController>().To<ScriptViewModel>().InSingletonScope();
 
         builder.Bind<IMediaSource>().ToAllImplementations().InSingletonScope();
         builder.Bind<ISettingsMigration>().ToAllImplementations().InSingletonScope();
@@ -115,8 +116,8 @@ internal sealed class Bootstrapper : Bootstrapper<RootViewModel>
 
         var shortcutManager = Container.Get<IShortcutManager>();
         shortcutManager.RegisterAction<LogLevel, string>("Debug::Log",
-            s => s.WithLabel("Log level").WithDefaultValue(LogLevel.Info).WithItemsSource(LogLevel.AllLoggingLevels),
-            s => s.WithLabel("Message"),
+            s => s.WithLabel("日志级别").WithDefaultValue(LogLevel.Info).WithItemsSource(LogLevel.AllLoggingLevels),
+            s => s.WithLabel("消息"),
             Logger.Log);
 
         AppDomain.CurrentDomain.UnhandledException += (s, e) =>

@@ -1,4 +1,4 @@
-﻿using MultiFunPlayer.Common;
+using MultiFunPlayer.Common;
 using MultiFunPlayer.UI.Controls.ViewModels;
 using PropertyChanged;
 using System.Collections.Specialized;
@@ -14,7 +14,7 @@ namespace MultiFunPlayer.UI.Controls;
 /// Interaction logic for KeyframesHeatmap.xaml
 /// </summary>
 [AddINotifyPropertyChangedInterface]
-internal sealed partial class KeyframesHeatmap : UserControl
+public sealed partial class KeyframesHeatmap : UserControl
 {
     public static int MaxBucketCount => 500;
 
@@ -297,8 +297,10 @@ internal sealed partial class KeyframesHeatmap : UserControl
 
     private void UpdateToolTipKeyframes()
     {
-        ToolTipKeyframes = Keyframes.TryGetValue(SelectedAxis, out var keyframes) ? keyframes : null;
-        ToolTipInterpolationType = SelectedAxis != null ? Settings[SelectedAxis].InterpolationType : InterpolationType.Linear;
+        ToolTipKeyframes = Keyframes != null && Keyframes.TryGetValue(SelectedAxis, out var keyframes) ? keyframes : null;
+        ToolTipInterpolationType = Settings != null && Settings.TryGetValue(SelectedAxis, out var settings)
+            ? settings.InterpolationType
+            : InterpolationType.Pchip;
     }
 
     private void Refresh()
