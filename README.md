@@ -11,6 +11,19 @@
 > 原项目：[Yoooi0/MultiFunPlayer](https://github.com/Yoooi0/MultiFunPlayer) — MIT License，版权归 Yoooi。
 > 本仓库在其基础上做了完整中文化并新增了若干功能，**完整保留了上游的提交历史**，以便继续跟进上游更新。
 
+# 下载与安装
+
+**仅支持 Windows x64。** 到 [Releases](https://github.com/hts0915/MultiFunPlayer-Expand/releases/latest) 页面下载：
+
+| 文件 | 大小 | 说明 |
+|-|-|-|
+| `MultiFunPlayer-<版本>-SelfContained.<SDK>.zip` | 150 MB+ | **推荐**。已内含 .NET 运行时，解压后直接双击 `MultiFunPlayer.exe`，不需要安装任何东西 |
+| `MultiFunPlayer-<版本>.zip` | 几 MB | 体积小，但需要先安装 [.NET 9.0 Desktop Runtime (x64)](https://dotnet.microsoft.com/en-us/download/dotnet/9.0/runtime) |
+
+本软件是**绿色便携版**：不会在程序目录之外创建或修改任何文件，解压到任意文件夹即可运行，删除文件夹就是卸载。全部设置保存在程序目录下的 `MultiFunPlayer.config.json`，换电脑时连同这个文件一起拷走即可。
+
+第一次运行会弹出「关于」窗口，关掉即可。想快速上手，点标题栏右上角的 **?** 按钮查看内置使用说明（含全部快捷键动作与参数说明）。
+
 # 本仓库相对上游的改动
 
 * **界面完整中文化** — 主界面、设置窗口、对话框、工具提示、下拉枚举、异常提示全部中文；轴的显示名改为中文（上下 / 前后 / 左右 / 扭转 / 翻滚 / 俯仰 / 振动 / 抽送 / 吸吮 / 阀门 / 润滑），已有配置会在启动时由迁移自动完成改名。
