@@ -119,7 +119,7 @@ Once your video player and output are connected, scripts can be loaded in severa
 
 # Prerequisites
 
-* [.NET 8.0 x64 Desktop Runtime](https://dotnet.microsoft.com/en-us/download/dotnet/8.0/runtime)
+* [.NET 9.0 x64 Desktop Runtime](https://dotnet.microsoft.com/en-us/download/dotnet/9.0/runtime)
 * [Visual C++ 2019 x64 Redistributable](https://aka.ms/vs/17/release/vc_redist.x64.exe)
 
 # Supporters
