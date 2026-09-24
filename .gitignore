@@ -350,3 +350,14 @@ MigrationBackup/
 
 # Fody
 **/FodyWeavers.xsd
+
+# ===== 本地开发笔记与工具（不随仓库发布）=====
+_devnotes/
+
+# ===== 个人配置与运行时数据 =====
+# 这些文件可能包含设备串口号、本机路径、媒体库 API 密钥等个人信息，
+# 正常情况下它们位于已被忽略的 bin/ 之下；这里再加一层保险，
+# 防止从仓库根目录运行程序时被意外提交。
+MultiFunPlayer.config.json
+ScriptPreset.config.json
+*.config.json.bak
