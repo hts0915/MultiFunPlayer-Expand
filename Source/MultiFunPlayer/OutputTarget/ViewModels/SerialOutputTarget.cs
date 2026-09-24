@@ -1,4 +1,4 @@
-﻿using Microsoft.Win32;
+using Microsoft.Win32;
 using MultiFunPlayer.Common;
 using MultiFunPlayer.Input;
 using MultiFunPlayer.Input.TCode;
@@ -22,6 +22,13 @@ internal sealed class SerialOutputTarget(int instanceIndex, IEventAggregator eve
 {
     private CancellationTokenSource _refreshCancellationSource = new();
 
+    /// <summary>
+    /// 刚连接后这段时间内，下发给设备的过渡时间（TCode 的 I 参数）不会被压到极小值。
+    /// 首帧的 elapsed 接近 0，会发出 I0，设备会以最大速度猛地弹到目标位置；这里给一个下限做缓冲。
+    /// </summary>
+    private const double ConnectRampDurationMilliseconds = 1000;
+    private const double ConnectRampMinimumIntervalMilliseconds = 250;
+
     public override ConnectionStatus Status { get; protected set; }
     public bool IsConnected => Status == ConnectionStatus.Connected;
     public bool IsDisconnected => Status == ConnectionStatus.Disconnected;
@@ -40,6 +47,8 @@ internal sealed class SerialOutputTarget(int instanceIndex, IEventAggregator eve
     public StopBits StopBits { get; set; } = StopBits.One;
     public int DataBits { get; set; } = 8;
     public Handshake Handshake { get; set; } = Handshake.None;
+    // 保持打开：DTR/RTS 关闭时 CH340 之类的 USB 串口在 SerialPort.Open() 的 InitializeDCB
+    // 阶段会直接抛 IOException（连到系统上的设备没有发挥作用），端口根本打不开。
     public bool DtrEnable { get; set; } = true;
     public bool RtsEnable { get; set; } = true;
     public int ReadTimeout { get; set; } = 250;
@@ -137,20 +146,57 @@ internal sealed class SerialOutputTarget(int instanceIndex, IEventAggregator eve
 
     protected override async ValueTask<bool> OnConnectingAsync(ConnectionType connectionType)
     {
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+
         if (connectionType != ConnectionType.AutoConnect)
             Logger.Info("Connecting to {0} at \"{1}\" [Type: {2}]", Identifier, SelectedSerialPortDeviceId, connectionType);
 
         if (SelectedSerialPortDeviceId == null)
             return false;
-        if (SelectedSerialPort == null)
-            await RefreshPorts();
 
+        // 先用注册表按 DeviceID 直接解析端口名（微秒级），
+        // 避开连接时那次很慢的 WMI 全量枚举（Win32_PnPEntity 遍历整机，可能要好几秒）
+        if (SelectedSerialPort == null)
+        {
+            var portName = TryGetPortNameFromDeviceId(SelectedSerialPortDeviceId);
+            if (portName != null)
+            {
+                SelectedSerialPort = SerialPortInfo.FromPortName(SelectedSerialPortDeviceId, portName);
+
+                Logger.Info("{0} resolved \"{1}\" from registry in {2:F0}ms", Identifier, portName, stopwatch.Elapsed.TotalMilliseconds);
+            }
+        }
+
+        if (SelectedSerialPort == null)
+        {
+            Logger.Info("{0} could not resolve port from registry, falling back to WMI refresh", Identifier);
+            await RefreshPorts();
+            Logger.Info("{0} WMI port refresh took {1:F0}ms", Identifier, stopwatch.Elapsed.TotalMilliseconds);
+        }
+
+        Logger.Info("{0} connect preparation took {1:F0}ms", Identifier, stopwatch.Elapsed.TotalMilliseconds);
         return SelectedSerialPort != null;
+    }
+
+    /// <summary>按设备 DeviceID 从注册表直接读端口名（COMx），避免 WMI 全量枚举。</summary>
+    private string TryGetPortNameFromDeviceId(string deviceId)
+    {
+        try
+        {
+            return Registry.GetValue($@"HKEY_LOCAL_MACHINE\System\CurrentControlSet\Enum\{deviceId}\Device Parameters", "PortName", null) as string;
+        }
+        catch (Exception e)
+        {
+            Logger.Trace(e, "Failed to read port name for \"{0}\" from registry", deviceId);
+            return null;
+        }
     }
 
     protected override void Run(ConnectionType connectionType, CancellationToken token)
     {
         var serialPort = default(SerialPort);
+        var openStopwatch = System.Diagnostics.Stopwatch.StartNew();
+        var firstWriteLogged = false;
 
         try
         {
@@ -172,6 +218,8 @@ internal sealed class SerialOutputTarget(int instanceIndex, IEventAggregator eve
 
             serialPort.Open();
             Status = ConnectionStatus.Connected;
+
+            Logger.Info("{0} serial port \"{1}\" opened in {2:F0}ms", Identifier, serialPort.PortName, openStopwatch.Elapsed.TotalMilliseconds);
         }
         catch (Exception e)
         {
@@ -181,7 +229,7 @@ internal sealed class SerialOutputTarget(int instanceIndex, IEventAggregator eve
             if (connectionType != ConnectionType.AutoConnect)
             {
                 Logger.Error(e, "Error when connecting to {0} at \"{1}\"", Name, SelectedSerialPortDeviceId);
-                _ = DialogHelper.ShowErrorAsync(e, $"Error when connecting to {Name}", "RootDialog");
+                _ = DialogHelper.ShowErrorAsync(e, $"连接 {Name} 时出错", "RootDialog");
             }
 
             return;
@@ -207,10 +255,23 @@ internal sealed class SerialOutputTarget(int instanceIndex, IEventAggregator eve
                     var values = context.SendDirtyValuesOnly ? currentValues.Where(x => DeviceAxis.IsValueDirty(x.Value, lastSentValues[x.Key])) : currentValues;
                     values = values.Where(x => AxisSettings[x.Key].Enabled);
 
-                    var commands = context.OffloadElapsedTime ? DeviceAxis.ToString(values) : DeviceAxis.ToString(values, elapsed * 1000);
+                    var intervalMilliseconds = elapsed * 1000;
+
+                    // 刚连上的一小段时间里给一个过渡时间下限，避免设备以最大速度猛地弹到位
+                    if (openStopwatch.Elapsed.TotalMilliseconds < ConnectRampDurationMilliseconds)
+                        intervalMilliseconds = Math.Max(intervalMilliseconds, ConnectRampMinimumIntervalMilliseconds);
+
+                    var commands = context.OffloadElapsedTime ? DeviceAxis.ToString(values) : DeviceAxis.ToString(values, intervalMilliseconds);
                     if (serialPort.IsOpen && !string.IsNullOrWhiteSpace(commands))
                     {
                         Logger.Trace("Sending \"{0}\" to \"{1}\"", commands.Trim(), SelectedSerialPortDeviceId);
+
+                        if (!firstWriteLogged)
+                        {
+                            firstWriteLogged = true;
+                            Logger.Info("{0} first TCode sent {1:F0}ms after serial port open [Interval: {2:F0}ms]",
+                                Identifier, openStopwatch.Elapsed.TotalMilliseconds, intervalMilliseconds);
+                        }
 
                         serialPort.Write(commands);
                         lastSentValues.Merge(values);
@@ -262,7 +323,7 @@ internal sealed class SerialOutputTarget(int instanceIndex, IEventAggregator eve
         catch (Exception e) when (e is TimeoutException or IOException)
         {
             Logger.Error(e, $"{Identifier} failed with exception");
-            _ = DialogHelper.ShowErrorAsync(e, $"{Identifier} failed with exception", "RootDialog");
+            _ = DialogHelper.ShowErrorAsync(e, $"{Identifier} 发生异常", "RootDialog");
         }
         catch (Exception e) { Logger.Error(e, $"{Identifier} failed with exception"); }
 
@@ -316,7 +377,7 @@ internal sealed class SerialOutputTarget(int instanceIndex, IEventAggregator eve
         base.RegisterActions(s);
 
         #region SerialPort
-        s.RegisterAction<string>($"{Identifier}::SerialPort::Set", s => s.WithLabel("Device ID"), SelectSerialPortByDeviceId);
+        s.RegisterAction<string>($"{Identifier}::SerialPort::Set", s => s.WithLabel("设备 ID"), SelectSerialPortByDeviceId);
         #endregion
     }
 
@@ -352,6 +413,14 @@ internal sealed class SerialOutputTarget(int instanceIndex, IEventAggregator eve
         private static Logger Logger { get; } = LogManager.GetCurrentClassLogger();
 
         private SerialPortInfo() { }
+
+        /// <summary>不经过 WMI，直接用已知的 DeviceID + 端口名构造（用于连接时走注册表快速路径）。</summary>
+        public static SerialPortInfo FromPortName(string deviceId, string portName) => new()
+        {
+            DeviceID = deviceId,
+            Name = portName,
+            PortName = portName
+        };
 
         public string Caption { get; init; }
         public string ClassGuid { get; init; }
