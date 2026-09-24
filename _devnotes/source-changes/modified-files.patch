@@ -1,0 +1,502 @@
+﻿diff --git a/Source/MultiFunPlayer/Bootstrapper.cs b/Source/MultiFunPlayer/Bootstrapper.cs
+index c51ee1f6..94377c3b 100644
+--- a/Source/MultiFunPlayer/Bootstrapper.cs
++++ b/Source/MultiFunPlayer/Bootstrapper.cs
+@@ -1,4 +1,4 @@
+-﻿using MaterialDesignThemes.Wpf;
++using MaterialDesignThemes.Wpf;
+ using Microsoft.Win32;
+ using MultiFunPlayer.Common;
+ using MultiFunPlayer.Input;
+@@ -10,6 +10,7 @@ using MultiFunPlayer.MotionProvider;
+ using MultiFunPlayer.OutputTarget;
+ using MultiFunPlayer.Plugin;
+ using MultiFunPlayer.Property;
++using MultiFunPlayer.Script;
+ using MultiFunPlayer.Script.Repository;
+ using MultiFunPlayer.Script.Repository.ViewModels;
+ using MultiFunPlayer.Settings;
+@@ -61,7 +62,7 @@ internal sealed class Bootstrapper : Bootstrapper<RootViewModel>
+ 
+         builder.Bind<OutputTargetViewModel>().ToSelf().InSingletonScope();
+         builder.Bind<SettingsViewModel>().ToSelf().InSingletonScope();
+-        builder.Bind<ScriptViewModel>().And<IDeviceAxisValueProvider>().To<ScriptViewModel>().InSingletonScope();
++        builder.Bind<ScriptViewModel>().And<IDeviceAxisValueProvider>().And<IScriptOverrideController>().To<ScriptViewModel>().InSingletonScope();
+ 
+         builder.Bind<IMediaSource>().ToAllImplementations().InSingletonScope();
+         builder.Bind<ISettingsMigration>().ToAllImplementations().InSingletonScope();
+diff --git a/Source/MultiFunPlayer/OutputTarget/ViewModels/SerialOutputTarget.cs b/Source/MultiFunPlayer/OutputTarget/ViewModels/SerialOutputTarget.cs
+index ab91b05f..eeba49fc 100644
+--- a/Source/MultiFunPlayer/OutputTarget/ViewModels/SerialOutputTarget.cs
++++ b/Source/MultiFunPlayer/OutputTarget/ViewModels/SerialOutputTarget.cs
+@@ -1,4 +1,4 @@
+-﻿using Microsoft.Win32;
++using Microsoft.Win32;
+ using MultiFunPlayer.Common;
+ using MultiFunPlayer.Input;
+ using MultiFunPlayer.Input.TCode;
+@@ -22,6 +22,13 @@ internal sealed class SerialOutputTarget(int instanceIndex, IEventAggregator eve
+ {
+     private CancellationTokenSource _refreshCancellationSource = new();
+ 
++    /// <summary>
++    /// 刚连接后这段时间内，下发给设备的过渡时间（TCode 的 I 参数）不会被压到极小值。
++    /// 首帧的 elapsed 接近 0，会发出 I0，设备会以最大速度猛地弹到目标位置；这里给一个下限做缓冲。
++    /// </summary>
++    private const double ConnectRampDurationMilliseconds = 1000;
++    private const double ConnectRampMinimumIntervalMilliseconds = 250;
++
+     public override ConnectionStatus Status { get; protected set; }
+     public bool IsConnected => Status == ConnectionStatus.Connected;
+     public bool IsDisconnected => Status == ConnectionStatus.Disconnected;
+@@ -40,6 +47,8 @@ internal sealed class SerialOutputTarget(int instanceIndex, IEventAggregator eve
+     public StopBits StopBits { get; set; } = StopBits.One;
+     public int DataBits { get; set; } = 8;
+     public Handshake Handshake { get; set; } = Handshake.None;
++    // 保持打开：DTR/RTS 关闭时 CH340 之类的 USB 串口在 SerialPort.Open() 的 InitializeDCB
++    // 阶段会直接抛 IOException（连到系统上的设备没有发挥作用），端口根本打不开。
+     public bool DtrEnable { get; set; } = true;
+     public bool RtsEnable { get; set; } = true;
+     public int ReadTimeout { get; set; } = 250;
+@@ -137,20 +146,59 @@ internal sealed class SerialOutputTarget(int instanceIndex, IEventAggregator eve
+ 
+     protected override async ValueTask<bool> OnConnectingAsync(ConnectionType connectionType)
+     {
++        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
++
+         if (connectionType != ConnectionType.AutoConnect)
+-            Logger.Info("Connecting to {0} at \"{1}\" [Type: {2}]", Identifier, SelectedSerialPortDeviceId, connectionType);
++            Logger.Info("Connecting to {0} at \"{1}\" [Type: {2}, DTR: {3}, RTS: {4}, Baud: {5}]",
++                Identifier, SelectedSerialPortDeviceId, connectionType, DtrEnable, RtsEnable, BaudRate);
+ 
+         if (SelectedSerialPortDeviceId == null)
+             return false;
++
++        // 先用注册表按 DeviceID 直接解析端口名（微秒级），
++        // 避开连接时那次很慢的 WMI 全量枚举（Win32_PnPEntity 遍历整机，可能要好几秒）
++        if (SelectedSerialPort == null)
++        {
++            var portName = TryGetPortNameFromDeviceId(SelectedSerialPortDeviceId);
++            if (portName != null)
++            {
++                SelectedSerialPort = SerialPortInfo.FromPortName(SelectedSerialPortDeviceId, portName);
++
++                Logger.Info("{0} resolved \"{1}\" from registry in {2:F0}ms", Identifier, portName, stopwatch.Elapsed.TotalMilliseconds);
++            }
++        }
++
+         if (SelectedSerialPort == null)
++        {
++            Logger.Info("{0} could not resolve port from registry, falling back to WMI refresh", Identifier);
+             await RefreshPorts();
++            Logger.Info("{0} WMI port refresh took {1:F0}ms", Identifier, stopwatch.Elapsed.TotalMilliseconds);
++        }
+ 
++        Logger.Info("{0} connect preparation took {1:F0}ms", Identifier, stopwatch.Elapsed.TotalMilliseconds);
+         return SelectedSerialPort != null;
+     }
+ 
++    /// <summary>按设备 DeviceID 从注册表直接读端口名（COMx），避免 WMI 全量枚举。</summary>
++    private string TryGetPortNameFromDeviceId(string deviceId)
++    {
++        try
++        {
++            return Registry.GetValue($@"HKEY_LOCAL_MACHINE\System\CurrentControlSet\Enum\{deviceId}\Device Parameters", "PortName", null) as string;
++        }
++        catch (Exception e)
++        {
++            Logger.Trace(e, "Failed to read port name for \"{0}\" from registry", deviceId);
++            return null;
++        }
++    }
++
+     protected override void Run(ConnectionType connectionType, CancellationToken token)
+     {
+         var serialPort = default(SerialPort);
++        var openStopwatch = System.Diagnostics.Stopwatch.StartNew();
++        var firstWriteLogged = false;
++        var firstReadLogged = false;
+ 
+         try
+         {
+@@ -172,6 +220,8 @@ internal sealed class SerialOutputTarget(int instanceIndex, IEventAggregator eve
+ 
+             serialPort.Open();
+             Status = ConnectionStatus.Connected;
++
++            Logger.Info("{0} serial port \"{1}\" opened in {2:F0}ms", Identifier, serialPort.PortName, openStopwatch.Elapsed.TotalMilliseconds);
+         }
+         catch (Exception e)
+         {
+@@ -196,22 +246,50 @@ internal sealed class SerialOutputTarget(int instanceIndex, IEventAggregator eve
+             {
+                 var currentValues = DeviceAxis.All.ToDictionary(a => a, _ => double.NaN);
+                 var lastSentValues = DeviceAxis.All.ToDictionary(a => a, _ => double.NaN);
++                var isFirstFrame = true;
+                 FixedUpdate<TCodeThreadFixedUpdateContext>(() => !token.IsCancellationRequested && serialPort.IsOpen, (context, elapsed) =>
+                 {
+                     Logger.Trace("Begin FixedUpdate [Elapsed: {0}]", elapsed);
+                     GetValues(currentValues);
+ 
++                    if (isFirstFrame)
++                    {
++                        // 刚连上的第一帧不下发。
++                        // 否则设备会在连上的一瞬间被整帧命令拉到脚本/默认位置（所有轴一起猛动，
++                        // 而设备实际停在哪儿 MFP 并不知道）。把当前值标记为「已发送」，
++                        // 之后只有数值真正变化时才发指令，连接本身就不会让设备动。
++                        isFirstFrame = false;
++                        lastSentValues.Merge(currentValues);
++
++                        Logger.Info("{0} suppressing initial frame to avoid jerking the device on connect [Values: {1}]",
++                            Identifier, string.Join(" ", currentValues.Select(x => $"{x.Key}={x.Value:F3}")));
++                        return;
++                    }
++
+                     if (serialPort.IsOpen && serialPort.BytesToRead > 0)
+                         ReadExisting();
+ 
+                     var values = context.SendDirtyValuesOnly ? currentValues.Where(x => DeviceAxis.IsValueDirty(x.Value, lastSentValues[x.Key])) : currentValues;
+                     values = values.Where(x => AxisSettings[x.Key].Enabled);
+ 
+-                    var commands = context.OffloadElapsedTime ? DeviceAxis.ToString(values) : DeviceAxis.ToString(values, elapsed * 1000);
++                    var intervalMilliseconds = elapsed * 1000;
++
++                    // 刚连上的一小段时间里给一个过渡时间下限，避免设备以最大速度猛地弹到位
++                    if (openStopwatch.Elapsed.TotalMilliseconds < ConnectRampDurationMilliseconds)
++                        intervalMilliseconds = Math.Max(intervalMilliseconds, ConnectRampMinimumIntervalMilliseconds);
++
++                    var commands = context.OffloadElapsedTime ? DeviceAxis.ToString(values) : DeviceAxis.ToString(values, intervalMilliseconds);
+                     if (serialPort.IsOpen && !string.IsNullOrWhiteSpace(commands))
+                     {
+                         Logger.Trace("Sending \"{0}\" to \"{1}\"", commands.Trim(), SelectedSerialPortDeviceId);
+ 
++                        if (!firstWriteLogged)
++                        {
++                            firstWriteLogged = true;
++                            Logger.Info("{0} first TCode sent {1:F0}ms after serial port open [Interval: {2:F0}ms, Commands: \"{3}\"]",
++                                Identifier, openStopwatch.Elapsed.TotalMilliseconds, intervalMilliseconds, commands.Trim());
++                        }
++
+                         serialPort.Write(commands);
+                         lastSentValues.Merge(values);
+                     }
+@@ -255,6 +333,16 @@ internal sealed class SerialOutputTarget(int instanceIndex, IEventAggregator eve
+             void ReadExisting()
+             {
+                 var receivedString = serialPort.ReadExisting();
++
++                // 连接后第一次收到设备数据时记一条 Info：
++                // 如果设备在端口打开时复位，固件通常会先打印一串开机信息，这条日志就能证明复位发生了。
++                if (!firstReadLogged)
++                {
++                    firstReadLogged = true;
++                    Logger.Info("{0} first data received from device {1:F0}ms after open: \"{2}\"",
++                        Identifier, openStopwatch.Elapsed.TotalMilliseconds, receivedString);
++                }
++
+                 Logger.Debug("Received \"{0}\" from \"{1}\"", receivedString, SelectedSerialPortDeviceId);
+                 tcodeInputProcessor.Parse(receivedString);
+             }
+@@ -353,6 +441,14 @@ internal sealed class SerialOutputTarget(int instanceIndex, IEventAggregator eve
+ 
+         private SerialPortInfo() { }
+ 
++        /// <summary>不经过 WMI，直接用已知的 DeviceID + 端口名构造（用于连接时走注册表快速路径）。</summary>
++        public static SerialPortInfo FromPortName(string deviceId, string portName) => new()
++        {
++            DeviceID = deviceId,
++            Name = portName,
++            PortName = portName
++        };
++
+         public string Caption { get; init; }
+         public string ClassGuid { get; init; }
+         public string Description { get; init; }
+diff --git a/Source/MultiFunPlayer/UI/Controls/KeyframesHeatmap.xaml b/Source/MultiFunPlayer/UI/Controls/KeyframesHeatmap.xaml
+index b5aa78e4..1f9ab9c2 100644
+--- a/Source/MultiFunPlayer/UI/Controls/KeyframesHeatmap.xaml
++++ b/Source/MultiFunPlayer/UI/Controls/KeyframesHeatmap.xaml
+@@ -7,7 +7,6 @@
+              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+              d:DesignHeight="50"
+              d:DesignWidth="800"
+-             x:ClassModifier="internal"
+              PreviewMouseDown="OnPreviewMouseDown"
+              SizeChanged="OnSizeChanged"
+              mc:Ignorable="d">
+diff --git a/Source/MultiFunPlayer/UI/Controls/KeyframesHeatmap.xaml.cs b/Source/MultiFunPlayer/UI/Controls/KeyframesHeatmap.xaml.cs
+index 18e0c599..2627a60c 100644
+--- a/Source/MultiFunPlayer/UI/Controls/KeyframesHeatmap.xaml.cs
++++ b/Source/MultiFunPlayer/UI/Controls/KeyframesHeatmap.xaml.cs
+@@ -1,4 +1,4 @@
+-﻿using MultiFunPlayer.Common;
++using MultiFunPlayer.Common;
+ using MultiFunPlayer.UI.Controls.ViewModels;
+ using PropertyChanged;
+ using System.Collections.Specialized;
+@@ -14,7 +14,7 @@ namespace MultiFunPlayer.UI.Controls;
+ /// Interaction logic for KeyframesHeatmap.xaml
+ /// </summary>
+ [AddINotifyPropertyChangedInterface]
+-internal sealed partial class KeyframesHeatmap : UserControl
++public sealed partial class KeyframesHeatmap : UserControl
+ {
+     public static int MaxBucketCount => 500;
+ 
+@@ -297,8 +297,10 @@ internal sealed partial class KeyframesHeatmap : UserControl
+ 
+     private void UpdateToolTipKeyframes()
+     {
+-        ToolTipKeyframes = Keyframes.TryGetValue(SelectedAxis, out var keyframes) ? keyframes : null;
+-        ToolTipInterpolationType = SelectedAxis != null ? Settings[SelectedAxis].InterpolationType : InterpolationType.Linear;
++        ToolTipKeyframes = Keyframes != null && Keyframes.TryGetValue(SelectedAxis, out var keyframes) ? keyframes : null;
++        ToolTipInterpolationType = Settings != null && Settings.TryGetValue(SelectedAxis, out var settings)
++            ? settings.InterpolationType
++            : InterpolationType.Pchip;
+     }
+ 
+     private void Refresh()
+diff --git a/Source/MultiFunPlayer/UI/Controls/ViewModels/ScriptViewModel.cs b/Source/MultiFunPlayer/UI/Controls/ViewModels/ScriptViewModel.cs
+index 2869885e..067eb46f 100644
+--- a/Source/MultiFunPlayer/UI/Controls/ViewModels/ScriptViewModel.cs
++++ b/Source/MultiFunPlayer/UI/Controls/ViewModels/ScriptViewModel.cs
+@@ -29,7 +29,7 @@ using System.Text.RegularExpressions;
+ namespace MultiFunPlayer.UI.Controls.ViewModels;
+ 
+ [JsonObject(MemberSerialization = MemberSerialization.OptIn)]
+-internal sealed class ScriptViewModel : Screen, IDeviceAxisValueProvider, IDisposable,
++internal sealed class ScriptViewModel : Screen, IDeviceAxisValueProvider, IScriptOverrideController, IDisposable,
+     IHandle<MediaPositionChangedMessage>, IHandle<MediaPlayingChangedMessage>, IHandle<MediaPathChangedMessage>, IHandle<MediaDurationChangedMessage>,
+     IHandle<MediaSpeedChangedMessage>, IHandle<SettingsMessage>, IHandle<SyncRequestMessage>, IHandle<ReloadScriptsRequestMessage>, IHandle<ChangeScriptMessage>,
+     IHandle<MediaResetMessage>
+@@ -42,7 +42,19 @@ internal sealed class ScriptViewModel : Screen, IDeviceAxisValueProvider, IDispo
+     private CancellationTokenSource _cancellationSource;
+     private double _internalMediaPosition;
+ 
++    // 脚本覆盖（IScriptOverrideController）：一套完全独立于媒体源的时间轴
++    private readonly Dictionary<DeviceAxis, IScriptResource> _overrideScripts = [];
++    private double _overridePosition;
++    private double _overrideDuration;
++    private bool _overridePaused;
++
+     public bool IsPlaying { get; private set; }
++
++    public bool IsOverrideActive { get; private set; }
++    public bool IsOverridePaused => _overridePaused;
++    public double OverridePosition => _overridePosition;
++    public double OverrideDuration => _overrideDuration;
++    public bool IsOverridePlaying => IsOverrideActive && !_overridePaused;
+     public double PlaybackSpeed { get; private set; }
+     public double MediaDuration { get; private set; }
+ 
+@@ -150,8 +162,12 @@ internal sealed class ScriptViewModel : Screen, IDeviceAxisValueProvider, IDispo
+                 MediaPosition += Math.Clamp(error, deltaTime * PlaybackSpeed * 0.9, deltaTime * PlaybackSpeed * 1.1);
+             }
+ 
++            // 脚本覆盖模式：位置由覆盖时间轴自己推进，MediaPosition 一动不动
++            if (IsOverridePlaying)
++                _overridePosition = Math.Min(_overridePosition + deltaTime * PlaybackSpeed, _overrideDuration);
++
+             foreach (var axis in DeviceAxis.All)
+-                contexts[axis].BeginUpdate();
++                contexts[axis].BeginUpdate(GetActiveKeyframes(axis));
+ 
+             var dirty = false;
+             foreach (var axis in DeviceAxis.All)
+@@ -189,7 +205,8 @@ internal sealed class ScriptViewModel : Screen, IDeviceAxisValueProvider, IDispo
+                     if (settings.BypassScript)
+                         return NoUpdate();
+ 
+-                    if (!AxisKeyframes.TryGetValue(axis, out var keyframes) || keyframes == null || keyframes.Count == 0)
++                    var keyframes = GetActiveKeyframes(axis);
++                    if (keyframes == null || keyframes.Count == 0)
+                         return NoUpdate();
+ 
+                     var axisPosition = GetAxisPosition(axis);
+@@ -250,7 +267,7 @@ internal sealed class ScriptViewModel : Screen, IDeviceAxisValueProvider, IDispo
+ 
+                     bool ShouldUpdateMotionProvider(bool canFillGap)
+                     {
+-                        if (!settings.UpdateMotionProviderWhenPaused && !IsPlaying)
++                        if (!settings.UpdateMotionProviderWhenPaused && !IsPlaying && !IsOverridePlaying)
+                             return false;
+                         if (!canFillGap && !settings.UpdateMotionProviderWithoutScript && !context.InsideScript)
+                             return false;
+@@ -749,7 +766,18 @@ internal sealed class ScriptViewModel : Screen, IDeviceAxisValueProvider, IDispo
+         }
+     }
+ 
+-    private double GetAxisPosition(DeviceAxis axis) => MediaPosition - GlobalOffset - AxisSettings[axis].Offset;
++    private double GetAxisPosition(DeviceAxis axis) => IsOverrideActive
++        ? _overridePosition - AxisSettings[axis].Offset
++        : MediaPosition - GlobalOffset - AxisSettings[axis].Offset;
++
++    /// <summary>当前该轴实际生效的关键帧：覆盖模式用覆盖脚本，否则用媒体源加载的脚本。</summary>
++    private KeyframeCollection GetActiveKeyframes(DeviceAxis axis)
++    {
++        if (IsOverrideActive)
++            return _overrideScripts.TryGetValue(axis, out var overrideScript) ? overrideScript?.Keyframes : null;
++
++        return AxisKeyframes.TryGetValue(axis, out var keyframes) ? keyframes : null;
++    }
+     public double GetValue(DeviceAxis axis) => MathUtils.Clamp01(AxisStates[axis].Value);
+ 
+     public void BeginEventPolling(object context)
+@@ -986,6 +1014,87 @@ internal sealed class ScriptViewModel : Screen, IDeviceAxisValueProvider, IDispo
+     }
+     #endregion
+ 
++    #region Script Override
++
++    // IScriptOverrideController：用另一套脚本 + 另一根时间轴驱动设备。
++    // 关键点：全程不碰 MediaPosition / MediaDuration / AxisModels[].Script，
++    // 所以 Script 面板里的时间轴、进度、heatmap、脚本名始终是视频那一套；
++    // 停止后设备自动回到原脚本，不需要任何保存/恢复动作。
++
++    public void StartOverride(IReadOnlyDictionary<DeviceAxis, IScriptResource> scripts, double startPosition)
++    {
++        if (scripts == null || scripts.Count == 0)
++            return;
++
++        _overrideScripts.Clear();
++        foreach (var (axis, script) in scripts)
++        {
++            if (axis != null && script?.Keyframes is { Count: > 0 })
++                _overrideScripts[axis] = script;
++        }
++
++        if (_overrideScripts.Count == 0)
++        {
++            Logger.Warn("Script override ignored because no script contains keyframes");
++            return;
++        }
++
++        _overrideDuration = _overrideScripts.Values.Max(s => s.Keyframes[^1].Position);
++        _overridePosition = Math.Clamp(startPosition, 0, Math.Max(0, _overrideDuration));
++        _overridePaused = false;
++        IsOverrideActive = true;
++
++        Logger.Info("Script override started [Axes: {list}, Duration: {0:F2}s, Position: {1:F2}s]",
++            _overrideScripts.Keys, _overrideDuration, _overridePosition);
++
++        SetSyncBypass(true);
++        InvalidateAxisState(null);
++        ResetSync(true, null);
++        SetSyncBypass(false);
++    }
++
++    public void StopOverride()
++    {
++        if (!IsOverrideActive)
++            return;
++
++        Logger.Info("Script override stopped");
++
++        IsOverrideActive = false;
++        _overrideScripts.Clear();
++        _overrideDuration = 0;
++        _overridePosition = 0;
++        _overridePaused = false;
++
++        SetSyncBypass(true);
++        InvalidateAxisState(null);
++        ResetSync(true, null);
++        SetSyncBypass(false);
++    }
++
++    public void SeekOverride(double position)
++    {
++        if (!IsOverrideActive)
++            return;
++
++        _overridePosition = Math.Clamp(position, 0, Math.Max(0, _overrideDuration));
++
++        SetSyncBypass(true);
++        InvalidateAxisState(null);
++        SetSyncBypass(false);
++    }
++
++    public void SetOverridePaused(bool paused)
++    {
++        if (!IsOverrideActive || _overridePaused == paused)
++            return;
++
++        _overridePaused = paused;
++        Logger.Info("Script override {0}", paused ? "paused" : "resumed");
++    }
++
++    #endregion
++
+     #region Media
+     public void OnOpenMediaLocation()
+     {
+@@ -2240,10 +2349,12 @@ internal sealed class AxisValueTransition
+ 
+ internal sealed class AxisStateUpdateContext(AxisModel model)
+ {
+-    private readonly AxisModel _model = model;
+     private readonly AxisState _state = model.State;
+     private readonly AxisSettings _settings = model.Settings;
+ 
++    /// <summary>本帧该轴实际使用的关键帧（媒体源脚本或覆盖脚本）。</summary>
++    public KeyframeCollection ActiveKeyframes { get; private set; }
++
+     public int Index { get; set; }
+     public bool Invalid => Index == AxisState.InvalidIndex;
+     public bool BeforeScript => Index == AxisState.BeforeScriptIndex;
+@@ -2285,8 +2396,10 @@ internal sealed class AxisStateUpdateContext(AxisModel model)
+     private static bool ValueChanged(double last, double current, double epsilon)
+         => Math.Abs(last - current) > epsilon || (double.IsFinite(current) ^ double.IsFinite(last));
+ 
+-    public void BeginUpdate()
++    public void BeginUpdate(KeyframeCollection keyframes)
+     {
++        ActiveKeyframes = keyframes;
++
+         _state.BeginUpdate();
+ 
+         Value = double.NaN;
+@@ -2328,7 +2441,7 @@ internal sealed class AxisStateUpdateContext(AxisModel model)
+         }
+         else if (LastIndex != Index)
+         {
+-            var keyframes = _model.Script?.Keyframes;
++            var keyframes = ActiveKeyframes;
+             var scriptEvent = new DeviceAxisScriptEvent(
+                 keyframes?.ValidateIndex(Index) == true ? keyframes[Index] : null,
+                 keyframes?.ValidateIndex(Index + 1) == true ? keyframes[Index + 1] : null);
+@@ -2342,7 +2455,7 @@ internal sealed class AxisStateUpdateContext(AxisModel model)
+ }
+ 
+ [JsonObject(MemberSerialization.OptIn)]
+-internal sealed class AxisSettings : PropertyChangedBase
++public sealed class AxisSettings : PropertyChangedBase
+ {
+     [JsonProperty] public bool LinkAxisHasPriority { get; set; } = false;
+     [JsonProperty] public DeviceAxis LinkAxis { get; set; } = null;
+diff --git a/Source/MultiFunPlayer/UI/Controls/Views/ScriptView.xaml b/Source/MultiFunPlayer/UI/Controls/Views/ScriptView.xaml
+index afc5cad2..850d416e 100644
+--- a/Source/MultiFunPlayer/UI/Controls/Views/ScriptView.xaml
++++ b/Source/MultiFunPlayer/UI/Controls/Views/ScriptView.xaml
+@@ -1640,19 +1640,10 @@
+                                                  Width="155"
+                                                  Height="10"
+                                                  material:TransitionAssist.DisableTransitions="True"
++                                                 Style="{StaticResource MaterialDesignLinearProgressBar}"
+                                                  Maximum="100"
+                                                  Minimum="0"
+-                                                 Value="{Binding Value.Value, Mode=OneWay, Converter={StaticResource DoubleToPercentConverter}}">
+-                                        <ProgressBar.Style>
+-                                            <Style BasedOn="{StaticResource MaterialDesignLinearProgressBar}" TargetType="ProgressBar">
+-                                                <Style.Triggers>
+-                                                    <DataTrigger Binding="{Binding Value.InsideScript}" Value="False">
+-                                                        <Setter Property="Foreground" Value="{DynamicResource PrimaryHueMidBrush}"/>
+-                                                    </DataTrigger>
+-                                                </Style.Triggers>
+-                                            </Style>
+-                                        </ProgressBar.Style>
+-                                    </ProgressBar>
++                                                 Value="{Binding Value.Value, Mode=OneWay, Converter={StaticResource DoubleToPercentConverter}}"/>
+                                 </DockPanel>
+                             </DataTemplate>
+                         </ItemsControl.ItemTemplate>

@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- 临时校验工程：精确模拟 MultiFunPlayer 运行时 PluginCompiler 的编译环境 -->
+  <!-- （相同的全局 using、相同的程序集可见性：只能访问 public 类型） -->
+  <!-- 仅用于编译期检查 Plugins\ScriptPreset.cs，不参与主程序构建。 -->
+
+  <PropertyGroup>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <UseWPF>true</UseWPF>
+    <OutputType>Library</OutputType>
+    <AssemblyName>PluginCheck</AssemblyName>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="GlobalUsings.cs" />
+    <Compile Include="..\..\Plugins\ScriptPreset.cs" Link="ScriptPreset.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Source\MultiFunPlayer\MultiFunPlayer.csproj" />
+  </ItemGroup>
+
+</Project>
