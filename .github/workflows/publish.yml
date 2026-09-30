@@ -51,4 +51,5 @@ jobs:
         prerelease: false
         artifactErrorsFailBuild: true
         name: MultiFunPlayer v${{ steps.gitversion.outputs.semVer }}
+        bodyFile: RELEASE_NOTES.md
         artifacts: MultiFunPlayer-${{ steps.gitversion.outputs.semVer }}*.zip
