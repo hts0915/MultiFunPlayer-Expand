@@ -47,6 +47,29 @@ internal static class SerialPortUtils
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool CloseHandle(IntPtr handle);
 
+    /// <summary>枚举本机所有串口（WMI 全量枚举，约 1 秒，务必在后台线程调用）。</summary>
+    public static List<SerialPortInfo> EnumeratePorts()
+    {
+        var ports = new List<SerialPortInfo>();
+        try
+        {
+            using var searcher = new ManagementObjectSearcher(new SelectQuery("Win32_PnPEntity"));
+            foreach (var o in searcher.Get())
+            {
+                using var entity = (ManagementObject)o;
+                var info = SerialPortInfo.FromManagementObject(entity);
+                if (info != null)
+                    ports.Add(info);
+            }
+        }
+        catch (Exception e)
+        {
+            Logger.Warn(e, "Failed to enumerate serial ports");
+        }
+
+        return ports;
+    }
+
     /// <summary>探测端口：能不能独占打开。独占打开失败即代表有别的程序占着。</summary>
     public static SerialPortAvailability Probe(string portName)
     {

@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:s="https://github.com/canton7/Stylet"
              xmlns:ui="clr-namespace:MultiFunPlayer.UI"
              xmlns:vm="clr-namespace:MultiFunPlayer.UI.Controls.ViewModels"
              d:DesignHeight="450"
@@ -97,6 +98,27 @@
                 <CheckBox DockPanel.Dock="Left"
                           VerticalAlignment="Center"
                           IsChecked="{Binding WifiProbeEnabled}"/>
+            </DockPanel>
+
+            <DockPanel Margin="0 0 0 12" LastChildFill="False">
+                <TextBlock DockPanel.Dock="Left"
+                           MinWidth="150"
+                           VerticalAlignment="Center"
+                           Text="WiFi 配网向导："/>
+
+                <Button DockPanel.Dock="Left"
+                        MinWidth="110"
+                        Style="{StaticResource MaterialDesignFlatButton}"
+                        Click="{s:Action OnOpenWifiConfigWizard}"
+                        Content="打开配网向导"
+                        Foreground="{DynamicResource MaterialDesignSuccessBrush}"/>
+
+                <TextBlock DockPanel.Dock="Left"
+                           Margin="8 0 0 0"
+                           VerticalAlignment="Center"
+                           FontSize="12"
+                           Opacity="0.7"
+                           Text="（会先关闭设置窗口）"/>
             </DockPanel>
 
             <TextBlock MaxWidth="440"

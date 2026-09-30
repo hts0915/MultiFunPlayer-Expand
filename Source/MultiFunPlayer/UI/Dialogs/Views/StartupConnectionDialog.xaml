@@ -108,6 +108,13 @@
                     Click="{s:Action OnConnectWifi}"
                     Content="连接"
                     Foreground="{DynamicResource MaterialDesignSuccessBrush}"/>
+
+            <Button DockPanel.Dock="Left"
+                    MinWidth="80"
+                    Margin="6 0 0 0"
+                    Style="{StaticResource MaterialDesignFlatButton}"
+                    Click="{s:Action OnOpenWifiWizard}"
+                    Content="配网向导"/>
         </DockPanel>
     </DockPanel>
 </UserControl>

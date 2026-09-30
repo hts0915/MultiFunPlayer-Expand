@@ -1,5 +1,7 @@
 using MultiFunPlayer.Common;
 using MultiFunPlayer.Settings;
+using MultiFunPlayer.UI;
+using MultiFunPlayer.UI.Dialogs.ViewModels;
 using Newtonsoft.Json.Linq;
 using Stylet;
 using System.ComponentModel;
@@ -29,6 +31,11 @@ internal sealed class StartupConnectionSettingsViewModel : Screen, IHandle<Setti
     public string DefaultWifiEndpoint { get; set; } = "192.168.0.101:8000";
 
     public IReadOnlyCollection<WifiProtocol> WifiProtocols { get; } = [WifiProtocol.Udp, WifiProtocol.Tcp];
+
+    /// <summary>
+    /// 打开配网向导。注意：向导和设置共用同一个 DialogHost，所以点这个按钮会先关掉设置窗口。
+    /// </summary>
+    public void OnOpenWifiConfigWizard() => _ = DialogHelper.ShowAsync(new WifiConfigWizardDialog(this), "RootDialog");
 
     public StartupConnectionSettingsViewModel(IEventAggregator eventAggregator)
     {

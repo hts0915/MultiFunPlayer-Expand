@@ -1,0 +1,179 @@
+<UserControl x:Class="MultiFunPlayer.UI.Dialogs.Views.WifiConfigWizardDialog"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:material="http://materialdesigninxaml.net/winfx/xaml/themes"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:s="https://github.com/canton7/Stylet"
+             d:DesignHeight="520"
+             d:DesignWidth="480"
+             x:ClassModifier="internal"
+             mc:Ignorable="d">
+    <DockPanel Width="460"
+               Margin="15"
+               LastChildFill="False">
+        <DockPanel DockPanel.Dock="Bottom"
+                   Margin="0 12 0 0"
+                   HorizontalAlignment="Right"
+                   LastChildFill="False">
+            <Button DockPanel.Dock="Right"
+                    MinWidth="70"
+                    Style="{StaticResource MaterialDesignFlatButton}"
+                    Click="{s:Action OnCloseClick}"
+                    Content="关闭"/>
+        </DockPanel>
+
+        <TextBlock DockPanel.Dock="Top"
+                   Margin="0 0 0 6"
+                   FontSize="14"
+                   FontWeight="Bold"
+                   Text="WiFi 配网向导"/>
+
+        <TextBlock DockPanel.Dock="Top"
+                   Margin="0 0 0 10"
+                   FontSize="12"
+                   Opacity="0.7"
+                   Text="{Binding Hint}"
+                   TextWrapping="Wrap"/>
+
+        <DockPanel DockPanel.Dock="Top"
+                   Margin="0 0 0 8"
+                   LastChildFill="False">
+            <TextBlock DockPanel.Dock="Left"
+                       MinWidth="80"
+                       VerticalAlignment="Center"
+                       Text="数据线端口："/>
+
+            <ComboBox DockPanel.Dock="Left"
+                      Width="230"
+                      VerticalAlignment="Center"
+                      IsEnabled="{Binding CanEditInputs}"
+                      ItemsSource="{Binding Ports}"
+                      SelectedItem="{Binding SelectedPort}">
+                <ComboBox.ItemTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding Name}"/>
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
+
+            <Button DockPanel.Dock="Left"
+                    MinWidth="60"
+                    Margin="6 0 0 0"
+                    Style="{StaticResource MaterialDesignFlatButton}"
+                    IsEnabled="{Binding CanOperate}"
+                    Click="{s:Action OnRefreshPortsAsync}"
+                    Content="刷新"/>
+        </DockPanel>
+
+        <ProgressBar DockPanel.Dock="Top"
+                     Height="4"
+                     Margin="0 0 0 8"
+                     IsIndeterminate="True"
+                     Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+
+        <DockPanel DockPanel.Dock="Top"
+                   Margin="0 0 0 8"
+                   LastChildFill="False">
+            <Button DockPanel.Dock="Left"
+                    MinWidth="110"
+                    Style="{StaticResource MaterialDesignFlatButton}"
+                    IsEnabled="{Binding CanOperate}"
+                    Click="{s:Action OnCheckDeviceAsync}"
+                    Content="① 检测设备"
+                    Foreground="{DynamicResource MaterialDesignSuccessBrush}"/>
+        </DockPanel>
+
+        <DockPanel DockPanel.Dock="Top"
+                   Margin="0 0 0 6"
+                   LastChildFill="False">
+            <TextBlock DockPanel.Dock="Left"
+                       MinWidth="80"
+                       VerticalAlignment="Center"
+                       Text="WiFi 名称："/>
+
+            <TextBox DockPanel.Dock="Left"
+                     Width="230"
+                     VerticalAlignment="Center"
+                     IsEnabled="{Binding CanEditInputs}"
+                     Text="{Binding WifiSsid}"/>
+        </DockPanel>
+
+        <DockPanel DockPanel.Dock="Top"
+                   Margin="0 0 0 8"
+                   LastChildFill="False">
+            <TextBlock DockPanel.Dock="Left"
+                       MinWidth="80"
+                       VerticalAlignment="Center"
+                       Text="WiFi 密码："/>
+
+            <TextBox DockPanel.Dock="Left"
+                     Width="230"
+                     VerticalAlignment="Center"
+                     IsEnabled="{Binding CanEditInputs}"
+                     Text="{Binding WifiPassword}"/>
+        </DockPanel>
+
+        <DockPanel DockPanel.Dock="Top"
+                   Margin="0 0 0 8"
+                   LastChildFill="False">
+            <Button DockPanel.Dock="Left"
+                    MinWidth="110"
+                    Style="{StaticResource MaterialDesignFlatButton}"
+                    IsEnabled="{Binding CanOperate}"
+                    Click="{s:Action OnRequestProvision}"
+                    Content="② 开始配网"
+                    Foreground="{DynamicResource MaterialDesignSuccessBrush}"/>
+
+            <TextBlock DockPanel.Dock="Left"
+                       Margin="8 0 0 0"
+                       VerticalAlignment="Center"
+                       FontSize="12"
+                       Opacity="0.7"
+                       Text="密码会明文显示"/>
+        </DockPanel>
+
+        <DockPanel DockPanel.Dock="Top"
+                   Margin="0 0 0 8"
+                   LastChildFill="False"
+                   Visibility="{Binding ShowConfirm, Converter={StaticResource BooleanToVisibilityConverter}}">
+            <Button DockPanel.Dock="Left"
+                    MinWidth="110"
+                    Style="{StaticResource MaterialDesignFlatButton}"
+                    IsEnabled="{Binding CanOperate}"
+                    Click="{s:Action OnProvisionAsync}"
+                    Content="确认写入并重启"
+                    Foreground="{DynamicResource MaterialDesignErrorBrush}"/>
+
+            <Button DockPanel.Dock="Left"
+                    MinWidth="70"
+                    Margin="6 0 0 0"
+                    Style="{StaticResource MaterialDesignFlatButton}"
+                    Click="{s:Action OnCancelProvision}"
+                    Content="取消"/>
+        </DockPanel>
+
+        <TextBlock DockPanel.Dock="Top"
+                   Margin="0 0 0 8"
+                   FontSize="12"
+                   Text="{Binding StatusText}"
+                   TextWrapping="Wrap"/>
+
+        <DockPanel DockPanel.Dock="Top"
+                   LastChildFill="True"
+                   Visibility="{Binding DeviceInfoText, Converter={StaticResource NullableToVisibilityConverter}}">
+            <TextBlock DockPanel.Dock="Top"
+                       Margin="0 0 0 4"
+                       FontSize="12"
+                       Opacity="0.7"
+                       Text="设备信息："/>
+            <ScrollViewer MaxHeight="140"
+                          VerticalScrollBarVisibility="Auto">
+                <TextBlock FontFamily="Consolas"
+                           FontSize="12"
+                           Text="{Binding DeviceInfoText}"
+                           TextWrapping="Wrap"/>
+            </ScrollViewer>
+        </DockPanel>
+    </DockPanel>
+</UserControl>

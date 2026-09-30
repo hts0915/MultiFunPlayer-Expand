@@ -12,6 +12,7 @@ internal enum StartupConnectionKind
 {
     Bluetooth,
     Wifi,
+    WifiProvision,
     RetryUsb,
     Skip
 }
@@ -84,6 +85,10 @@ internal sealed class StartupConnectionDialog : Screen
     }
 
     public void OnRetryUsb() => Close(new StartupConnectionChoice() { Kind = StartupConnectionKind.RetryUsb });
+
+    /// <summary>打开配网向导：设备从没配过网时，填什么地址都连不上，必须先走这一步。</summary>
+    public void OnOpenWifiWizard() => Close(new StartupConnectionChoice() { Kind = StartupConnectionKind.WifiProvision });
+
     public void OnSkip() => Close(new StartupConnectionChoice() { Kind = StartupConnectionKind.Skip });
 
     private void Close(StartupConnectionChoice choice) => DialogHelper.CloseByModel(this, choice);

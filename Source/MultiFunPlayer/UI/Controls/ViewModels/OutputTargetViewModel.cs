@@ -346,6 +346,14 @@ internal sealed class OutputTargetViewModel : Conductor<IOutputTarget>.Collectio
                 continue;
             }
 
+            if (choice.Kind == StartupConnectionKind.WifiProvision)
+            {
+                // 配网向导要独占串口，先让弹窗关掉（此时已经关了），向导自己打开端口
+                await DialogHelper.ShowAsync(new WifiConfigWizardDialog(_startupConnection), "RootDialog");
+                reason = "配网完成后，把设备拿到的 IP 填到上面的 WiFi 地址里，再点连接。";
+                continue;
+            }
+
             if (choice.Kind == StartupConnectionKind.Wifi)
             {
                 var wifiReason = await TryConnectWifiAsync(choice, token);

@@ -382,7 +382,9 @@
                         <TextBlock Style="{StaticResource HelpItem}"><Run Style="{DynamicResource HelpKey}" Text="蓝牙设备名匹配"/><Run Text="　按已配对蓝牙设备的名字找到它的蓝牙串口，默认 OSR6"/></TextBlock>
                         <TextBlock Style="{StaticResource HelpItem}"><Run Style="{DynamicResource HelpKey}" Text="WiFi 默认协议 / 默认地址"/><Run Text="　弹窗里 WiFi 一栏的默认值；UDP 最快但不确认是否连上，TCP 能确认设备是否在线"/></TextBlock>
                         <TextBlock Style="{StaticResource HelpItem}"><Run Style="{DynamicResource HelpKey}" Text="WiFi 连接前先探测设备"/><Run Text="　连接前先发一条查询指令（D1）确认设备真的有回应；关掉后就直接连（UDP 会假性成功）"/></TextBlock>
-                        <TextBlock Style="{StaticResource HelpNote}" Text="WiFi 前提条件：设备必须先用 USB 线接电脑、用官方的配网向导把 2.4GHz 无线网络写进去（只支持 2.4GHz，且是 2.4G 与 5G 分开的路由器才稳）；配网成功后设备会重启并显示无线在线。没配过网的设备，填任何地址都连不上。"/>
+                        <TextBlock Style="{StaticResource HelpItem}"><Run Style="{DynamicResource HelpKey}" Text="WiFi 配网向导"/><Run Text="　把路由器的名称和密码通过数据线写进设备（设备固件只支持 2.4GHz）；点它会先关掉设置窗口"/></TextBlock>
+                        <TextBlock Style="{StaticResource HelpNote}" Text="WiFi 前提条件：设备必须先配网。用 USB 线接上设备，打开「设置 → 启动连接 → 打开配网向导」（或启动弹窗里的「配网向导」按钮），选中数据线端口 → ①检测设备 → 填 WiFi 名称与密码 → ②开始配网 → 确认。向导会依次发送 #wifi-ssid:名称、#wifi-pass:密码、$save 保存、#restart 重启，然后读回设备拿到的 IP 并自动填进「WiFi 默认地址」。没配过网的设备，填任何地址都连不上。"/>
+                        <TextBlock Style="{StaticResource HelpNote}" Text="配网注意：只支持 2.4GHz，路由器若是 2.4G/5G 合一建议先分开；写入并重启时设备会重启，舵机可能不受控地动一下，建议先关掉舵机电源（开关向左）；配网过程中不要拔线。"/>
                         <TextBlock Style="{StaticResource HelpNote}" Text="串口的 DTR / RTS 在「输出目标 → 串口 → 高级设置」里，默认关闭且不建议打开：它们每跳变一次设备就会复位归位，表现为连接/断开瞬间乱扭。"/>
 
                         <TextBlock Style="{StaticResource HelpH1}" Text="设置 · 设备"/>
