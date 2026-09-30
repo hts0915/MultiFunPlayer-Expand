@@ -1,7 +1,5 @@
 using MultiFunPlayer.Common;
 using MultiFunPlayer.Settings;
-using MultiFunPlayer.UI;
-using MultiFunPlayer.UI.Dialogs.ViewModels;
 using Newtonsoft.Json.Linq;
 using Stylet;
 using System.ComponentModel;
@@ -17,8 +15,8 @@ internal enum WifiProtocol
 }
 
 /// <summary>
-/// 启动时自动连接设备的设置。
-/// 流程：先探测数据线（USB 串口）是否空闲 → 空闲就直接连；被占用或没插线就弹窗让用户选蓝牙 / WiFi。
+/// 启动连接设置。
+/// 启动时只自动连接数据线；连不上不弹窗，而是把蓝牙和 WiFi 目标准备好（只填参数），由用户手动点连接。
 /// </summary>
 internal sealed class StartupConnectionSettingsViewModel : Screen, IHandle<SettingsMessage>
 {
@@ -31,11 +29,6 @@ internal sealed class StartupConnectionSettingsViewModel : Screen, IHandle<Setti
     public string DefaultWifiEndpoint { get; set; } = "192.168.0.101:8000";
 
     public IReadOnlyCollection<WifiProtocol> WifiProtocols { get; } = [WifiProtocol.Udp, WifiProtocol.Tcp];
-
-    /// <summary>
-    /// 打开配网向导。注意：向导和设置共用同一个 DialogHost，所以点这个按钮会先关掉设置窗口。
-    /// </summary>
-    public void OnOpenWifiConfigWizard() => _ = DialogHelper.ShowAsync(new WifiConfigWizardDialog(this), "RootDialog");
 
     public StartupConnectionSettingsViewModel(IEventAggregator eventAggregator)
     {

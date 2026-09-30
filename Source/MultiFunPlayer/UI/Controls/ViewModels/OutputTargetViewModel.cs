@@ -4,10 +4,10 @@ using MultiFunPlayer.OutputTarget;
 using MultiFunPlayer.OutputTarget.ViewModels;
 using MultiFunPlayer.Property;
 using MultiFunPlayer.Shortcut;
-using MultiFunPlayer.UI.Dialogs.ViewModels;
 using Newtonsoft.Json.Linq;
 using NLog;
 using Stylet;
+using System.Net;
 using SerialPortInfo = MultiFunPlayer.OutputTarget.ViewModels.SerialOutputTarget.SerialPortInfo;
 
 namespace MultiFunPlayer.UI.Controls.ViewModels;
@@ -217,8 +217,9 @@ internal sealed class OutputTargetViewModel : Conductor<IOutputTarget>.Collectio
     }
 
     /// <summary>
-    /// 启动时连接设备：先探测数据线端口，空闲就直接连；
-    /// 被其他程序占用（或者没插线）时弹窗让用户选择蓝牙或 WiFi。
+    /// 启动时只自动连接数据线。连不上时不弹窗，而是把另外两条路准备好（只填参数、不自动连接）：
+    /// 蓝牙单独一个串口目标并选中设备的蓝牙端口，WiFi 一个 UDP/TCP 目标并填好地址，
+    /// 用户在「输出目标」面板点一下连接按钮就能用。
     /// </summary>
     private async Task StartupConnectAsync(CancellationToken token)
     {
@@ -230,19 +231,19 @@ internal sealed class OutputTargetViewModel : Conductor<IOutputTarget>.Collectio
             // 等主窗口和串口枚举就绪，避免和启动动画、首次端口扫描抢
             await Task.Delay(StartupConnectDelayMilliseconds, token);
 
-            var serialTarget = Items.OfType<SerialOutputTarget>().FirstOrDefault();
-            if (serialTarget == null)
+            var usbTarget = Items.OfType<SerialOutputTarget>().FirstOrDefault();
+            if (usbTarget == null)
                 return;
 
             // 已经连上了（用户手动连的，或自动扫描抢先连的）就不打扰
-            if (serialTarget.Status != ConnectionStatus.Disconnected)
+            if (usbTarget.Status != ConnectionStatus.Disconnected)
                 return;
 
-            var reason = await TryConnectUsbAsync(serialTarget, token);
+            var reason = await TryConnectUsbAsync(usbTarget, token);
             if (reason == null)
                 return;
 
-            await ShowConnectionChoiceDialogAsync(serialTarget, reason, token);
+            await PrepareManualTargetsAsync(usbTarget, reason, token);
         }
         catch (OperationCanceledException) { }
         catch (Exception e)
@@ -251,9 +252,8 @@ internal sealed class OutputTargetViewModel : Conductor<IOutputTarget>.Collectio
         }
     }
 
-    /// <returns>连接成功返回 null，否则返回失败原因（用于弹窗展示）。</returns>
-    private async Task<string> TryConnectUsbAsync(SerialOutputTarget target, CancellationToken token, bool forceRefresh = false,
-                                                  ConnectionType connectionType = ConnectionType.AutoConnect)
+    /// <returns>连接成功返回 null，否则返回失败原因。</returns>
+    private async Task<string> TryConnectUsbAsync(SerialOutputTarget target, CancellationToken token, bool forceRefresh = false)
     {
         await EnsurePortsRefreshedAsync(target, token, forceRefresh);
 
@@ -261,180 +261,140 @@ internal sealed class OutputTargetViewModel : Conductor<IOutputTarget>.Collectio
         if (port == null)
         {
             Logger.Info("Startup connection: no data cable port found [Match: {0}]", _startupConnection.UsbSerialMatch);
-            return "未检测到通过数据线连接的设备";
+            return "未检测到数据线的设备端口";
         }
 
-        switch (SerialPortUtils.Probe(port.PortName))
-        {
-            case SerialPortAvailability.Busy:
-                Logger.Info("Startup connection: data cable port {0} is busy", port.PortName);
-                return $"数据线端口 {port.PortName} 正被其他程序占用";
-
-            case SerialPortAvailability.Missing:
-                Logger.Info("Startup connection: data cable port {0} does not exist", port.PortName);
-                return $"数据线端口 {port.PortName} 当前不可用";
-
-            // Unknown：探测结果不明确（例如某些蓝牙/USB 转串口驱动的独占语义不同），
-            // 直接尝试连接，连不上再走弹窗，避免误判成"被占用"
-        }
-
+        // 不管最后连没连上，都先把端口选好，这样面板里显示的始终是数据线端口
         SelectSerialPort(target, port);
-        if (!await TryConnectAsync(target, token, connectionType))
+
+        var availability = SerialPortUtils.Probe(port.PortName);
+        if (availability is SerialPortAvailability.Busy or SerialPortAvailability.Missing)
+        {
+            Logger.Info("Startup connection: data cable port {0} is {1}", port.PortName, availability);
+            return availability == SerialPortAvailability.Busy
+                ? $"数据线端口 {port.PortName} 被其他程序占用"
+                : $"数据线端口 {port.PortName} 当前不可用";
+        }
+
+        if (!await TryConnectAsync(target, token, ConnectionType.AutoConnect))
         {
             Logger.Info("Startup connection: failed to open data cable port {0}", port.PortName);
-            return $"数据线端口 {port.PortName} 连接失败，可能刚被其他程序占用";
+            return $"数据线端口 {port.PortName} 连接失败";
         }
+
         Logger.Info("Startup connection: connected to {0} via data cable", port.PortName);
         Notify($"已通过数据线连接 {port.PortName}");
         return null;
     }
 
-    private async Task ShowConnectionChoiceDialogAsync(SerialOutputTarget serialTarget, string reason, CancellationToken token)
+    /// <summary>
+    /// 数据线没连上时，把另外两条路提前准备好（只填参数，不自动连接），方便用户手动点连接。
+    /// </summary>
+    private async Task PrepareManualTargetsAsync(SerialOutputTarget usbTarget, string reason, CancellationToken token)
     {
-        while (!token.IsCancellationRequested)
+        await EnsurePortsRefreshedAsync(usbTarget, token, forceRefresh: false);
+
+        var prepared = new List<string>();
+
+        var bluetoothPort = SerialPortUtils.FindBluetoothPort(usbTarget.SerialPorts, _startupConnection.BluetoothDeviceMatch);
+        if (bluetoothPort != null)
         {
-            Logger.Info("Startup connection: asking user [Reason: {0}]", reason);
-
-            // 蓝牙设备名 → MAC → SPP 串口要查 WMI（约 1 秒），必须在后台线程算好再开弹窗，
-            // 否则弹窗构造时会卡住界面。每轮重算一次，用户插拔设备后列表也能跟上。
-            var ports = serialTarget.SerialPorts.ToList();
-            var bluetoothPorts = ports.Where(SerialPortUtils.IsBluetoothPort).ToList();
-            if (bluetoothPorts.Count == 0)
-                bluetoothPorts = ports;
-
-            var selectedPort = SerialPortUtils.FindBluetoothPort(ports, _startupConnection.BluetoothDeviceMatch) ?? bluetoothPorts.FirstOrDefault();
-
-            var choice = await DialogHelper.ShowAsync<StartupConnectionChoice>(
-                () => new StartupConnectionDialog(reason, bluetoothPorts, selectedPort, _startupConnection), "RootDialog");
-
-            // 关掉弹窗（Esc / 右上角）等同于跳过
-            if (choice == null || choice.Kind == StartupConnectionKind.Skip)
+            var target = GetOrAddBluetoothTarget();
+            if (target != null)
             {
-                Logger.Info("Startup connection: user skipped");
-                return;
-            }
-
-            if (choice.Kind == StartupConnectionKind.RetryUsb)
-            {
-                // 用户可能刚关掉占用端口的软件，或者刚把线插上，所以强制重新枚举端口
-                var retryReason = await TryConnectUsbAsync(serialTarget, token, forceRefresh: true, connectionType: ConnectionType.Manual);
-                if (retryReason == null)
-                    return;
-
-                reason = retryReason;
-                continue;
-            }
-
-            if (choice.Kind == StartupConnectionKind.Bluetooth)
-            {
-                var port = serialTarget.SerialPorts.FirstOrDefault(p => string.Equals(p.DeviceID, choice.SerialPortDeviceId, StringComparison.Ordinal));
-                if (port == null)
-                {
-                    reason = "选中的蓝牙端口已不可用，请重新选择";
-                    continue;
-                }
-
-                if (serialTarget.Status != ConnectionStatus.Disconnected)
-                    await DisconnectAsync(serialTarget, token);
-
-                SelectSerialPort(serialTarget, port);
-                if (await TryConnectAsync(serialTarget, token, ConnectionType.Manual))
-                {
-                    Logger.Info("Startup connection: connected to {0} via bluetooth", port.PortName);
-                    Notify($"已通过蓝牙连接 {port.PortName}");
-                    return;
-                }
-
-                reason = $"蓝牙端口 {port.PortName} 连接失败";
-                continue;
-            }
-
-            if (choice.Kind == StartupConnectionKind.WifiProvision)
-            {
-                // 配网向导要独占串口，先让弹窗关掉（此时已经关了），向导自己打开端口
-                await DialogHelper.ShowAsync(new WifiConfigWizardDialog(_startupConnection), "RootDialog");
-                reason = "配网完成后，把设备拿到的 IP 填到上面的 WiFi 地址里，再点连接。";
-                continue;
-            }
-
-            if (choice.Kind == StartupConnectionKind.Wifi)
-            {
-                var wifiReason = await TryConnectWifiAsync(choice, token);
-                if (wifiReason == null)
-                {
-                    Logger.Info("Startup connection: connected to {0} via {1}", choice.Endpoint?.ToUriString(), choice.Protocol);
-                    Notify($"已通过 {FormatProtocol(choice.Protocol)} 连接 {choice.Endpoint?.ToUriString()}");
-                    return;
-                }
-
-                reason = wifiReason;
-                continue;
+                SelectSerialPort(target, bluetoothPort);
+                SetAutoConnect(target, false);
+                prepared.Add($"蓝牙 {target.Identifier}（{bluetoothPort.PortName}）");
+                Logger.Info("Startup connection: bluetooth target {0} prepared with {1}", target.Identifier, bluetoothPort.PortName);
             }
         }
+        else
+        {
+            Logger.Warn("Startup connection: no bluetooth serial port found [Match: {0}]", _startupConnection.BluetoothDeviceMatch);
+        }
+
+        var wifiDescription = PrepareWifiTarget();
+        if (wifiDescription != null)
+            prepared.Add(wifiDescription);
+
+        if (prepared.Count == 0)
+        {
+            Logger.Warn("Startup connection: nothing prepared for manual connection [Reason: {0}]", reason);
+            NotifyAlways($"{reason}；也没找到可用的蓝牙或 WiFi 目标，请在「输出目标」面板手动配置");
+            return;
+        }
+
+        var message = $"{reason}；已准备好 {string.Join("、", prepared)}，在「输出目标」面板点连接即可";
+        Logger.Info("Startup connection: {0}", message);
+        NotifyAlways(message);
     }
 
-    /// <returns>连接成功返回 null，否则返回失败原因（用于弹窗展示）。</returns>
-    private async Task<string> TryConnectWifiAsync(StartupConnectionChoice choice, CancellationToken token)
+    /// <returns>准备好时返回给用户看的描述，否则 null。</returns>
+    private string PrepareWifiTarget()
     {
-        if (choice.Endpoint == null)
-            return "没有填写有效的地址";
-
-        // 先探测设备在不在：UDP 无连接，"连上"是假象，不探测就无法区分"地址错了"和"设备没开机"
-        if (_startupConnection.WifiProbeEnabled)
+        if (!NetUtils.TryParseEndpoint(_startupConnection.DefaultWifiEndpoint, out var endpoint))
         {
-            bool online;
-            string probeError;
-            if (choice.Protocol == WifiProtocol.Tcp)
-                online = TcodeDeviceProbe.TryProbeTcp(choice.Endpoint, out _, out probeError);
-            else
-                online = TcodeDeviceProbe.TryProbeUdp(choice.Endpoint, out _, out probeError);
-
-            if (!online)
-            {
-                Logger.Warn("Startup connection: WiFi probe failed [Endpoint: {0}, Error: {1}]", choice.Endpoint.ToUriString(), probeError);
-
-                // 设备走无线、电脑走有线时经常各在一个网段，这时无论怎么填都连不上，直接说清楚
-                if (!NetUtils.IsOnLocalSubnet(choice.Endpoint))
-                    return $"设备地址 {choice.Endpoint.ToUriString()} 和电脑不在同一个网络（电脑：{NetUtils.DescribeLocalAddresses()}）。"
-                         + "无线设备必须和电脑连在同一个路由器/网络里才能通信，请把电脑也连到设备所在的网络。";
-
-                return $"WiFi 设备探测失败：{probeError}";
-            }
+            Logger.Warn("Startup connection: invalid WiFi endpoint \"{0}\"", _startupConnection.DefaultWifiEndpoint);
+            return null;
         }
 
-        var target = GetOrAddWifiTarget(choice, out var created);
+        var target = GetOrAddWifiTarget(endpoint, _startupConnection.DefaultWifiProtocol, out _);
         if (target == null)
         {
-            Logger.Warn("Startup connection: failed to create WiFi output target [Type: {0}]", choice.Protocol);
-            return "创建 WiFi 输出目标失败";
+            Logger.Warn("Startup connection: failed to create WiFi output target [Protocol: {0}]", _startupConnection.DefaultWifiProtocol);
+            return null;
         }
 
-        Logger.Info("Startup connection: WiFi target {0} endpoint = {1} (new = {2})", target.Identifier, choice.Endpoint.ToUriString(), created);
+        SetAutoConnect(target, false);
 
-        // 新建目标时 ActivateItem 会切界面、视图正在创建；此时立刻连接，后台线程写 Status
-        // 容易撞上 WPF 的跨线程约束而抛异常（旧版本就是被静默吞掉，表现为"探测成功但连不上"）。
-        // 让界面先稳定一下再连。
-        if (created)
-            await Task.Delay(400, token);
+        var state = string.Empty;
+        if (_startupConnection.WifiProbeEnabled)
+        {
+            string probeError;
+            var online = _startupConnection.DefaultWifiProtocol == WifiProtocol.Tcp
+                ? TcodeDeviceProbe.TryProbeTcp(endpoint, out _, out probeError)
+                : TcodeDeviceProbe.TryProbeUdp(endpoint, out _, out probeError);
 
-        // 同一台设备只保留一个连接，先把其他已连上的输出断开
-        foreach (var other in Items.Where(x => !ReferenceEquals(x, target) && x.Status == ConnectionStatus.Connected).ToList())
-            await DisconnectAsync(other, token);
+            state = online ? "，设备在线"
+                  : !NetUtils.IsOnLocalSubnet(endpoint) ? $"，但设备和电脑不在同一网络（电脑：{NetUtils.DescribeLocalAddresses()}）"
+                  : $"，设备暂时没响应（{probeError}）";
 
-        // 用 Manual：这是用户主动点的连接，失败时要报错、要写日志（AutoConnect 是静默的，出问题无从查起）
-        var connected = await TryConnectAsync(target, token, ConnectionType.Manual);
-        Logger.Info("Startup connection: WiFi target {0} connect result = {1}", target.Identifier, target.Status);
+            Logger.Info("Startup connection: WiFi endpoint {0} probe = {1}", _startupConnection.DefaultWifiEndpoint, state);
+        }
 
-        return connected ? null : $"WiFi 输出目标 {target.Identifier} 连接失败，详情见右下角错误提示或日志";
+        return $"WiFi {target.Identifier}（{_startupConnection.DefaultWifiEndpoint}{state}）";
     }
 
-    /// <summary>
-    /// 取出（或新建）指定类型的输出目标。/ 选中串口都必须在 UI 线程上做：
-    /// Items 是绑定到界面的集合，后台线程直接改会抛"不支持从其他线程修改集合"。
-    /// </summary>
-    private IOutputTarget GetOrAddWifiTarget(StartupConnectionChoice choice, out bool created)
+    /// <summary>蓝牙用的串口目标：第一个串口目标归数据线，蓝牙用第二个，没有就新建一个（Serial/1）。</summary>
+    private SerialOutputTarget GetOrAddBluetoothTarget()
     {
-        var type = choice.Protocol == WifiProtocol.Tcp ? typeof(TcpOutputTarget) : typeof(UdpOutputTarget);
+        SerialOutputTarget target = null;
+        Execute.OnUIThread(() =>
+        {
+            target = Items.OfType<SerialOutputTarget>().Skip(1).FirstOrDefault();
+            if (target != null)
+                return;
+
+            AddItem(typeof(SerialOutputTarget));
+            target = Items.OfType<SerialOutputTarget>().LastOrDefault();
+        });
+
+        if (target == null)
+            Logger.Warn("Startup connection: failed to create bluetooth serial target");
+
+        return target;
+    }
+
+    private static void SetAutoConnect(IOutputTarget target, bool enabled)
+        => Execute.OnUIThread(() =>
+        {
+            if (target is AbstractOutputTarget abstractTarget)
+                abstractTarget.AutoConnectEnabled = enabled;
+        });
+
+    private IOutputTarget GetOrAddWifiTarget(EndPoint endpoint, WifiProtocol protocol, out bool created)
+    {
+        var type = protocol == WifiProtocol.Tcp ? typeof(TcpOutputTarget) : typeof(UdpOutputTarget);
 
         IOutputTarget target = null;
         var wasCreated = false;
@@ -450,8 +410,8 @@ internal sealed class OutputTargetViewModel : Conductor<IOutputTarget>.Collectio
 
             switch (target)
             {
-                case TcpOutputTarget tcp: tcp.Endpoint = choice.Endpoint; break;
-                case UdpOutputTarget udp: udp.Endpoint = choice.Endpoint; break;
+                case TcpOutputTarget tcp: tcp.Endpoint = endpoint; break;
+                case UdpOutputTarget udp: udp.Endpoint = endpoint; break;
             }
         });
 
@@ -522,7 +482,8 @@ internal sealed class OutputTargetViewModel : Conductor<IOutputTarget>.Collectio
         Execute.OnUIThread(() => _snackbarMessageQueue.Enqueue(message));
     }
 
-    private static string FormatProtocol(WifiProtocol protocol) => protocol == WifiProtocol.Tcp ? "TCP" : "UDP";
+    /// <summary>无视通知开关，一定要告诉用户（数据线失败后准备了哪些手动连接目标，不说用户就不知道）。</summary>
+    private void NotifyAlways(string message) => Execute.OnUIThread(() => _snackbarMessageQueue.Enqueue(message));
 
     private void RegisterActions(IShortcutManager s, IOutputTarget target)
     {

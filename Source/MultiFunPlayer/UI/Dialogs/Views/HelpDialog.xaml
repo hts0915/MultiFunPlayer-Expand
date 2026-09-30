@@ -116,7 +116,7 @@
                         <TextBlock Style="{StaticResource HelpNote}"
                                    Text="提示：串口的 DTR 与 RTS 默认关闭，请保持关闭 —— 这两个信号只要跳变一次，OSR 设备固件就会跟着复位归位，表现出来就是「连接和断开的瞬间设备乱扭」。本软件用 Win32 直接控制串口（不走系统串口库），全程不碰这两个信号，所以连接和断开都很干净。"/>
                         <TextBlock Style="{StaticResource HelpNote}"
-                                   Text="提示：软件启动后会自动探测数据线端口 —— 空闲就直接连上；被其他程序占用（或者没插线）时会弹窗让你改用蓝牙或 WiFi。这套行为可以在「设置 → 启动连接」里关掉或调整匹配规则。"/>
+                                   Text="提示：软件启动时只会自动连接数据线。连不上（没插线 / 端口被占用）时不会弹窗，而是自动把另外两条路准备好：一个蓝牙串口目标（端口已选好设备的蓝牙口）和一个 WiFi 目标（地址已填好），你在「输出目标」面板点对应的连接按钮即可。这套行为可以在「设置 → 启动连接」里关掉或调整匹配规则。"/>
 
                         <TextBlock Style="{StaticResource HelpH2}" Text="③ 连接媒体源并加载脚本"/>
                         <TextBlock Style="{StaticResource HelpBody}"
@@ -375,16 +375,14 @@
                         <TextBlock Style="{StaticResource HelpItem}"><Run Style="{DynamicResource HelpKey}" Text="启用界面日志 / 启用 JSON 日志"/><Run Text="　把日志输出到界面日志窗口 / 额外输出 JSON 格式"/></TextBlock>
 
                         <TextBlock Style="{StaticResource HelpH1}" Text="设置 · 启动连接"/>
-                        <TextBlock Style="{StaticResource HelpBody}" Text="启动后先探测数据线端口：空闲就直接连上；被其他程序占用或没插线时，弹窗让你选择「蓝牙」「WiFi」「重试 USB」或「跳过」。每次启动只处理一次，不会反复弹窗骚扰。"/>
-                        <TextBlock Style="{StaticResource HelpItem}"><Run Style="{DynamicResource HelpKey}" Text="启动时自动连接设备"/><Run Text="　总开关，关掉后启动时完全不动作，和以前一样手动连"/></TextBlock>
-                        <TextBlock Style="{StaticResource HelpItem}"><Run Style="{DynamicResource HelpKey}" Text="连接成功后提示"/><Run Text="　连上后在右下角提示一行，关掉则静默连接"/></TextBlock>
+                        <TextBlock Style="{StaticResource HelpBody}" Text="启动时只自动连接数据线。连不上（没插线 / 端口被占用 / 打开失败）时不会弹窗，而是自动把另外两条路准备好：一个蓝牙串口目标（端口已选好设备的蓝牙口）和一个 WiFi 目标（地址已填好），右下角会提示已经准备了什么，你在「输出目标」面板点对应的连接按钮即可。除了数据线，其余全部由你手动连接。"/>
+                        <TextBlock Style="{StaticResource HelpItem}"><Run Style="{DynamicResource HelpKey}" Text="启动时自动连接设备"/><Run Text="　总开关，关掉后启动时完全不动作，全部手动连"/></TextBlock>
+                        <TextBlock Style="{StaticResource HelpItem}"><Run Style="{DynamicResource HelpKey}" Text="连接成功后提示"/><Run Text="　数据线连上后在右下角提示一行，关掉则静默连接（数据线失败时「已准备好哪些目标」的提示不受此开关影响）"/></TextBlock>
                         <TextBlock Style="{StaticResource HelpItem}"><Run Style="{DynamicResource HelpKey}" Text="数据线串口匹配"/><Run Text="　按设备 ID 片段找数据线端口，默认 CH340 的 VID_1A86&amp;PID_7523，换设备/换线时改这里，多个片段用分号分隔"/></TextBlock>
-                        <TextBlock Style="{StaticResource HelpItem}"><Run Style="{DynamicResource HelpKey}" Text="蓝牙设备名匹配"/><Run Text="　按已配对蓝牙设备的名字找到它的蓝牙串口，默认 OSR6"/></TextBlock>
-                        <TextBlock Style="{StaticResource HelpItem}"><Run Style="{DynamicResource HelpKey}" Text="WiFi 默认协议 / 默认地址"/><Run Text="　弹窗里 WiFi 一栏的默认值；UDP 最快但不确认是否连上，TCP 能确认设备是否在线"/></TextBlock>
-                        <TextBlock Style="{StaticResource HelpItem}"><Run Style="{DynamicResource HelpKey}" Text="WiFi 连接前先探测设备"/><Run Text="　连接前先发一条查询指令（D1）确认设备真的有回应；关掉后就直接连（UDP 会假性成功）"/></TextBlock>
-                        <TextBlock Style="{StaticResource HelpItem}"><Run Style="{DynamicResource HelpKey}" Text="WiFi 配网向导"/><Run Text="　把路由器的名称和密码通过数据线写进设备（设备固件只支持 2.4GHz）；点它会先关掉设置窗口"/></TextBlock>
-                        <TextBlock Style="{StaticResource HelpNote}" Text="WiFi 前提条件：设备必须先配网。用 USB 线接上设备，打开「设置 → 启动连接 → 打开配网向导」（或启动弹窗里的「配网向导」按钮），选中数据线端口 → ①检测设备 → 填 WiFi 名称与密码 → ②开始配网 → 确认。向导会依次发送 #wifi-ssid:名称、#wifi-pass:密码、$save 保存、#restart 重启，然后读回设备拿到的 IP 并自动填进「WiFi 默认地址」。没配过网的设备，填任何地址都连不上。"/>
-                        <TextBlock Style="{StaticResource HelpNote}" Text="配网注意：只支持 2.4GHz，路由器若是 2.4G/5G 合一建议先分开；写入并重启时设备会重启，舵机可能不受控地动一下，建议先关掉舵机电源（开关向左）；配网过程中不要拔线。"/>
+                        <TextBlock Style="{StaticResource HelpItem}"><Run Style="{DynamicResource HelpKey}" Text="蓝牙设备名匹配"/><Run Text="　按已配对蓝牙设备的名字找到它的蓝牙串口，默认 OSR6；找不到就不会准备蓝牙目标"/></TextBlock>
+                        <TextBlock Style="{StaticResource HelpItem}"><Run Style="{DynamicResource HelpKey}" Text="WiFi 默认协议 / 默认地址"/><Run Text="　准备 WiFi 目标时用的地址（设备在路由器里的 IP 与端口，例 192.168.0.101:8000）；UDP 最快，TCP 能确认设备是否在线"/></TextBlock>
+                        <TextBlock Style="{StaticResource HelpItem}"><Run Style="{DynamicResource HelpKey}" Text="准备 WiFi 目标前探测设备"/><Run Text="　准备目标前先发一条查询指令（D1）确认设备有回应，并在提示里告诉你设备是否在线、是否和电脑同网段"/></TextBlock>
+                        <TextBlock Style="{StaticResource HelpNote}" Text="无线注意：设备只支持 2.4GHz 网络，而且必须先用 USB 配好网才会连上（配网一般用设备自带的配置页：电脑 WiFi 连设备热点 TCodeESP32Setup，浏览器打开 http://192.168.4.1）。另外电脑必须和设备在同一个网络里，否则无线连不上。"/>
                         <TextBlock Style="{StaticResource HelpNote}" Text="串口的 DTR / RTS 在「输出目标 → 串口 → 高级设置」里，默认关闭且不建议打开：它们每跳变一次设备就会复位归位，表现为连接/断开瞬间乱扭。"/>
 
                         <TextBlock Style="{StaticResource HelpH1}" Text="设置 · 设备"/>

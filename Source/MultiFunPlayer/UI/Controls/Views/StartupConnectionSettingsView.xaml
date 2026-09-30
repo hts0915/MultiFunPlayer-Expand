@@ -93,33 +93,20 @@
                 <TextBlock DockPanel.Dock="Left"
                            MinWidth="150"
                            VerticalAlignment="Center"
-                           Text="WiFi 连接前先探测设备："/>
+                           Text="准备 WiFi 目标前探测设备："/>
 
                 <CheckBox DockPanel.Dock="Left"
                           VerticalAlignment="Center"
                           IsChecked="{Binding WifiProbeEnabled}"/>
             </DockPanel>
 
-            <DockPanel Margin="0 0 0 12" LastChildFill="False">
-                <TextBlock DockPanel.Dock="Left"
-                           MinWidth="150"
-                           VerticalAlignment="Center"
-                           Text="WiFi 配网向导："/>
-
-                <Button DockPanel.Dock="Left"
-                        MinWidth="110"
-                        Style="{StaticResource MaterialDesignFlatButton}"
-                        Click="{s:Action OnOpenWifiConfigWizard}"
-                        Content="打开配网向导"
-                        Foreground="{DynamicResource MaterialDesignSuccessBrush}"/>
-
-                <TextBlock DockPanel.Dock="Left"
-                           Margin="8 0 0 0"
-                           VerticalAlignment="Center"
-                           FontSize="12"
-                           Opacity="0.7"
-                           Text="（会先关闭设置窗口）"/>
-            </DockPanel>
+            <TextBlock MaxWidth="440"
+                       Margin="0 0 0 6"
+                       HorizontalAlignment="Left"
+                       FontSize="12"
+                       Opacity="0.7"
+                       TextWrapping="Wrap"
+                       Text="启动时只会自动连接数据线。连不上时不会弹窗，而是自动把另外两条路准备好：一个蓝牙串口目标（端口已选好设备的蓝牙口）和一个 WiFi 目标（地址已填好），你在「输出目标」面板点对应的连接按钮即可 —— 除了数据线，其余都由你手动连接。"/>
 
             <TextBlock MaxWidth="440"
                        Margin="0 0 0 6"
@@ -127,7 +114,7 @@
                        FontSize="12"
                        Opacity="0.7"
                        TextWrapping="Wrap"
-                       Text="启动后会先探测数据线端口：空闲就直接连接；被其他程序占用或没插线时，会弹窗让你选择蓝牙或 WiFi 连接。"/>
+                       Text="数据线串口匹配按设备 ID 片段来（默认 CH340 的 VID_1A86&amp;PID_7523），多个片段用分号分隔；蓝牙设备名匹配按已配对蓝牙设备的名字来（默认 OSR6），用来找到设备的蓝牙串口。"/>
 
             <TextBlock MaxWidth="440"
                        Margin="0 0 0 6"
@@ -135,15 +122,7 @@
                        FontSize="12"
                        Opacity="0.7"
                        TextWrapping="Wrap"
-                       Text="数据线串口匹配按设备 ID 片段来（默认 CH340 的 VID_1A86&amp;PID_7523），多个片段用分号分隔；蓝牙设备名匹配按已配对蓝牙设备的名字来（默认 OSR6）。"/>
-
-            <TextBlock MaxWidth="440"
-                       Margin="0 0 0 6"
-                       HorizontalAlignment="Left"
-                       FontSize="12"
-                       Opacity="0.7"
-                       TextWrapping="Wrap"
-                       Text="WiFi 设备必须先配网：用 USB 线接上设备，用官方的配网向导把 2.4GHz 无线网络写进去（只支持 2.4GHz），成功后设备重启，顶部状态才会变成无线在线。没配过网的设备无论填什么地址都连不上。"/>
+                       Text="WiFi 默认地址填设备在路由器里的 IP 和端口（例如 192.168.0.101:8000）。注意电脑必须和设备在同一个网络里，否则无线连不上。"/>
 
             <TextBlock MaxWidth="440"
                        HorizontalAlignment="Left"
