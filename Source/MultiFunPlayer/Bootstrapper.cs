@@ -62,6 +62,7 @@ internal sealed class Bootstrapper : Bootstrapper<RootViewModel>
 
         builder.Bind<OutputTargetViewModel>().ToSelf().InSingletonScope();
         builder.Bind<SettingsViewModel>().ToSelf().InSingletonScope();
+        builder.Bind<StartupConnectionSettingsViewModel>().ToSelf().InSingletonScope();
         builder.Bind<ScriptViewModel>().And<IDeviceAxisValueProvider>().And<IScriptOverrideController>().To<ScriptViewModel>().InSingletonScope();
 
         builder.Bind<IMediaSource>().ToAllImplementations().InSingletonScope();

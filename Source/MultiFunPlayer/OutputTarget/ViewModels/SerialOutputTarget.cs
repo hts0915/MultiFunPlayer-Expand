@@ -142,6 +142,13 @@ internal sealed class SerialOutputTarget(int instanceIndex, IEventAggregator eve
             SelectedSerialPortDeviceId = deviceId;
     }
 
+    /// <summary>启动自动连接时由外部直接选中端口（例如探测到数据线端口，或用户在弹窗里选了蓝牙端口）。</summary>
+    public void SelectSerialPort(SerialPortInfo info)
+    {
+        SelectedSerialPort = info;
+        SelectedSerialPortDeviceId = info?.DeviceID;
+    }
+
     public void OnSelectedSerialPortChanged() => SelectedSerialPortDeviceId = SelectedSerialPort?.DeviceID;
 
     protected override async ValueTask<bool> OnConnectingAsync(ConnectionType connectionType)

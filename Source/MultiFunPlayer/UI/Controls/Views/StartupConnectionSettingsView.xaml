@@ -1,0 +1,115 @@
+<UserControl x:Class="MultiFunPlayer.UI.Controls.Views.StartupConnectionSettingsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:ui="clr-namespace:MultiFunPlayer.UI"
+             xmlns:vm="clr-namespace:MultiFunPlayer.UI.Controls.ViewModels"
+             d:DesignHeight="450"
+             d:DesignWidth="800"
+             x:ClassModifier="internal"
+             mc:Ignorable="d">
+    <Grid Margin="20">
+        <StackPanel>
+            <DockPanel Margin="0 0 0 8" LastChildFill="False">
+                <TextBlock DockPanel.Dock="Left"
+                           MinWidth="150"
+                           VerticalAlignment="Center"
+                           Text="启动时自动连接设备："/>
+
+                <CheckBox DockPanel.Dock="Left"
+                          VerticalAlignment="Center"
+                          IsChecked="{Binding AutoConnectOnStartup}"/>
+            </DockPanel>
+
+            <DockPanel Margin="0 0 0 8" LastChildFill="False">
+                <TextBlock DockPanel.Dock="Left"
+                           MinWidth="150"
+                           VerticalAlignment="Center"
+                           Text="连接成功后提示："/>
+
+                <CheckBox DockPanel.Dock="Left"
+                          VerticalAlignment="Center"
+                          IsChecked="{Binding ShowConnectNotification}"/>
+            </DockPanel>
+
+            <DockPanel Margin="0 0 0 8" LastChildFill="False">
+                <TextBlock DockPanel.Dock="Left"
+                           MinWidth="150"
+                           VerticalAlignment="Center"
+                           Text="数据线串口匹配："/>
+
+                <TextBox DockPanel.Dock="Left"
+                         Width="220"
+                         VerticalAlignment="Center"
+                         Text="{Binding UsbSerialMatch}"/>
+            </DockPanel>
+
+            <DockPanel Margin="0 0 0 8" LastChildFill="False">
+                <TextBlock DockPanel.Dock="Left"
+                           MinWidth="150"
+                           VerticalAlignment="Center"
+                           Text="蓝牙设备名匹配："/>
+
+                <TextBox DockPanel.Dock="Left"
+                         Width="220"
+                         VerticalAlignment="Center"
+                         Text="{Binding BluetoothDeviceMatch}"/>
+            </DockPanel>
+
+            <DockPanel Margin="0 0 0 8" LastChildFill="False">
+                <TextBlock DockPanel.Dock="Left"
+                           MinWidth="150"
+                           VerticalAlignment="Center"
+                           Text="WiFi 默认协议："/>
+
+                <ComboBox DockPanel.Dock="Left"
+                          MinWidth="80"
+                          VerticalAlignment="Center"
+                          ItemsSource="{Binding WifiProtocols}"
+                          SelectedItem="{Binding DefaultWifiProtocol}">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding Converter={StaticResource DescriptionConverter}}"/>
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
+            </DockPanel>
+
+            <DockPanel Margin="0 0 0 12" LastChildFill="False">
+                <TextBlock DockPanel.Dock="Left"
+                           MinWidth="150"
+                           VerticalAlignment="Center"
+                           Text="WiFi 默认地址："/>
+
+                <TextBox DockPanel.Dock="Left"
+                         Width="220"
+                         VerticalAlignment="Center"
+                         Text="{Binding DefaultWifiEndpoint}"/>
+            </DockPanel>
+
+            <TextBlock MaxWidth="440"
+                       Margin="0 0 0 6"
+                       HorizontalAlignment="Left"
+                       FontSize="12"
+                       Opacity="0.7"
+                       TextWrapping="Wrap"
+                       Text="启动后会先探测数据线端口：空闲就直接连接；被其他程序占用或没插线时，会弹窗让你选择蓝牙或 WiFi 连接。"/>
+
+            <TextBlock MaxWidth="440"
+                       Margin="0 0 0 6"
+                       HorizontalAlignment="Left"
+                       FontSize="12"
+                       Opacity="0.7"
+                       TextWrapping="Wrap"
+                       Text="数据线串口匹配按设备 ID 片段来（默认 CH340 的 VID_1A86&amp;PID_7523），多个片段用分号分隔；蓝牙设备名匹配按已配对蓝牙设备的名字来（默认 OSR6）。"/>
+
+            <TextBlock MaxWidth="440"
+                       HorizontalAlignment="Left"
+                       FontSize="12"
+                       Opacity="0.7"
+                       TextWrapping="Wrap"
+                       Text="WiFi 用 UDP 最快但不确认是否连上，用 TCP 则能确认设备是否在线。"/>
+        </StackPanel>
+    </Grid>
+</UserControl>
