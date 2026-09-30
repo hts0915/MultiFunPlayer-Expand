@@ -252,7 +252,8 @@ internal sealed class OutputTargetViewModel : Conductor<IOutputTarget>.Collectio
     }
 
     /// <returns>连接成功返回 null，否则返回失败原因（用于弹窗展示）。</returns>
-    private async Task<string> TryConnectUsbAsync(SerialOutputTarget target, CancellationToken token, bool forceRefresh = false)
+    private async Task<string> TryConnectUsbAsync(SerialOutputTarget target, CancellationToken token, bool forceRefresh = false,
+                                                  ConnectionType connectionType = ConnectionType.AutoConnect)
     {
         await EnsurePortsRefreshedAsync(target, token, forceRefresh);
 
@@ -278,7 +279,7 @@ internal sealed class OutputTargetViewModel : Conductor<IOutputTarget>.Collectio
         }
 
         SelectSerialPort(target, port);
-        if (!await TryConnectAsync(target, token))
+        if (!await TryConnectAsync(target, token, connectionType))
         {
             Logger.Info("Startup connection: failed to open data cable port {0}", port.PortName);
             return $"数据线端口 {port.PortName} 连接失败，可能刚被其他程序占用";
@@ -292,6 +293,8 @@ internal sealed class OutputTargetViewModel : Conductor<IOutputTarget>.Collectio
     {
         while (!token.IsCancellationRequested)
         {
+            Logger.Info("Startup connection: asking user [Reason: {0}]", reason);
+
             // 蓝牙设备名 → MAC → SPP 串口要查 WMI（约 1 秒），必须在后台线程算好再开弹窗，
             // 否则弹窗构造时会卡住界面。每轮重算一次，用户插拔设备后列表也能跟上。
             var ports = serialTarget.SerialPorts.ToList();
@@ -314,7 +317,7 @@ internal sealed class OutputTargetViewModel : Conductor<IOutputTarget>.Collectio
             if (choice.Kind == StartupConnectionKind.RetryUsb)
             {
                 // 用户可能刚关掉占用端口的软件，或者刚把线插上，所以强制重新枚举端口
-                var retryReason = await TryConnectUsbAsync(serialTarget, token, forceRefresh: true);
+                var retryReason = await TryConnectUsbAsync(serialTarget, token, forceRefresh: true, connectionType: ConnectionType.Manual);
                 if (retryReason == null)
                     return;
 
@@ -335,7 +338,7 @@ internal sealed class OutputTargetViewModel : Conductor<IOutputTarget>.Collectio
                     await DisconnectAsync(serialTarget, token);
 
                 SelectSerialPort(serialTarget, port);
-                if (await TryConnectAsync(serialTarget, token))
+                if (await TryConnectAsync(serialTarget, token, ConnectionType.Manual))
                 {
                     Logger.Info("Startup connection: connected to {0} via bluetooth", port.PortName);
                     Notify($"已通过蓝牙连接 {port.PortName}");
@@ -399,26 +402,42 @@ internal sealed class OutputTargetViewModel : Conductor<IOutputTarget>.Collectio
             }
         }
 
-        var target = GetOrAddWifiTarget(choice);
+        var target = GetOrAddWifiTarget(choice, out var created);
         if (target == null)
+        {
+            Logger.Warn("Startup connection: failed to create WiFi output target [Type: {0}]", choice.Protocol);
             return "创建 WiFi 输出目标失败";
+        }
+
+        Logger.Info("Startup connection: WiFi target {0} endpoint = {1} (new = {2})", target.Identifier, choice.Endpoint.ToUriString(), created);
+
+        // 新建目标时 ActivateItem 会切界面、视图正在创建；此时立刻连接，后台线程写 Status
+        // 容易撞上 WPF 的跨线程约束而抛异常（旧版本就是被静默吞掉，表现为"探测成功但连不上"）。
+        // 让界面先稳定一下再连。
+        if (created)
+            await Task.Delay(400, token);
 
         // 同一台设备只保留一个连接，先把其他已连上的输出断开
         foreach (var other in Items.Where(x => !ReferenceEquals(x, target) && x.Status == ConnectionStatus.Connected).ToList())
             await DisconnectAsync(other, token);
 
-        return await TryConnectAsync(target, token) ? null : "WiFi 输出目标连接失败";
+        // 用 Manual：这是用户主动点的连接，失败时要报错、要写日志（AutoConnect 是静默的，出问题无从查起）
+        var connected = await TryConnectAsync(target, token, ConnectionType.Manual);
+        Logger.Info("Startup connection: WiFi target {0} connect result = {1}", target.Identifier, target.Status);
+
+        return connected ? null : $"WiFi 输出目标 {target.Identifier} 连接失败，详情见右下角错误提示或日志";
     }
 
     /// <summary>
     /// 取出（或新建）指定类型的输出目标。/ 选中串口都必须在 UI 线程上做：
     /// Items 是绑定到界面的集合，后台线程直接改会抛"不支持从其他线程修改集合"。
     /// </summary>
-    private IOutputTarget GetOrAddWifiTarget(StartupConnectionChoice choice)
+    private IOutputTarget GetOrAddWifiTarget(StartupConnectionChoice choice, out bool created)
     {
         var type = choice.Protocol == WifiProtocol.Tcp ? typeof(TcpOutputTarget) : typeof(UdpOutputTarget);
 
         IOutputTarget target = null;
+        var wasCreated = false;
         Execute.OnUIThread(() =>
         {
             target = Items.FirstOrDefault(x => x.GetType() == type);
@@ -426,6 +445,7 @@ internal sealed class OutputTargetViewModel : Conductor<IOutputTarget>.Collectio
             {
                 AddItem(type);
                 target = Items.LastOrDefault(x => x.GetType() == type);
+                wasCreated = true;
             }
 
             switch (target)
@@ -435,13 +455,14 @@ internal sealed class OutputTargetViewModel : Conductor<IOutputTarget>.Collectio
             }
         });
 
+        created = wasCreated;
         return target;
     }
 
     private static void SelectSerialPort(SerialOutputTarget target, SerialPortInfo port)
         => Execute.OnUIThread(() => target.SelectSerialPort(port));
 
-    private async Task<bool> TryConnectAsync(IOutputTarget target, CancellationToken token)
+    private async Task<bool> TryConnectAsync(IOutputTarget target, CancellationToken token, ConnectionType connectionType)
     {
         var semaphore = _semaphores[target];
         await semaphore.WaitAsync(token);
@@ -456,8 +477,9 @@ internal sealed class OutputTargetViewModel : Conductor<IOutputTarget>.Collectio
                 await target.WaitForDisconnect(token);
             }
 
-            // 用 AutoConnect 类型：失败时不会弹内置错误框，由启动连接流程自己解释原因
-            await ConnectAsync(target, ConnectionType.AutoConnect, token);
+            // 启动时静默自动连数据线用 AutoConnect（失败不打扰，由启动流程自己弹窗解释）；
+            // 用户在弹窗里主动选的连接用 Manual：失败会写日志、会在右下角报错，方便排查
+            await ConnectAsync(target, connectionType, token);
             return target.Status == ConnectionStatus.Connected;
         }
         catch (OperationCanceledException) { throw; }
