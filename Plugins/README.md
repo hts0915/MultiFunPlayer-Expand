@@ -157,11 +157,11 @@ foreach (var actionName in _registeredActions)
 | `Source/MultiFunPlayer/Script/IScriptOverrideController.cs` | **新增**公开接口：开始/停止/跳转/暂停覆盖 + 4 个只读状态 |
 | `Source/MultiFunPlayer/UI/Controls/ViewModels/ScriptViewModel.cs` | 实现该接口；`GetAxisPosition()` 与脚本查找多一层「覆盖优先」分支；新增覆盖位置推进；一处分组条件加上覆盖状态 |
 | `Source/MultiFunPlayer/Bootstrapper.cs` | 把 `ScriptViewModel` 额外注册为 `IScriptOverrideController` |
-| `Source/MultiFunPlayer/UI/Controls/Views/ScriptView.xaml` | 去掉轴值条上按 `InsideScript` 换颜色的 DataTrigger（统一颜色） |
+| `Source/MultiFunPlayer/UI/Controls/Views/ScriptView.xaml` | 曾一度去掉轴值条上按 `InsideScript` 换颜色的 DataTrigger，现已**恢复**（在脚本内深色 / 不在脚本内浅色） |
 | `Source/MultiFunPlayer/UI/Controls/KeyframesHeatmap.xaml(.cs)` | 由 `internal` 改为 `public`，让插件能直接复用原生波形时间轴 |
 | `Source/MultiFunPlayer/UI/Controls/ViewModels/ScriptViewModel.cs`（`AxisSettings`） | 由 `internal` 改为 `public`（heatmap 的 `Settings` 依赖类型） |
 
-（全部是「加接口 / 放宽可见性 / 删一个换色触发器」，没有改动任何原有行为。）
+（主要是「加接口 / 放宽可见性」。）
 
 关键点：**全程不碰 `MediaPosition` / `MediaDuration` / `AxisModels[].Script`**，
 所以 Script 面板、脚本自动匹配、快捷键、输出设置等原有行为全都照旧。

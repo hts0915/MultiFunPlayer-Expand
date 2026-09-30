@@ -207,7 +207,15 @@ internal sealed class ScriptViewModel : Screen, IDeviceAxisValueProvider, IScrip
 
                     var keyframes = GetActiveKeyframes(axis);
                     if (keyframes == null || keyframes.Count == 0)
+                    {
+                        // 该轴当前没有生效的脚本：例如覆盖播放（一键预设）只驱动了部分轴，
+                        // 或者从多轴脚本切换成单轴脚本后其它轴没有关键帧。
+                        // 这里必须把索引清成无效，否则会残留上一次播放时"在脚本内"的状态，
+                        // 表现为：轴值条的状态/数值切不回来、该轴的运动提供器被错误地继续运行、
+                        // 外部过渡不生效（ApplyValues 里只有 Invalid 时才会用过渡值）。
+                        context.Index = AxisState.InvalidIndex;
                         return NoUpdate();
+                    }
 
                     var axisPosition = GetAxisPosition(axis);
                     var shouldSearch = context.Invalid

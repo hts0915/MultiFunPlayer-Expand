@@ -1662,10 +1662,20 @@
                                                  Width="140"
                                                  Height="10"
                                                  material:TransitionAssist.DisableTransitions="True"
-                                                 Style="{StaticResource MaterialDesignLinearProgressBar}"
                                                  Maximum="100"
                                                  Minimum="0"
-                                                 Value="{Binding Value.Value, Mode=OneWay, Converter={StaticResource DoubleToPercentConverter}}"/>
+                                                 Value="{Binding Value.Value, Mode=OneWay, Converter={StaticResource DoubleToPercentConverter}}">
+                                        <!-- 在脚本内用默认色，不在脚本内用主色调：一眼看出哪些轴正被脚本驱动 -->
+                                        <ProgressBar.Style>
+                                            <Style BasedOn="{StaticResource MaterialDesignLinearProgressBar}" TargetType="ProgressBar">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Value.InsideScript}" Value="False">
+                                                        <Setter Property="Foreground" Value="{DynamicResource PrimaryHueMidBrush}"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </ProgressBar.Style>
+                                    </ProgressBar>
                                 </DockPanel>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
