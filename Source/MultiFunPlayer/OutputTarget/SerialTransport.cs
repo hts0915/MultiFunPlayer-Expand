@@ -33,6 +33,15 @@ internal interface ISerialTransport : IDisposable
     string Description { get; }
 }
 
+internal static class SerialTextEncoding
+{
+    /// <summary>
+    /// 设备回应的文字是 UTF-8（会带中文状态，例如「AP模式」「Station模式」），
+    /// 用 ASCII 解码会全变成问号。发送的命令本身是纯 ASCII，两种编码等价。
+    /// </summary>
+    public static Encoding Device { get; } = new UTF8Encoding(false);
+}
+
 internal static class SerialTransport
 {
     private static Logger Logger { get; } = LogManager.GetCurrentClassLogger();
@@ -226,7 +235,7 @@ internal sealed class Win32SerialTransport(SerialPortOptions options) : ISerialT
         if (!ReadFile(_handle, buffer, (uint)available, out var read, IntPtr.Zero) || read == 0)
             return string.Empty;
 
-        return Encoding.ASCII.GetString(buffer, 0, (int)read);
+        return SerialTextEncoding.Device.GetString(buffer, 0, (int)read);
     }
 
     public void Write(string text)
@@ -358,6 +367,7 @@ internal sealed class ManagedSerialTransport(SerialPortOptions options) : ISeria
         WriteTimeout = options.WriteTimeout,
         ReadBufferSize = options.ReadBufferSize,
         WriteBufferSize = options.WriteBufferSize,
+        Encoding = SerialTextEncoding.Device,
     };
 
     public string Description => "系统串口库";

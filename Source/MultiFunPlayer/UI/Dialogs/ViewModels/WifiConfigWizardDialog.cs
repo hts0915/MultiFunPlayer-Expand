@@ -26,8 +26,9 @@ internal sealed class WifiConfigWizardDialog : Screen
     public WifiConfigWizardDialog(StartupConnectionSettingsViewModel settings)
     {
         _settings = settings;
-        Hint = "设备的无线只支持 2.4GHz；如果路由器是 2.4G/5G 合一的，建议先把两个频段分开，否则设备可能连不上。"
-             + "写入并重启时设备会重启，舵机可能不受控地动一下，建议先关掉舵机电源（开关向左）。";
+        Hint = "设备的无线只支持 2.4GHz（不要填带 _5G 的网络）；如果路由器是 2.4G/5G 合一的，建议先把两个频段分开。"
+             + "写入并重启时设备会重启，舵机可能不受控地动一下，建议先关掉舵机电源（开关向左）。"
+             + "配网失败时也可以把电脑的 WiFi 连到设备自己的热点 TCodeESP32Setup，用浏览器打开 http://192.168.4.1 用设备自带的配置页配网。";
 
         _ = RefreshPortsAsync();
     }
@@ -259,7 +260,11 @@ internal sealed class WifiConfigWizardDialog : Screen
         }
 
         var tail = lastInfo != null
-            ? $"没等到设备进入 Station 模式。设备最后的状态：{lastInfo.Format().Replace(Environment.NewLine, "；")}。如果是 AP 模式，说明路由器名称或密码没写对（设备只支持 2.4GHz）。"
+            ? $"没等到设备进入 Station 模式。设备最后的状态：{lastInfo.Format().Replace(Environment.NewLine, "；")}。"
+              + "仍是 AP 模式说明设备没能连上那个 WiFi —— 常见原因：① 密码不对（可以先用电脑连一次这个 WiFi 验证）"
+              + "② 填的是 5GHz 的网络（设备只支持 2.4GHz）③ 路由器开了 MAC 过滤或连接数已满。"
+              + "也可以把电脑的 WiFi 连到设备自己的热点 TCodeESP32Setup，用浏览器打开 http://192.168.4.1，"
+              + "用设备自带的配置页配网（那里能扫描网络列表，失败原因也更清楚）。"
             : "没等到设备重新上线。等设备起来后可以点「① 检测设备」再看一次状态。";
 
         return (true, $"配网命令已全部发送完成，但{tail}", lastInfo);
@@ -282,7 +287,12 @@ internal sealed class WifiConfigWizardDialog : Screen
 
     private void TryApplyEndpoint(TcodeDeviceInfo info)
     {
-        var endpoint = info?.Endpoint;
+        // 只有真的连上路由器（Station 模式）才更新默认地址；
+        // 设备自己开热点时也会报一个 IP（192.168.4.1），那个不能当默认地址存下来
+        if (info == null || !info.IsStationMode)
+            return;
+
+        var endpoint = info.Endpoint;
         if (string.IsNullOrWhiteSpace(endpoint))
             return;
 
