@@ -1,7 +1,6 @@
 using MultiFunPlayer.Common;
 using MultiFunPlayer.OutputTarget;
 using MultiFunPlayer.UI.Controls.ViewModels;
-using Newtonsoft.Json.Linq;
 using NLog;
 using PropertyChanged;
 using Stylet;
@@ -90,7 +89,7 @@ internal sealed class WifiConfigWizardDialog : Screen
             StatusText = message;
             if (info != null)
             {
-                DeviceInfoText = TcodeDeviceInfo.Format(info);
+                DeviceInfoText = info.Format();
                 TryApplyEndpoint(info);
             }
         }
@@ -105,7 +104,7 @@ internal sealed class WifiConfigWizardDialog : Screen
         }
     }
 
-    private static (bool Ok, string Message, JObject Info) CheckDevice(string portName)
+    private static (bool Ok, string Message, TcodeDeviceInfo Info) CheckDevice(string portName)
     {
         if (SerialPortUtils.Probe(portName) == SerialPortAvailability.Busy)
             return (false, $"端口 {portName} 被占用。如果本软件已经连上了设备，请先在输出目标面板断开串口连接；如果是别的软件占用，先把它关掉。", null);
@@ -117,9 +116,9 @@ internal sealed class WifiConfigWizardDialog : Screen
             return (false, $"设备没有按预期回应「#isOSR」（收到「{identify}」）。确认端口选对了吗？", null);
 
         var infoResponse = session.Send(TcodeDeviceSession.SystemInfoCommand, 2500);
-        var info = TcodeDeviceInfo.TryParse(infoResponse, out var parsed) ? parsed : null;
+        var info = TcodeDeviceInfo.Parse(infoResponse);
 
-        return (true, "设备验证通过。填好 WiFi 名称和密码后点「② 开始配网」。", info);
+        return (true, "设备验证通过。填好 WiFi 名称和密码后点「② 开始配网」。", info.HasAny ? info : null);
     }
 
     public void OnRequestProvision()
@@ -167,7 +166,7 @@ internal sealed class WifiConfigWizardDialog : Screen
             StatusText = message;
             if (info != null)
             {
-                DeviceInfoText = TcodeDeviceInfo.Format(info);
+                DeviceInfoText = info.Format();
                 TryApplyEndpoint(info);
             }
 
@@ -187,7 +186,7 @@ internal sealed class WifiConfigWizardDialog : Screen
 
     private void Report(string text) => Execute.OnUIThread(() => StatusText = text);
 
-    private static (bool Ok, string Message, JObject Info) Provision(string portName, string ssid, string password, Action<string> progress)
+    private static (bool Ok, string Message, TcodeDeviceInfo Info) Provision(string portName, string ssid, string password, Action<string> progress)
     {
         if (SerialPortUtils.Probe(portName) == SerialPortAvailability.Busy)
             return (false, $"端口 {portName} 被占用，请先在输出目标面板断开串口连接，或关掉占用它的软件。", null);
@@ -220,6 +219,7 @@ internal sealed class WifiConfigWizardDialog : Screen
         }
 
         // 设备重启后 USB 会重新枚举，端口可能消失几秒，这里轮询等它回来再读一次网络信息
+        var lastInfo = default(TcodeDeviceInfo);
         for (var attempt = 1; attempt <= 8; attempt++)
         {
             progress($"⑥ 等待设备重启并读取网络信息…（第 {attempt}/8 次，约 {attempt * 3} 秒）");
@@ -227,20 +227,30 @@ internal sealed class WifiConfigWizardDialog : Screen
 
             try
             {
-                var available = SerialPortUtils.Probe(portName) == SerialPortAvailability.Free;
-                if (!available)
+                if (SerialPortUtils.Probe(portName) != SerialPortAvailability.Free)
                     continue;
 
                 using var session = TcodeDeviceSession.Open(portName);
                 var infoResponse = session.Send(TcodeDeviceSession.SystemInfoCommand, 2500);
-                if (!TcodeDeviceInfo.TryParse(infoResponse, out var info))
+
+                var info = TcodeDeviceInfo.Parse(infoResponse);
+                if (!info.HasAny)
                     continue;
 
-                var endpoint = TcodeDeviceInfo.GetEndpoint(info);
+                lastInfo = info;
+
+                var endpoint = info.Endpoint;
                 if (string.IsNullOrWhiteSpace(endpoint))
                     continue;
 
-                return (true, $"配网成功！设备已经上线，地址是 {endpoint}。这个地址已经填进「设置 → 启动连接」的 WiFi 默认地址里，下次启动弹窗会直接用它。", info);
+                // 设备自己开热点时也会报一个 IP（一般是 192.168.4.1），那不是"配网成功"
+                if (!info.IsStationMode)
+                {
+                    progress($"⑥ 设备还在热点(AP)模式，说明还没连上路由器，继续等…（第 {attempt}/8 次）");
+                    continue;
+                }
+
+                return (true, $"配网成功！设备已经连上路由器，地址是 {endpoint}。这个地址已经填进「设置 → 启动连接」的 WiFi 默认地址里，下次启动弹窗会直接用它。{DescribeSubnetMismatch(endpoint)}", info);
             }
             catch (Exception)
             {
@@ -248,15 +258,31 @@ internal sealed class WifiConfigWizardDialog : Screen
             }
         }
 
-        return (true, "配网命令已全部发送完成，但没等到设备重新上线。等设备起来后可以点「① 检测设备」再看一次状态。", null);
+        var tail = lastInfo != null
+            ? $"没等到设备进入 Station 模式。设备最后的状态：{lastInfo.Format().Replace(Environment.NewLine, "；")}。如果是 AP 模式，说明路由器名称或密码没写对（设备只支持 2.4GHz）。"
+            : "没等到设备重新上线。等设备起来后可以点「① 检测设备」再看一次状态。";
+
+        return (true, $"配网命令已全部发送完成，但{tail}", lastInfo);
     }
 
     private static bool IsError(string response)
         => !string.IsNullOrEmpty(response) && response.Contains("ERR", StringComparison.OrdinalIgnoreCase);
 
-    private void TryApplyEndpoint(JObject info)
+    /// <summary>
+    /// 设备连上路由器、但电脑在另一个网段是无线连不上的常见原因（设备 192.168.0.x、电脑 192.168.1.x），
+    /// 这里提前说清楚，免得用户对着"连接超时"发呆。
+    /// </summary>
+    private static string DescribeSubnetMismatch(string endpoint)
     {
-        var endpoint = TcodeDeviceInfo.GetEndpoint(info);
+        if (!NetUtils.TryParseEndpoint(endpoint, out var parsed) || NetUtils.IsOnLocalSubnet(parsed))
+            return string.Empty;
+
+        return $" ⚠ 不过设备在 {endpoint}，而电脑在 {NetUtils.DescribeLocalAddresses()}，两者不在同一个网络 —— 需要把电脑也连到同一个路由器（例如把电脑的 WiFi 连到设备所在的网络），否则无线连不上。";
+    }
+
+    private void TryApplyEndpoint(TcodeDeviceInfo info)
+    {
+        var endpoint = info?.Endpoint;
         if (string.IsNullOrWhiteSpace(endpoint))
             return;
 

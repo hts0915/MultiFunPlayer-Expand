@@ -1,6 +1,7 @@
-﻿using System.Net;
+using System.Net;
 using System.Net.Http;
 using System.Net.NetworkInformation;
+using System.Net.Sockets;
 using System.Text.RegularExpressions;
 
 namespace MultiFunPlayer.Common;
@@ -61,6 +62,34 @@ public static partial class NetUtils
         var addresses = GetAllLocalAddresses().ToList();
         return endpoint.GetAddresses().Any(addresses.Contains);
     }
+
+    /// <summary>
+    /// 目标地址是否和本机任一网卡处于同一个 /24 网段。
+    /// 设备走无线、电脑走有线时经常各在一个网段（例如设备 192.168.0.x、电脑 192.168.1.x），
+    /// 这种情况怎么连都不通，必须在界面上明确提示，而不是只报"连接超时"。
+    /// </summary>
+    public static bool IsOnLocalSubnet(EndPoint endpoint)
+    {
+        if (endpoint is not IPEndPoint ipEndPoint || ipEndPoint.Address.AddressFamily != AddressFamily.InterNetwork)
+            return true;
+
+        var target = ipEndPoint.Address.GetAddressBytes();
+        foreach (var local in GetAllLocalAddresses())
+        {
+            if (local.AddressFamily != AddressFamily.InterNetwork)
+                continue;
+
+            var address = local.GetAddressBytes();
+            if (address[0] == target[0] && address[1] == target[1] && address[2] == target[2])
+                return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>本机所有 IPv4 地址，用于提示"设备和你不在一个网络"。</summary>
+    public static string DescribeLocalAddresses()
+        => string.Join("、", GetAllLocalAddresses().Where(a => a.AddressFamily == AddressFamily.InterNetwork));
 
     public static async ValueTask<bool> IsLocalAddressAsync(EndPoint endpoint)
     {

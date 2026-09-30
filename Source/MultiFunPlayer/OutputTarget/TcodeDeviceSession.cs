@@ -1,6 +1,7 @@
 using Newtonsoft.Json.Linq;
 using NLog;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace MultiFunPlayer.OutputTarget;
 
@@ -109,84 +110,134 @@ internal sealed class TcodeDeviceSession : IDisposable
     }
 }
 
-/// <summary>设备 <c>#systemInfo</c> 回应的 JSON 解析。</summary>
-internal static class TcodeDeviceInfo
+/// <summary>
+/// 设备 <c>#systemInfo</c> 回应的解析。
+/// <br/>
+/// 注意：设备固件回的 JSON **最后一个字段经常缺一个引号**，例如
+/// <c>..."ip":"192.168.0.101",...,"uptime":"6}</c>，
+/// 严格 JSON 解析会直接失败（这就是配网向导一开始判不出"已经拿到 IP"的原因）。
+/// 所以这里先试标准解析，失败就退化成宽松的键值提取。
+/// </summary>
+internal sealed class TcodeDeviceInfo
 {
-    /// <summary>从回应里抠出 JSON 对象（设备可能前后带别的内容）。</summary>
-    public static bool TryParse(string response, out JObject info)
+    private static readonly Regex FieldRegex = new(@"""(?<key>[^""]+)""\s*:\s*""?(?<value>[^"",}]*)", RegexOptions.Compiled);
+
+    private readonly Dictionary<string, string> _fields = new(StringComparer.OrdinalIgnoreCase);
+
+    public bool HasAny => _fields.Count > 0;
+
+    public static TcodeDeviceInfo Parse(string response)
     {
-        info = null;
+        var info = new TcodeDeviceInfo();
         if (string.IsNullOrWhiteSpace(response))
-            return false;
+            return info;
 
         var start = response.IndexOf('{');
         var end = response.LastIndexOf('}');
-        if (start < 0 || end <= start)
-            return false;
+        var json = start >= 0 && end > start ? response[start..(end + 1)] : response;
 
+        if (!info.TryParseJson(json))
+            info.ParseLenient(json);
+
+        return info;
+    }
+
+    private bool TryParseJson(string json)
+    {
         try
         {
-            info = JObject.Parse(response[start..(end + 1)]);
-            return true;
+            var parsed = JObject.Parse(json);
+            foreach (var property in parsed.Properties())
+                _fields[property.Name] = property.Value.Type == JTokenType.Null ? string.Empty : property.Value.ToString();
+
+            return _fields.Count > 0;
         }
         catch
         {
+            _fields.Clear();
             return false;
         }
     }
 
-    public static string GetString(JObject info, params string[] names)
+    private void ParseLenient(string text)
     {
-        if (info == null)
-            return null;
-
-        foreach (var name in names)
+        foreach (Match match in FieldRegex.Matches(text))
         {
-            var token = info.GetValue(name, StringComparison.OrdinalIgnoreCase);
-            if (token != null && token.Type != JTokenType.Null && !string.IsNullOrWhiteSpace(token.ToString()))
-                return token.ToString();
+            var key = match.Groups["key"].Value.Trim();
+            var value = match.Groups["value"].Value.Trim().TrimEnd('"').Trim();
+            if (key.Length > 0)
+                _fields[key] = value;
         }
+    }
+
+    public string Get(params string[] names)
+    {
+        foreach (var name in names)
+            if (_fields.TryGetValue(name, out var value) && !string.IsNullOrWhiteSpace(value))
+                return value;
 
         return null;
     }
 
-    public static string GetEndpoint(JObject info)
+    /// <summary>设备的 UDP 地址（ip:port）。</summary>
+    public string Endpoint
     {
-        var ip = GetString(info, "ipAddress", "ip");
-        if (string.IsNullOrWhiteSpace(ip))
-            return null;
+        get
+        {
+            var ip = Get("ipAddress", "ip", "address");
+            if (string.IsNullOrWhiteSpace(ip))
+                return null;
 
-        var port = GetString(info, "udpPort");
-        return string.IsNullOrWhiteSpace(port) ? ip : $"{ip}:{port}";
+            var port = Get("udpPort", "port");
+            return string.IsNullOrWhiteSpace(port) ? ip : $"{ip}:{port}";
+        }
+    }
+
+    /// <summary>
+    /// 是否已经连上路由器。设备自己开热点时 <c>wifiMode</c> 是 AP 模式（IP 一般是 192.168.4.1），
+    /// 那不是"配网成功"，只有 Station 模式才算真的接进了路由器。
+    /// </summary>
+    public bool IsStationMode
+    {
+        get
+        {
+            var mode = Get("wifiMode", "wifi", "mode", "workMode");
+            if (string.IsNullOrWhiteSpace(mode))
+                return !string.Equals(Get("ip"), "192.168.4.1", StringComparison.Ordinal);
+
+            return mode.Contains("Station", StringComparison.OrdinalIgnoreCase)
+                || mode.Contains("STA", StringComparison.OrdinalIgnoreCase);
+        }
     }
 
     /// <summary>拼成界面上好读的几行。</summary>
-    public static string Format(JObject info)
+    public string Format()
     {
-        if (info == null)
+        if (!HasAny)
             return "（没有解析出设备信息）";
 
         var lines = new List<string>();
         void Add(string label, params string[] names)
         {
-            var value = GetString(info, names);
+            var value = Get(names);
             if (!string.IsNullOrWhiteSpace(value))
                 lines.Add($"{label}：{value}");
         }
 
-        Add("设备类型", "devType", "deviceType", "device");
+        Add("设备类型", "devType", "deviceType", "device", "workMode");
         Add("芯片", "chipId");
         Add("MAC", "macAddress", "mac");
         Add("固件", "firmwareVersion");
         Add("TCode", "tcodeVersion", "tcode");
-        Add("工作模式", "workMode");
         Add("WiFi 模式", "wifiMode", "mode", "wifi");
         Add("已连 WiFi", "wifiConnectedName", "ssid");
         Add("IP 地址", "ipAddress", "ip");
         Add("UDP 端口", "udpPort");
+        Add("蓝牙", "btName");
         Add("网页地址", "webAddress");
         Add("mDNS", "mdns");
+        Add("运行时间", "uptime");
 
-        return lines.Count > 0 ? string.Join(Environment.NewLine, lines) : info.ToString();
+        return lines.Count > 0 ? string.Join(Environment.NewLine, lines) : string.Join(Environment.NewLine, _fields.Select(x => $"{x.Key}：{x.Value}"));
     }
 }

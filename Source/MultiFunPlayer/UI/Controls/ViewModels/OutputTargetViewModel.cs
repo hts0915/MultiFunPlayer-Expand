@@ -389,6 +389,12 @@ internal sealed class OutputTargetViewModel : Conductor<IOutputTarget>.Collectio
             if (!online)
             {
                 Logger.Warn("Startup connection: WiFi probe failed [Endpoint: {0}, Error: {1}]", choice.Endpoint.ToUriString(), probeError);
+
+                // 设备走无线、电脑走有线时经常各在一个网段，这时无论怎么填都连不上，直接说清楚
+                if (!NetUtils.IsOnLocalSubnet(choice.Endpoint))
+                    return $"设备地址 {choice.Endpoint.ToUriString()} 和电脑不在同一个网络（电脑：{NetUtils.DescribeLocalAddresses()}）。"
+                         + "无线设备必须和电脑连在同一个路由器/网络里才能通信，请把电脑也连到设备所在的网络。";
+
                 return $"WiFi 设备探测失败：{probeError}";
             }
         }
