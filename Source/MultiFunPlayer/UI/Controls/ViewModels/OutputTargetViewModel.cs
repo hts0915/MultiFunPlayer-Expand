@@ -293,6 +293,7 @@ internal sealed class OutputTargetViewModel : Conductor<IOutputTarget>.Collectio
     private async Task PrepareManualTargetsAsync(SerialOutputTarget usbTarget, string reason, CancellationToken token)
     {
         await EnsurePortsRefreshedAsync(usbTarget, token, forceRefresh: false);
+        Logger.Info("Startup connection: preparing manual targets [Ports: {0}, Targets: {1}]", usbTarget.SerialPorts.Count, DescribeTargets());
 
         var prepared = new List<string>();
 
@@ -307,6 +308,13 @@ internal sealed class OutputTargetViewModel : Conductor<IOutputTarget>.Collectio
                 prepared.Add($"蓝牙 {target.Identifier}（{bluetoothPort.PortName}）");
                 Logger.Info("Startup connection: bluetooth target {0} prepared with {1}", target.Identifier, bluetoothPort.PortName);
             }
+            else
+            {
+                // 建不出第二个串口目标时退一步：直接把蓝牙端口选进现有串口目标，至少能手动连
+                SelectSerialPort(usbTarget, bluetoothPort);
+                prepared.Add($"蓝牙端口 {bluetoothPort.PortName}（已选进 {usbTarget.Identifier}）");
+                Logger.Warn("Startup connection: falling back to selecting bluetooth port on {0}", usbTarget.Identifier);
+            }
         }
         else
         {
@@ -316,6 +324,8 @@ internal sealed class OutputTargetViewModel : Conductor<IOutputTarget>.Collectio
         var wifiDescription = PrepareWifiTarget();
         if (wifiDescription != null)
             prepared.Add(wifiDescription);
+
+        Logger.Info("Startup connection: prepared count = {0}, targets now: {1}", prepared.Count, DescribeTargets());
 
         if (prepared.Count == 0)
         {
@@ -329,6 +339,9 @@ internal sealed class OutputTargetViewModel : Conductor<IOutputTarget>.Collectio
         NotifyAlways(message);
     }
 
+    private string DescribeTargets()
+        => string.Join(" | ", Items.Select(x => x == null ? "<null>" : $"{x.GetType().Name}/{x.InstanceIndex}/{x.Status}"));
+
     /// <returns>准备好时返回给用户看的描述，否则 null。</returns>
     private string PrepareWifiTarget()
     {
@@ -338,14 +351,12 @@ internal sealed class OutputTargetViewModel : Conductor<IOutputTarget>.Collectio
             return null;
         }
 
-        var target = GetOrAddWifiTarget(endpoint, _startupConnection.DefaultWifiProtocol, out _);
+        var target = GetOrAddWifiTarget(endpoint, _startupConnection.DefaultWifiProtocol, out var created);
         if (target == null)
-        {
-            Logger.Warn("Startup connection: failed to create WiFi output target [Protocol: {0}]", _startupConnection.DefaultWifiProtocol);
             return null;
-        }
 
         SetAutoConnect(target, false);
+        Logger.Info("Startup connection: WiFi target {0} prepared [Endpoint: {1}, New: {2}]", target.Identifier, _startupConnection.DefaultWifiEndpoint, created);
 
         var state = string.Empty;
         if (_startupConnection.WifiProbeEnabled)
@@ -369,24 +380,37 @@ internal sealed class OutputTargetViewModel : Conductor<IOutputTarget>.Collectio
     private SerialOutputTarget GetOrAddBluetoothTarget()
     {
         SerialOutputTarget target = null;
-        Execute.OnUIThread(() =>
-        {
-            target = Items.OfType<SerialOutputTarget>().Skip(1).FirstOrDefault();
-            if (target != null)
-                return;
+        var error = default(Exception);
 
-            AddItem(typeof(SerialOutputTarget));
-            target = Items.OfType<SerialOutputTarget>().LastOrDefault();
+        // 必须用 OnUIThreadSync：OnUIThread 是 Post（异步投递），动作稍后才执行，
+        // 这里读到的 target 会永远是 null —— 之前"目标创建失败"就是这么来的
+        Execute.OnUIThreadSync(() =>
+        {
+            try
+            {
+                target = Items.OfType<SerialOutputTarget>().Skip(1).FirstOrDefault();
+                if (target != null)
+                    return;
+
+                AddItem(typeof(SerialOutputTarget));
+                target = Items.OfType<SerialOutputTarget>().LastOrDefault();
+            }
+            catch (Exception e)
+            {
+                error = e;
+            }
         });
 
-        if (target == null)
-            Logger.Warn("Startup connection: failed to create bluetooth serial target");
+        if (error != null)
+            Logger.Error(error, "Startup connection: creating bluetooth serial target threw");
+        else if (target == null)
+            Logger.Warn("Startup connection: bluetooth serial target not created [Targets: {0}]", DescribeTargets());
 
         return target;
     }
 
     private static void SetAutoConnect(IOutputTarget target, bool enabled)
-        => Execute.OnUIThread(() =>
+        => Execute.OnUIThreadSync(() =>
         {
             if (target is AbstractOutputTarget abstractTarget)
                 abstractTarget.AutoConnectEnabled = enabled;
@@ -398,29 +422,44 @@ internal sealed class OutputTargetViewModel : Conductor<IOutputTarget>.Collectio
 
         IOutputTarget target = null;
         var wasCreated = false;
-        Execute.OnUIThread(() =>
-        {
-            target = Items.FirstOrDefault(x => x.GetType() == type);
-            if (target == null)
-            {
-                AddItem(type);
-                target = Items.LastOrDefault(x => x.GetType() == type);
-                wasCreated = true;
-            }
+        var error = default(Exception);
 
-            switch (target)
+        // 同上：这里必须同步执行，否则拿不到返回值
+        Execute.OnUIThreadSync(() =>
+        {
+            try
             {
-                case TcpOutputTarget tcp: tcp.Endpoint = endpoint; break;
-                case UdpOutputTarget udp: udp.Endpoint = endpoint; break;
+                target = Items.FirstOrDefault(x => x != null && x.GetType() == type);
+                if (target == null)
+                {
+                    AddItem(type);
+                    target = Items.FirstOrDefault(x => x != null && x.GetType() == type);
+                    wasCreated = true;
+                }
+
+                switch (target)
+                {
+                    case TcpOutputTarget tcp: tcp.Endpoint = endpoint; break;
+                    case UdpOutputTarget udp: udp.Endpoint = endpoint; break;
+                }
+            }
+            catch (Exception e)
+            {
+                error = e;
             }
         });
 
         created = wasCreated;
+        if (error != null)
+            Logger.Error(error, "Startup connection: creating WiFi output target threw [Type: {0}, Targets: {1}]", type.Name, DescribeTargets());
+        else if (target == null)
+            Logger.Warn("Startup connection: WiFi output target not created [Type: {0}, Targets: {1}]", protocol, DescribeTargets());
+
         return target;
     }
 
     private static void SelectSerialPort(SerialOutputTarget target, SerialPortInfo port)
-        => Execute.OnUIThread(() => target.SelectSerialPort(port));
+        => Execute.OnUIThreadSync(() => target.SelectSerialPort(port));
 
     private async Task<bool> TryConnectAsync(IOutputTarget target, CancellationToken token, ConnectionType connectionType)
     {
@@ -464,9 +503,10 @@ internal sealed class OutputTargetViewModel : Conductor<IOutputTarget>.Collectio
             return;
 
         // 在 UI 线程上发起刷新：RefreshPorts 内部会设置 SelectedSerialPort，
-        // 那是绑定到下拉框的属性，跟着界面的线程走最稳妥
+        // 那是绑定到下拉框的属性，跟着界面的线程走最稳妥。
+        // 用同步版本，否则 refreshTask 还没被赋值我们就读过去了。
         var refreshTask = default(Task);
-        Execute.OnUIThread(() => refreshTask = target.RefreshPorts());
+        Execute.OnUIThreadSync(() => refreshTask = target.RefreshPorts());
         if (refreshTask != null)
             await refreshTask;
 
