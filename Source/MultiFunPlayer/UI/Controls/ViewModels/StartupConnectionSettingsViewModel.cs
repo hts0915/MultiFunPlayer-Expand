@@ -24,6 +24,7 @@ internal sealed class StartupConnectionSettingsViewModel : Screen, IHandle<Setti
     public bool ShowConnectNotification { get; set; } = true;
     public string UsbSerialMatch { get; set; } = "VID_1A86&PID_7523";
     public string BluetoothDeviceMatch { get; set; } = "OSR6";
+    public bool WifiProbeEnabled { get; set; } = true;
     public WifiProtocol DefaultWifiProtocol { get; set; } = WifiProtocol.Udp;
     public string DefaultWifiEndpoint { get; set; } = "192.168.0.101:8000";
 
@@ -45,6 +46,7 @@ internal sealed class StartupConnectionSettingsViewModel : Screen, IHandle<Setti
             settings[nameof(ShowConnectNotification)] = ShowConnectNotification;
             settings[nameof(UsbSerialMatch)] = UsbSerialMatch;
             settings[nameof(BluetoothDeviceMatch)] = BluetoothDeviceMatch;
+            settings[nameof(WifiProbeEnabled)] = WifiProbeEnabled;
             settings[nameof(DefaultWifiProtocol)] = JToken.FromObject(DefaultWifiProtocol);
             settings[nameof(DefaultWifiEndpoint)] = DefaultWifiEndpoint;
         }
@@ -58,6 +60,8 @@ internal sealed class StartupConnectionSettingsViewModel : Screen, IHandle<Setti
                 UsbSerialMatch = usbSerialMatch;
             if (settings.TryGetValue<string>(nameof(BluetoothDeviceMatch), out var bluetoothDeviceMatch))
                 BluetoothDeviceMatch = bluetoothDeviceMatch;
+            if (settings.TryGetValue<bool>(nameof(WifiProbeEnabled), out var wifiProbeEnabled))
+                WifiProbeEnabled = wifiProbeEnabled;
             if (settings.TryGetValue<WifiProtocol>(nameof(DefaultWifiProtocol), out var defaultWifiProtocol))
                 DefaultWifiProtocol = defaultWifiProtocol;
             if (settings.TryGetValue<string>(nameof(DefaultWifiEndpoint), out var defaultWifiEndpoint))

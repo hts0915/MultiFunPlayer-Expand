@@ -47,7 +47,8 @@ internal sealed class StartupConnectionDialog : Screen
     public StartupConnectionDialog(string reason, IReadOnlyList<SerialPortInfo> bluetoothPorts, SerialPortInfo selectedPort, StartupConnectionSettingsViewModel settings)
     {
         Reason = reason;
-        Hint = "数据线端口被其他程序占用时可以先用蓝牙或 WiFi；等数据线空闲了再点「重试 USB」。";
+        Hint = "数据线端口被占用时可以先用蓝牙或 WiFi；等数据线空闲了再点「重试 USB」。"
+             + "WiFi 需要设备已经用 USB 配好 2.4GHz 网络，没配过网的话填什么地址都连不上。";
 
         BluetoothPorts = bluetoothPorts ?? [];
         SelectedSerialPort = selectedPort;

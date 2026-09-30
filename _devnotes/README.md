@@ -2,6 +2,21 @@
 
 这个目录放开发过程中用到的脚本、映射表和记录。**不参与主程序构建**，删掉它们程序照常工作。
 
+## 改动与发布流程（重要）
+
+用户要求：**改完之后先给测试步骤，不要立刻推送到 GitHub**，等确认这次迭代没问题再一起推送。
+
+1. 在源码目录改代码 → 编译（`dotnet build MultiFunPlayer.sln -c Debug`，要求 **0 警告 0 错误**）
+2. 跑测试（`dotnet test MultiFunPlayer.sln -c Release`，当前基线 **185 通过 / 0 失败**）
+3. **本地提交**（`git commit` 可以，`git push` 不行）—— 提交是为了改动可回溯
+4. 更新日常运行版：双击 `D:\Application\OSR6\MultiFunPlayer 中文增强版\更新.bat`
+   （脚本会**先把当前版本整份备份**到 `D:\Application\OSR6\MultiFunPlayer 中文增强版_备份\<时间戳>`，只保留最近 3 份，再覆盖程序文件；配置与预设不动）
+5. 给用户**具体测试步骤**（测什么、期望看到什么、日志里搜什么关键字）
+6. 用户确认后：`git push origin master`，然后才对外说"已发布"
+
+如果某次改动已经推上去了但用户想撤回：`git push --force-with-lease origin <上一个提交>:refs/heads/master`
+（本地提交保留，GitHub 回到上一个确认状态；注意这会改写公开历史）
+
 ## ⚠️ 编码注意（踩过的坑）
 
 这些 `.ps1` 必须保存为 **UTF-8 带 BOM**。
@@ -51,6 +66,7 @@ dotnet build _devnotes\PluginCheck\PluginCheck.csproj -c Debug
 
 | 文件 | 说明 |
 |-|-|
+| `hold-serial-port.ps1` | 测试用：**独占占住**指定串口（默认 `COM12`，默认 90 秒），用来模拟"数据线端口被其他程序占用"，验证启动连接的弹窗分支。只用 `CreateFile`，**不碰 DTR/RTS，设备不会动**。用法见文件头注释 |
 | `mediasource-analysis.md` | 媒体源（PotPlayer / MPV / VLC / MPC / HereSphere / DeoVR / Whirligig / OFS / Plex / Jellyfin / Emby）的连接方式与实现分析 |
 | `source-changes/IScriptOverrideController.cs` | 新增的脚本覆盖内核接口（正式文件已提交到 `Source/MultiFunPlayer/Script/`，这里是早期备份） |
 | `source-changes/Migration0046.cs` | 一个**已废弃**的迁移（曾用于把 DTR/RTS 设为 false，后来发现会导致串口直接打不开，已改回 true 并放弃该迁移） |

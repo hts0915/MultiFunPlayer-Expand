@@ -114,7 +114,7 @@
                         <TextBlock Style="{StaticResource HelpBody}"
                                    Text="在主界面「输出目标」面板里选连接方式（串口 / TCP / UDP / WebSocket / 管道 / Buttplug / The Handy / 文件），填好参数后点连接。串口是最常用的：选对 COM 口，波特率一般 115200，然后点连接按钮。"/>
                         <TextBlock Style="{StaticResource HelpNote}"
-                                   Text="提示：串口的 DTR 与 RTS 必须保持开启（默认即开启），关闭会导致连接直接失败。另外连接瞬间设备可能会自己回一下零位，这是设备固件收到 DTR 信号后重新归位的硬件行为，无法从软件端消除。"/>
+                                   Text="提示：串口的 DTR 与 RTS 默认关闭，请保持关闭 —— 这两个信号只要跳变一次，OSR 设备固件就会跟着复位归位，表现出来就是「连接和断开的瞬间设备乱扭」。本软件用 Win32 直接控制串口（不走系统串口库），全程不碰这两个信号，所以连接和断开都很干净。"/>
                         <TextBlock Style="{StaticResource HelpNote}"
                                    Text="提示：软件启动后会自动探测数据线端口 —— 空闲就直接连上；被其他程序占用（或者没插线）时会弹窗让你改用蓝牙或 WiFi。这套行为可以在「设置 → 启动连接」里关掉或调整匹配规则。"/>
 
@@ -381,6 +381,9 @@
                         <TextBlock Style="{StaticResource HelpItem}"><Run Style="{DynamicResource HelpKey}" Text="数据线串口匹配"/><Run Text="　按设备 ID 片段找数据线端口，默认 CH340 的 VID_1A86&amp;PID_7523，换设备/换线时改这里，多个片段用分号分隔"/></TextBlock>
                         <TextBlock Style="{StaticResource HelpItem}"><Run Style="{DynamicResource HelpKey}" Text="蓝牙设备名匹配"/><Run Text="　按已配对蓝牙设备的名字找到它的蓝牙串口，默认 OSR6"/></TextBlock>
                         <TextBlock Style="{StaticResource HelpItem}"><Run Style="{DynamicResource HelpKey}" Text="WiFi 默认协议 / 默认地址"/><Run Text="　弹窗里 WiFi 一栏的默认值；UDP 最快但不确认是否连上，TCP 能确认设备是否在线"/></TextBlock>
+                        <TextBlock Style="{StaticResource HelpItem}"><Run Style="{DynamicResource HelpKey}" Text="WiFi 连接前先探测设备"/><Run Text="　连接前先发一条查询指令（D1）确认设备真的有回应；关掉后就直接连（UDP 会假性成功）"/></TextBlock>
+                        <TextBlock Style="{StaticResource HelpNote}" Text="WiFi 前提条件：设备必须先用 USB 线接电脑、用官方的配网向导把 2.4GHz 无线网络写进去（只支持 2.4GHz，且是 2.4G 与 5G 分开的路由器才稳）；配网成功后设备会重启并显示无线在线。没配过网的设备，填任何地址都连不上。"/>
+                        <TextBlock Style="{StaticResource HelpNote}" Text="串口的 DTR / RTS 在「输出目标 → 串口 → 高级设置」里，默认关闭且不建议打开：它们每跳变一次设备就会复位归位，表现为连接/断开瞬间乱扭。"/>
 
                         <TextBlock Style="{StaticResource HelpH1}" Text="设置 · 设备"/>
                         <TextBlock Style="{StaticResource HelpItem}"><Run Style="{DynamicResource HelpKey}" Text="当前设备"/><Run Text="　决定轴的集合、显示名与默认值。改设备会重置部分设置"/></TextBlock>

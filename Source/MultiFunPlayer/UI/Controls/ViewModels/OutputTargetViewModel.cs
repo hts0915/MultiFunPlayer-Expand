@@ -348,33 +348,52 @@ internal sealed class OutputTargetViewModel : Conductor<IOutputTarget>.Collectio
 
             if (choice.Kind == StartupConnectionKind.Wifi)
             {
-                if (await TryConnectWifiAsync(choice, token))
+                var wifiReason = await TryConnectWifiAsync(choice, token);
+                if (wifiReason == null)
                 {
                     Logger.Info("Startup connection: connected to {0} via {1}", choice.Endpoint?.ToUriString(), choice.Protocol);
                     Notify($"已通过 {FormatProtocol(choice.Protocol)} 连接 {choice.Endpoint?.ToUriString()}");
                     return;
                 }
 
-                reason = "WiFi 连接失败，请检查设备电源、地址和协议";
+                reason = wifiReason;
                 continue;
             }
         }
     }
 
-    private async Task<bool> TryConnectWifiAsync(StartupConnectionChoice choice, CancellationToken token)
+    /// <returns>连接成功返回 null，否则返回失败原因（用于弹窗展示）。</returns>
+    private async Task<string> TryConnectWifiAsync(StartupConnectionChoice choice, CancellationToken token)
     {
         if (choice.Endpoint == null)
-            return false;
+            return "没有填写有效的地址";
+
+        // 先探测设备在不在：UDP 无连接，"连上"是假象，不探测就无法区分"地址错了"和"设备没开机"
+        if (_startupConnection.WifiProbeEnabled)
+        {
+            bool online;
+            string probeError;
+            if (choice.Protocol == WifiProtocol.Tcp)
+                online = TcodeDeviceProbe.TryProbeTcp(choice.Endpoint, out _, out probeError);
+            else
+                online = TcodeDeviceProbe.TryProbeUdp(choice.Endpoint, out _, out probeError);
+
+            if (!online)
+            {
+                Logger.Warn("Startup connection: WiFi probe failed [Endpoint: {0}, Error: {1}]", choice.Endpoint.ToUriString(), probeError);
+                return $"WiFi 设备探测失败：{probeError}";
+            }
+        }
 
         var target = GetOrAddWifiTarget(choice);
         if (target == null)
-            return false;
+            return "创建 WiFi 输出目标失败";
 
         // 同一台设备只保留一个连接，先把其他已连上的输出断开
         foreach (var other in Items.Where(x => !ReferenceEquals(x, target) && x.Status == ConnectionStatus.Connected).ToList())
             await DisconnectAsync(other, token);
 
-        return await TryConnectAsync(target, token);
+        return await TryConnectAsync(target, token) ? null : "WiFi 输出目标连接失败";
     }
 
     /// <summary>

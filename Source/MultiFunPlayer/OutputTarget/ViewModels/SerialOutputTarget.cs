@@ -29,6 +29,9 @@ internal sealed class SerialOutputTarget(int instanceIndex, IEventAggregator eve
     private const double ConnectRampDurationMilliseconds = 1000;
     private const double ConnectRampMinimumIntervalMilliseconds = 250;
 
+    /// <summary>刚打开串口后先安静这么久再发第一条指令，避免把指令打进设备可能的重启过程。</summary>
+    private const double FirstWriteDelayMilliseconds = 200;
+
     public override ConnectionStatus Status { get; protected set; }
     public bool IsConnected => Status == ConnectionStatus.Connected;
     public bool IsDisconnected => Status == ConnectionStatus.Disconnected;
@@ -47,10 +50,12 @@ internal sealed class SerialOutputTarget(int instanceIndex, IEventAggregator eve
     public StopBits StopBits { get; set; } = StopBits.One;
     public int DataBits { get; set; } = 8;
     public Handshake Handshake { get; set; } = Handshake.None;
-    // 保持打开：DTR/RTS 关闭时 CH340 之类的 USB 串口在 SerialPort.Open() 的 InitializeDCB
-    // 阶段会直接抛 IOException（连到系统上的设备没有发挥作用），端口根本打不开。
-    public bool DtrEnable { get; set; } = true;
-    public bool RtsEnable { get; set; } = true;
+
+    // 默认关闭。DTR/RTS 只要被拉高再放下，OSR 设备固件就会跟着复位归位，
+    // 表现就是"连接和断开的瞬间设备乱扭"。配合 SerialTransport 里的 Win32 直控，
+    // 默认全程不碰这两个信号；确实需要时可以在高级设置里手动打开。
+    public bool DtrEnable { get; set; } = false;
+    public bool RtsEnable { get; set; } = false;
     public int ReadTimeout { get; set; } = 250;
     public int WriteTimeout { get; set; } = 250;
     public int WriteBufferSize { get; set; } = 2048;
@@ -201,36 +206,24 @@ internal sealed class SerialOutputTarget(int instanceIndex, IEventAggregator eve
 
     protected override void Run(ConnectionType connectionType, CancellationToken token)
     {
-        var serialPort = default(SerialPort);
+        var transport = default(ISerialTransport);
         var openStopwatch = System.Diagnostics.Stopwatch.StartNew();
         var firstWriteLogged = false;
 
         try
         {
-            serialPort = new()
-            {
-                PortName = SelectedSerialPort.PortName,
-                BaudRate = BaudRate,
-                Parity = Parity,
-                StopBits = StopBits,
-                DataBits = DataBits,
-                Handshake = Handshake,
-                DtrEnable = DtrEnable,
-                RtsEnable = RtsEnable,
-                ReadTimeout = ReadTimeout,
-                WriteTimeout = WriteTimeout,
-                WriteBufferSize = WriteBufferSize,
-                ReadBufferSize = ReadBufferSize,
-            };
+            transport = SerialTransport.Open(new SerialPortOptions(
+                SelectedSerialPort.PortName, BaudRate, Parity, StopBits, DataBits, Handshake,
+                DtrEnable, RtsEnable, ReadTimeout, WriteTimeout, ReadBufferSize, WriteBufferSize));
 
-            serialPort.Open();
             Status = ConnectionStatus.Connected;
 
-            Logger.Info("{0} serial port \"{1}\" opened in {2:F0}ms", Identifier, serialPort.PortName, openStopwatch.Elapsed.TotalMilliseconds);
+            Logger.Info("{0} serial port \"{1}\" opened in {2:F0}ms [Transport: {3}, DTR: {4}, RTS: {5}]",
+                Identifier, SelectedSerialPort.PortName, openStopwatch.Elapsed.TotalMilliseconds, transport.Description, DtrEnable, RtsEnable);
         }
         catch (Exception e)
         {
-            try { serialPort?.Dispose(); }
+            try { transport?.Dispose(); }
             catch { }
 
             if (connectionType != ConnectionType.AutoConnect)
@@ -251,13 +244,17 @@ internal sealed class SerialOutputTarget(int instanceIndex, IEventAggregator eve
             {
                 var currentValues = DeviceAxis.All.ToDictionary(a => a, _ => double.NaN);
                 var lastSentValues = DeviceAxis.All.ToDictionary(a => a, _ => double.NaN);
-                FixedUpdate<TCodeThreadFixedUpdateContext>(() => !token.IsCancellationRequested && serialPort.IsOpen, (context, elapsed) =>
+                FixedUpdate<TCodeThreadFixedUpdateContext>(() => !token.IsCancellationRequested && transport.IsOpen, (context, elapsed) =>
                 {
                     Logger.Trace("Begin FixedUpdate [Elapsed: {0}]", elapsed);
                     GetValues(currentValues);
 
-                    if (serialPort.IsOpen && serialPort.BytesToRead > 0)
+                    if (transport.IsOpen && transport.BytesToRead > 0)
                         ReadExisting();
+
+                    // 刚打开的头一小段时间先不发指令，避免指令落进设备的重启/自检过程
+                    if (openStopwatch.Elapsed.TotalMilliseconds < FirstWriteDelayMilliseconds)
+                        return;
 
                     var values = context.SendDirtyValuesOnly ? currentValues.Where(x => DeviceAxis.IsValueDirty(x.Value, lastSentValues[x.Key])) : currentValues;
                     values = values.Where(x => AxisSettings[x.Key].Enabled);
@@ -269,7 +266,7 @@ internal sealed class SerialOutputTarget(int instanceIndex, IEventAggregator eve
                         intervalMilliseconds = Math.Max(intervalMilliseconds, ConnectRampMinimumIntervalMilliseconds);
 
                     var commands = context.OffloadElapsedTime ? DeviceAxis.ToString(values) : DeviceAxis.ToString(values, intervalMilliseconds);
-                    if (serialPort.IsOpen && !string.IsNullOrWhiteSpace(commands))
+                    if (transport.IsOpen && !string.IsNullOrWhiteSpace(commands))
                     {
                         Logger.Trace("Sending \"{0}\" to \"{1}\"", commands.Trim(), SelectedSerialPortDeviceId);
 
@@ -280,17 +277,24 @@ internal sealed class SerialOutputTarget(int instanceIndex, IEventAggregator eve
                                 Identifier, openStopwatch.Elapsed.TotalMilliseconds, intervalMilliseconds);
                         }
 
-                        serialPort.Write(commands);
+                        transport.Write(commands);
                         lastSentValues.Merge(values);
                     }
                 });
             }
             else if (UpdateType == DeviceAxisUpdateType.PolledUpdate)
             {
-                serialPort.DataReceived += OnDataReceived;
-                PolledUpdate(DeviceAxis.All, () => !token.IsCancellationRequested, (_, axis, axisEvent, elapsed) =>
+                PolledUpdate(DeviceAxis.All, () => !token.IsCancellationRequested && transport.IsOpen, (_, axis, axisEvent, elapsed) =>
                 {
                     Logger.Trace("Begin PolledUpdate [Axis: {0}, Event: {1}, Elapsed: {2}]", axis, axisEvent, elapsed);
+
+                    // 原来靠 SerialPort.DataReceived 事件边收边读，改成在循环里轮询
+                    // （Win32 直控没有这个事件，对 TCode 设备来说读的时机差别可以忽略）
+                    if (transport.IsOpen && transport.BytesToRead > 0)
+                        ReadExisting();
+
+                    if (openStopwatch.Elapsed.TotalMilliseconds < FirstWriteDelayMilliseconds)
+                        return;
 
                     var settings = AxisSettings[axis];
                     if (!settings.Enabled)
@@ -302,27 +306,18 @@ internal sealed class SerialOutputTarget(int instanceIndex, IEventAggregator eve
                     var duration = axisEvent.Duration;
 
                     var command = DeviceAxis.ToString(axis, value, duration * 1000);
-                    if (serialPort.IsOpen && !string.IsNullOrWhiteSpace(command))
+                    if (transport.IsOpen && !string.IsNullOrWhiteSpace(command))
                     {
                         Logger.Trace("Sending \"{0}\" to \"{1}\"", command, SelectedSerialPortDeviceId);
 
-                        serialPort.Write($"{command}\n");
+                        transport.Write($"{command}\n");
                     }
                 }, token);
-                serialPort.DataReceived -= OnDataReceived;
-
-                void OnDataReceived(object sender, SerialDataReceivedEventArgs e)
-                {
-                    if (!serialPort.IsOpen || e.EventType == SerialData.Eof)
-                        return;
-
-                    ReadExisting();
-                }
             }
 
             void ReadExisting()
             {
-                var receivedString = serialPort.ReadExisting();
+                var receivedString = transport.ReadExisting();
                 Logger.Debug("Received \"{0}\" from \"{1}\"", receivedString, SelectedSerialPortDeviceId);
                 tcodeInputProcessor.Parse(receivedString);
             }
@@ -334,7 +329,7 @@ internal sealed class SerialOutputTarget(int instanceIndex, IEventAggregator eve
         }
         catch (Exception e) { Logger.Error(e, $"{Identifier} failed with exception"); }
 
-        try { serialPort?.Dispose(); }
+        try { transport?.Dispose(); }
         catch { }
     }
 

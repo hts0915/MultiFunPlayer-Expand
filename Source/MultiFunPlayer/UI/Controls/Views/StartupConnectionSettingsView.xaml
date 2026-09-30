@@ -88,6 +88,17 @@
                          Text="{Binding DefaultWifiEndpoint}"/>
             </DockPanel>
 
+            <DockPanel Margin="0 0 0 12" LastChildFill="False">
+                <TextBlock DockPanel.Dock="Left"
+                           MinWidth="150"
+                           VerticalAlignment="Center"
+                           Text="WiFi 连接前先探测设备："/>
+
+                <CheckBox DockPanel.Dock="Left"
+                          VerticalAlignment="Center"
+                          IsChecked="{Binding WifiProbeEnabled}"/>
+            </DockPanel>
+
             <TextBlock MaxWidth="440"
                        Margin="0 0 0 6"
                        HorizontalAlignment="Left"
@@ -105,11 +116,19 @@
                        Text="数据线串口匹配按设备 ID 片段来（默认 CH340 的 VID_1A86&amp;PID_7523），多个片段用分号分隔；蓝牙设备名匹配按已配对蓝牙设备的名字来（默认 OSR6）。"/>
 
             <TextBlock MaxWidth="440"
+                       Margin="0 0 0 6"
                        HorizontalAlignment="Left"
                        FontSize="12"
                        Opacity="0.7"
                        TextWrapping="Wrap"
-                       Text="WiFi 用 UDP 最快但不确认是否连上，用 TCP 则能确认设备是否在线。"/>
+                       Text="WiFi 设备必须先配网：用 USB 线接上设备，用官方的配网向导把 2.4GHz 无线网络写进去（只支持 2.4GHz），成功后设备重启，顶部状态才会变成无线在线。没配过网的设备无论填什么地址都连不上。"/>
+
+            <TextBlock MaxWidth="440"
+                       HorizontalAlignment="Left"
+                       FontSize="12"
+                       Opacity="0.7"
+                       TextWrapping="Wrap"
+                       Text="UDP 是无连接的，地址填错也会显示“已连接”；所以默认会在连接前发一条查询指令（D1）确认设备真的有回应。如果你的设备不认这条指令，可以关掉上面那个开关。"/>
         </StackPanel>
     </Grid>
 </UserControl>
