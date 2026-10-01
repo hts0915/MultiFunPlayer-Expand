@@ -1,6 +1,6 @@
-# Buttplug 服务器测试客户端（PowerShell）
+﻿# Buttplug 服务器测试客户端（PowerShell）
 #
-# 用途：不用 VAM，也能验证 MultiFunPlayer 的 Buttplug 服务器是否正常。
+# 用途：不用游戏 / VAM，也能验证 MultiFunPlayer 的 Buttplug 服务器是否正常。
 # 需要在「设置 → Buttplug」里先启用服务器（默认端口 12345）。
 #
 # 运行（Windows 默认禁止直接运行脚本，所以要带 ExecutionPolicy Bypass）：
@@ -33,21 +33,29 @@ function Send-Json([string]$json) {
     $ws.SendAsync($segment, [System.Net.WebSockets.WebSocketMessageType]::Text, $true, $token).Wait()
 }
 
-function Receive-Json {
+function Receive-One {
     $buffer = New-Object byte[] 65536
     $segment = New-Object 'System.ArraySegment[byte]' -ArgumentList @(, $buffer)
     $result = $ws.ReceiveAsync($segment, $token).Result
+    if ($result.MessageType -eq [System.Net.WebSockets.WebSocketMessageType]::Close) { return $null }
     return [Text.Encoding]::UTF8.GetString($buffer, 0, $result.Count)
 }
 
-function Command([string]$type, [hashtable]$body) {
+# 服务器一条消息一帧（和真正的 Intiface 一样），所以按条数读取
+function Command([string]$type, [hashtable]$body, [int]$ReadCount = 1) {
     $script:nextId++
     $body['Id'] = $script:nextId
     $json = '[' + (@{ $type = $body } | ConvertTo-Json -Compress -Depth 8) + ']'
     Send-Json $json
-    $reply = Receive-Json
+    $replies = @()
+    for ($i = 0; $i -lt $ReadCount; $i++) {
+        $one = Receive-One
+        if ($null -eq $one) { break }
+        $replies += $one
+    }
+    $reply = ($replies -join '')
     Write-Host ("  {0,-16} -> {1}" -f $type, $reply)
-    return $reply
+    return $replies -join ''
 }
 
 Write-Host "连接 $Url …"
@@ -61,11 +69,12 @@ try {
 Write-Host "已连接。" -ForegroundColor Green
 
 Command 'RequestServerInfo' @{ ClientName = 'PowerShell-Probe'; MessageVersion = 3 } | Out-Null
-$added = Command 'StartScanning' @{}
+# StartScanning 会回 3 条：Ok + DeviceAdded + ScanningFinished
+$added = Command 'StartScanning' @{} 3
 Write-Host ""
 Write-Host "设备与执行器：" -ForegroundColor Cyan
 try {
-    $device = ($added | ConvertFrom-Json | Where-Object { $_.DeviceAdded }).DeviceAdded
+    $device = ($added -split '(?<=\})(?=\[|\{)' | ForEach-Object { $_ | ConvertFrom-Json } | Where-Object { $_.DeviceAdded }).DeviceAdded
     if ($device) {
         Write-Host ("  设备：{0}（索引 {1}）" -f $device.DeviceName, $device.DeviceIndex)
         $linear = @($device.DeviceMessages.LinearCmd.StepCount).Count
@@ -104,11 +113,14 @@ try {
             } | Out-Null
             $i++
         }
-    } else {
+    } elseif ($PSBoundParameters.ContainsKey('Position')) {
         Command 'LinearCmd' @{
             DeviceIndex = 0
             Vectors     = @(@{ Index = 0; Duration = $DurationMs; Position = $Position })
         } | Out-Null
+    } else {
+        Write-Host "只做了连接与查询，没有发送任何动作指令。" -ForegroundColor Green
+        Write-Host "要让设备动，加参数：-Position 0.2（移动到 20%）或 -Sweep 6（来回抽动 6 秒）" -ForegroundColor Yellow
     }
 
     if ($Vibrate -ge 0) {
