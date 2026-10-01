@@ -122,7 +122,23 @@
                        FontSize="12"
                        Opacity="0.7"
                        TextWrapping="Wrap"
-                       Text="WiFi 默认地址默认用 tcode.local:8000 —— 设备固件支持 mDNS，用它就不会因为设备换 IP 而失联（填 192.168.0.x:8000 这种固定 IP 也行，但路由器重新分配地址后会连不上；程序探测到原地址没响应时会自动改用 tcode.local 并把这里改过来）。注意电脑必须和设备在同一个网络里，否则无线连不上。"/>
+                       Text="WiFi 默认地址默认用 tcode.local:8000 —— 设备固件支持 mDNS，用它就不会因为设备换 IP 而失联（填 192.168.0.x:8000 这种固定 IP 也行，但路由器重新分配地址后会连不上；程序探测到原地址没响应时会自动改用 tcode.local 或扫描局域网找到新地址并填到这里）。注意电脑必须和设备在同一个网络里，否则无线连不上。"/>
+
+            <DockPanel Margin="0 0 0 6" LastChildFill="False">
+                <Button DockPanel.Dock="Left"
+                        MinWidth="150"
+                        Style="{StaticResource MaterialDesignFlatButton}"
+                        Click="{s:Action OnDetectWifiDevice}"
+                        Content="自动探测设备地址"/>
+
+                <TextBlock DockPanel.Dock="Left"
+                           Margin="8 0 0 0"
+                           VerticalAlignment="Center"
+                           FontSize="12"
+                           Opacity="0.7"
+                           TextWrapping="Wrap"
+                           Text="{Binding DetectStatus, Mode=OneWay}"/>
+            </DockPanel>
 
             <TextBlock MaxWidth="440"
                        HorizontalAlignment="Left"

@@ -12,7 +12,7 @@ using SerialPortInfo = MultiFunPlayer.OutputTarget.ViewModels.SerialOutputTarget
 
 namespace MultiFunPlayer.UI.Controls.ViewModels;
 
-internal sealed class OutputTargetViewModel : Conductor<IOutputTarget>.Collection.OneActive, IHandle<SettingsMessage>, IDisposable
+internal sealed class OutputTargetViewModel : Conductor<IOutputTarget>.Collection.OneActive, IHandle<SettingsMessage>, IHandle<DetectWifiDeviceMessage>, IDisposable
 {
     private static Logger Logger { get; } = LogManager.GetCurrentClassLogger();
 
@@ -23,6 +23,7 @@ internal sealed class OutputTargetViewModel : Conductor<IOutputTarget>.Collectio
     private readonly IOutputTargetFactory _outputTargetFactory;
     private readonly StartupConnectionSettingsViewModel _startupConnection;
     private readonly ISnackbarMessageQueue _snackbarMessageQueue;
+    private readonly IEventAggregator _eventAggregator;
     private Task _task;
     private Task _startupConnectTask;
     private CancellationTokenSource _cancellationSource;
@@ -43,6 +44,7 @@ internal sealed class OutputTargetViewModel : Conductor<IOutputTarget>.Collectio
         _outputTargetFactory = outputTargetFactory;
         _startupConnection = startupConnection;
         _snackbarMessageQueue = snackbarMessageQueue;
+        _eventAggregator = eventAggregator;
         eventAggregator.Subscribe(this);
 
         _semaphores = [];
@@ -342,6 +344,64 @@ internal sealed class OutputTargetViewModel : Conductor<IOutputTarget>.Collectio
     private string DescribeTargets()
         => string.Join(" | ", Items.Select(x => x == null ? "<null>" : $"{x.GetType().Name}/{x.InstanceIndex}/{x.Status}"));
 
+    /// <summary>「启动连接」页的「自动探测设备地址」按钮：扫描局域网找设备并填回设置。</summary>
+    public void Handle(DetectWifiDeviceMessage message) => _ = DetectWifiDeviceAsync();
+
+    private async Task DetectWifiDeviceAsync()
+    {
+        var port = EndpointPort(NetUtils.ParseEndpoint(_startupConnection.DefaultWifiEndpoint)
+                             ?? new DnsEndPoint("tcode.local", TcodeDeviceScanner.DefaultPort));
+
+        var devices = await Task.Run(() => TcodeDeviceScanner.Scan(port));
+        ApplyDetectedDevice(devices, port);
+    }
+
+    /// <summary>把扫描到的设备地址填进设置，并更新已有的 WiFi 目标。</summary>
+    private void ApplyDetectedDevice(IReadOnlyList<IPEndPoint> devices, int port)
+    {
+        if (devices.Count == 0)
+        {
+            var notFound = "没在局域网里找到设备：请确认设备已连上无线、和电脑在同一网段，再试一次";
+            Logger.Warn("TCode 扫描：没找到设备 [Port: {0}]", port);
+            NotifyAlways(notFound);
+            _eventAggregator.Publish(new WifiDeviceDetectedMessage("✗ " + notFound));
+            return;
+        }
+
+        var detected = devices[0];
+        var address = detected.ToString();
+        _startupConnection.DefaultWifiEndpoint = address;
+
+        var target = Items.OfType<UdpOutputTarget>().FirstOrDefault() as IOutputTarget
+                  ?? Items.OfType<TcpOutputTarget>().FirstOrDefault();
+
+        var wasConnected = target?.Status == ConnectionStatus.Connected;
+        if (target != null)
+        {
+            Execute.OnUIThreadSync(() =>
+            {
+                switch (target)
+                {
+                    case UdpOutputTarget udp: udp.Endpoint = detected; break;
+                    case TcpOutputTarget tcp: tcp.Endpoint = detected; break;
+                }
+            });
+        }
+
+        var detail = target == null
+            ? "已填入 WiFi 默认地址"
+            : wasConnected ? $"已更新 {target.Identifier}（重新连接后生效）" : $"已更新 {target.Identifier} 的地址";
+
+        Logger.Info("TCode 扫描：找到 {0} 台设备，用 {1}，{2}", devices.Count, address, detail);
+
+        var text = devices.Count > 1
+            ? $"找到 {devices.Count} 台设备，已选用 {address}；{detail}"
+            : $"找到设备 {address}；{detail}";
+
+        NotifyAlways(text);
+        _eventAggregator.Publish(new WifiDeviceDetectedMessage("✓ " + text));
+    }
+
     /// <returns>准备好时返回给用户看的描述，否则 null。</returns>
     private string PrepareWifiTarget()
     {
@@ -362,34 +422,11 @@ internal sealed class OutputTargetViewModel : Conductor<IOutputTarget>.Collectio
             {
                 state = $"，设备在线（{DescribeResolved(endpoint)}）";
             }
-            else if (endpoint is not DnsEndPoint)
+            else if (!TryUseAlternativeEndpoint(ref endpoint, ref endpointText, ref state, protocol))
             {
-                // 配置里写的是数字 IP：设备一换 IP 就失联，而 UDP 是无连接的，
-                // 光看输出目标"已连接"根本发现不了。设备固件支持 mDNS，所以退一步试 tcode.local，
-                // 通了就本次自动改用主机名（不受 DHCP 换址影响）
-                var fallback = new DnsEndPoint("tcode.local", EndpointPort(endpoint));
-                if (TryProbeDevice(fallback, protocol, out _))
-                {
-                    Logger.Info("Startup connection: 原地址 {0} 没响应（{1}），改用 tcode.local", endpointText, probeError);
-                    endpoint = fallback;
-                    endpointText = $"tcode.local:{fallback.Port}";
-                    state = $"，原地址没响应，已自动改用 {DescribeResolved(fallback)}，设备在线";
-
-                    // 顺手把设置里的地址也改成主机名：设备换 IP 也不会再失联
-                    _startupConnection.DefaultWifiEndpoint = endpointText;
-                }
-                else
-                {
-                    state = $"，设备暂时没响应（{probeError}）";
-                }
-            }
-            else if (!NetUtils.IsOnLocalSubnet(endpoint))
-            {
-                state = $"，但设备和电脑不在同一网络（电脑：{NetUtils.DescribeLocalAddresses()}）";
-            }
-            else
-            {
-                state = $"，设备暂时没响应（{probeError}）";
+                state = !NetUtils.IsOnLocalSubnet(endpoint)
+                      ? $"，但设备和电脑不在同一网络（电脑：{NetUtils.DescribeLocalAddresses()}）"
+                      : $"，设备暂时没响应（{probeError}）";
             }
 
             Logger.Info("Startup connection: WiFi endpoint {0} probe = {1}", endpointText, state);
@@ -403,6 +440,41 @@ internal sealed class OutputTargetViewModel : Conductor<IOutputTarget>.Collectio
         Logger.Info("Startup connection: WiFi target {0} prepared [Endpoint: {1}, New: {2}]", target.Identifier, endpointText, created);
 
         return $"WiFi {target.Identifier}（{endpointText}{state}）";
+    }
+
+    /// <summary>
+    /// 配置的地址没响应时换地址：先试 mDNS 主机名（设备固件支持，最省事），
+    /// 再扫局域网找（设备换 IP 后也能自动找到新地址并填回设置）。
+    /// </summary>
+    private bool TryUseAlternativeEndpoint(ref EndPoint endpoint, ref string endpointText, ref string state, WifiProtocol protocol)
+    {
+        var port = EndpointPort(endpoint);
+
+        if (endpoint is not DnsEndPoint)
+        {
+            var hostname = new DnsEndPoint("tcode.local", port);
+            if (TryProbeDevice(hostname, protocol, out _))
+            {
+                Logger.Info("Startup connection: 原地址 {0} 没响应，改用 tcode.local", endpointText);
+                endpoint = hostname;
+                endpointText = $"tcode.local:{port}";
+                _startupConnection.DefaultWifiEndpoint = endpointText;
+                state = $"，原地址没响应，已自动改用 {DescribeResolved(hostname)}，设备在线";
+                return true;
+            }
+        }
+
+        if (TcodeDeviceScanner.Scan(port).FirstOrDefault() is { } scanned)
+        {
+            Logger.Info("Startup connection: 原地址 {0} 没响应，扫描到设备 {1}", endpointText, scanned);
+            endpoint = scanned;
+            endpointText = scanned.ToString();
+            _startupConnection.DefaultWifiEndpoint = endpointText;
+            state = $"，原地址没响应，已扫描到新地址 {endpointText}，设备在线";
+            return true;
+        }
+
+        return false;
     }
 
     private static bool TryProbeDevice(EndPoint endpoint, WifiProtocol protocol, out string error)

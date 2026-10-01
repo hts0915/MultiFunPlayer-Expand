@@ -1,4 +1,4 @@
-﻿using MultiFunPlayer.MediaSource.MediaResource;
+using MultiFunPlayer.MediaSource.MediaResource;
 using MultiFunPlayer.Script;
 using Newtonsoft.Json.Linq;
 
@@ -21,7 +21,10 @@ public sealed record MediaDurationChangedMessage(TimeSpan Duration);
 public sealed record MediaResetMessage();
 
 public sealed record PreScriptSearchMessage(MediaResourceInfo MediaResource);
-public sealed record PostScriptSearchMessage(MediaResourceInfo MediaResource, Dictionary<DeviceAxis, IScriptResource> Scripts);
+/// <summary>请求扫描局域网找出 TCode 设备的新地址（「启动连接」页的按钮发出）。</summary>
+public sealed record DetectWifiDeviceMessage();
+/// <summary>扫描结果（输出目标执行完扫描后发回给设置页显示）。</summary>
+public sealed record WifiDeviceDetectedMessage(string Status);public sealed record PostScriptSearchMessage(MediaResourceInfo MediaResource, Dictionary<DeviceAxis, IScriptResource> Scripts);
 public sealed record ScriptChangedMessage(DeviceAxis Axis, IScriptResource Script);
 public sealed record ChangeScriptMessage(IReadOnlyDictionary<DeviceAxis, IScriptResource> Scripts)
 {

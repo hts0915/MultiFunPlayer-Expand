@@ -383,6 +383,7 @@
                         <TextBlock Style="{StaticResource HelpItem}"><Run Style="{DynamicResource HelpKey}" Text="WiFi 默认协议 / 默认地址"/><Run Text="　准备 WiFi 目标时用的地址，默认 tcode.local:8000（设备固件支持 mDNS，用它就不会因为设备换 IP 而失联；填 192.168.0.x:8000 这类固定 IP 也可以，但 DHCP 换址后会连不上）；UDP 最快，TCP 能确认设备是否在线"/></TextBlock>
                         <TextBlock Style="{StaticResource HelpItem}"><Run Style="{DynamicResource HelpKey}" Text="准备 WiFi 目标前探测设备"/><Run Text="　准备目标前先发一条查询指令（D1）确认设备有回应，并在提示里告诉你设备是否在线、是否和电脑同网段"/></TextBlock>
                         <TextBlock Style="{StaticResource HelpNote}" Text="无线注意：设备只支持 2.4GHz 网络，而且必须先用 USB 配好网才会连上（配网一般用设备自带的配置页：电脑 WiFi 连设备热点 TCodeESP32Setup，浏览器打开 http://192.168.4.1）。另外电脑必须和设备在同一个网络里，否则无线连不上。"/>
+                        <TextBlock Style="{StaticResource HelpItem}"><Run Style="{DynamicResource HelpKey}" Text="自动探测设备地址"/><Run Text="　扫描本机所在网段（往每台主机发一条查询指令），找到 TCode 设备就把地址填进「WiFi 默认地址」并更新已有的 WiFi 目标，约 2 秒。设备换了 IP 时点一下即可"/></TextBlock>
                         <TextBlock Style="{StaticResource HelpNote}" Text="串口的 DTR / RTS 在「输出目标 → 串口 → 高级设置」里，默认关闭且不建议打开：它们每跳变一次设备就会复位归位，表现为连接/断开瞬间乱扭。"/>
 
                         <TextBlock Style="{StaticResource HelpH1}" Text="设置 · Buttplug（让别的软件驱动设备）"/>

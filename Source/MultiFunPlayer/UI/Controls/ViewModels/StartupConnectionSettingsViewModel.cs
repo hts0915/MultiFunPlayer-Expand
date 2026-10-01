@@ -30,10 +30,30 @@ internal sealed class StartupConnectionSettingsViewModel : Screen, IHandle<Setti
 
     public IReadOnlyCollection<WifiProtocol> WifiProtocols { get; } = [WifiProtocol.Udp, WifiProtocol.Tcp];
 
+    /// <summary>「自动探测设备地址」按钮的状态文字。</summary>
+    public string DetectStatus { get; private set; } = string.Empty;
+
+    private readonly IEventAggregator _eventAggregator;
+
     public StartupConnectionSettingsViewModel(IEventAggregator eventAggregator)
     {
         DisplayName = "启动连接";
+        _eventAggregator = eventAggregator;
         eventAggregator.Subscribe(this);
+    }
+
+    /// <summary>扫描本机局域网，找到 TCode 设备就把新地址填进来（由输出目标那边执行，避免 IoC 循环依赖）。</summary>
+    public void OnDetectWifiDevice()
+    {
+        DetectStatus = "正在扫描局域网找设备…（最多几秒）";
+        NotifyOfPropertyChange(nameof(DetectStatus));
+        _eventAggregator.Publish(new DetectWifiDeviceMessage());
+    }
+
+    public void Handle(WifiDeviceDetectedMessage message)
+    {
+        DetectStatus = message.Status;
+        NotifyOfPropertyChange(nameof(DetectStatus));
     }
 
     public void Handle(SettingsMessage message)
