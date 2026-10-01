@@ -37,7 +37,8 @@ internal sealed class ButtplugServerSettingsViewModel : Screen, IHandle<Settings
     public bool AutoTakeover { get; set; } = true;
     public int IdleRestoreSeconds { get; set; } = 3;
     public bool ForceCompat { get; set; } = false;
-    public bool RotateAsLinear { get; set; } = false;
+    // 默认开：实测只发位置指令（LinearCmd）的软件（例如 Beat Banger）只有这样才驱动得到 R 轴
+    public bool RotateAsLinear { get; set; } = true;
 
     public bool IsRunning => _server?.IsRunning ?? false;
     public int ClientCount => _server?.ClientCount ?? 0;

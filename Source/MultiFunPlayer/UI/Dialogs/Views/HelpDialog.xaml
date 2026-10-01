@@ -395,6 +395,7 @@
                         <TextBlock Style="{StaticResource HelpItem}"><Run Style="{DynamicResource HelpKey}" Text="外部控制时自动接管"/><Run Text="　收到外部指令时暂时绕过脚本与运动提供器（保证外部指令是唯一来源），交还后自动恢复"/></TextBlock>
                         <TextBlock Style="{StaticResource HelpItem}"><Run Style="{DynamicResource HelpKey}" Text="空闲多久交还控制权"/><Run Text="　这么久没收到外部指令就认为对方停了，把控制权交还给脚本；外部软件断开连接时也会立刻交还"/></TextBlock>
                         <TextBlock Style="{StaticResource HelpItem}"><Run Style="{DynamicResource HelpKey}" Text="强制兼容形态"/><Run Text="　能力描述有两种形态：标准形态遵守 Buttplug v3 规范（给 VAM 这类按规范实现的库用），兼容形态把 LinearCmd 也写成执行器数组并带上 FeatureDescriptor / DeviceDisplayName（Beat Banger 这类自写客户端只认这种，用标准形态会闪退）。程序默认按客户端名字自动识别，这里勾上则对所有客户端都用兼容形态"/></TextBlock>
+                        <TextBlock Style="{StaticResource HelpItem}"><Run Style="{DynamicResource HelpKey}" Text="R 轴按位置暴露"/><Run Text="　默认勾上：R 轴按位置执行器（LinearCmd）暴露，索引接在 L 轴后面。绝大多数软件只会发位置指令、一条旋转指令都不发，不勾的话 R 轴永远收不到指令（实测 Beat Banger 的 R0/R1/R2 勾上才能用）。只有软件确实按旋转轴使用 R 轴时才取消勾选"/></TextBlock>
                         <TextBlock Style="{StaticResource HelpNote}" Text="怎么用：启用后保持本程序运行，在外部软件的 Buttplug / Intiface 连接设置里填 ws://127.0.0.1:12345，它就会把这里的设备识别成一台可控制的多轴设备。想先验证一下可以用仓库里的 _devnotes/buttplug-client-test.ps1。"/>
 
                         <TextBlock Style="{StaticResource HelpH1}" Text="设置 · 设备"/>
