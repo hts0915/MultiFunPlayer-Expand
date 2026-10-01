@@ -120,10 +120,27 @@ internal static class ButtplugProtocol
         static JObject Feature(ButtplugActuator actuator, string actuatorType) => new()
         {
             ["ActuatorType"] = actuatorType,
-            ["FeatureDescriptor"] = $"{actuator.Axis.FriendlyName} ({actuator.Axis.Name})",
+            ["FeatureDescriptor"] = DescribeFeature(actuator.Axis),
             ["StepCount"] = 100,
         };
     }
+
+    /// <summary>
+    /// 执行器描述文字。刻意用 OSR 社区/参考软件里的英文名（Beat Banger 能用的那份数据就是这些），
+    /// 因为有些自写客户端会按描述文字来认轴。
+    /// </summary>
+    private static string DescribeFeature(DeviceAxis axis) => axis.Name.ToUpperInvariant() switch
+    {
+        "L0" => "Main Stroke (L0)",
+        "L1" => "Surge (L1)",
+        "L2" => "Sway (L2)",
+        "R0" => "Twist (R0)",
+        "R1" => "Roll (R1)",
+        "R2" => "Pitch (R2)",
+        "V0" => "Vibrate 0 (V0)",
+        "V1" => "Vibrate 1 (V1)",
+        _ => axis.Name,
+    };
 
     public static JObject DeviceAdded(string deviceName, IReadOnlyCollection<ButtplugActuator> actuators, int messageVersion, bool compat)
         => Message("DeviceAdded", DeviceInfo(deviceName, actuators, messageVersion, compat));
@@ -167,4 +184,5 @@ internal sealed record ButtplugServerOptions(
     IReadOnlyList<string> ExposedAxes,
     bool AutoTakeover,
     int IdleRestoreSeconds,
-    bool ForceCompat);
+    bool ForceCompat,
+    bool RotateAsLinear);

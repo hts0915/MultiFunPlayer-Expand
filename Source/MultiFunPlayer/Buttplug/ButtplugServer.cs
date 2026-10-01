@@ -323,7 +323,10 @@ internal sealed class ButtplugServer : IDisposable
 
             if (IsHighFrequency(type))
             {
-                // 控制指令可能每秒几十条，只记第一条，避免刷爆日志
+                // 控制指令可能每秒几十条：Debug 级别记录每一条（排查时可把日志级别调到 Trace/Debug），
+                // Info 级别只记第一条，避免刷爆日志
+                Logger.Debug("Buttplug 指令 {0} [{1}]：{2}", type, DescribeClient(client), body.ToString(Newtonsoft.Json.Formatting.None));
+
                 if (!client.LoggedFirstCommand)
                 {
                     client.LoggedFirstCommand = true;

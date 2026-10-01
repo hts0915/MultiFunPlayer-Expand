@@ -71,10 +71,12 @@ internal sealed class ButtplugDeviceBridge(ScriptViewModel script) : IButtplugAx
                 continue;
 
             // L* 位置（LinearCmd）、R* 旋转（RotateCmd）、V*/A* 强度（ScalarCmd 的 Vibrate）
+            // 打开 RotateAsLinear 时 R 轴也按位置暴露：有些软件只会发位置指令（LinearCmd），
+            // 旋转指令一概不发，这样至少能让它们能驱动到 R 轴
             var kind = axis.Name.ToUpperInvariant() switch
             {
                 var n when n.StartsWith('L') => ButtplugActuatorKind.Linear,
-                var n when n.StartsWith('R') => ButtplugActuatorKind.Rotate,
+                var n when n.StartsWith('R') => options.RotateAsLinear ? ButtplugActuatorKind.Linear : ButtplugActuatorKind.Rotate,
                 _ => ButtplugActuatorKind.Scalar,
             };
 

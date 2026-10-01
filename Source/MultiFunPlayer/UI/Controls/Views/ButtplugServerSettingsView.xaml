@@ -152,6 +152,25 @@
                        TextWrapping="Wrap"
                        Text="能力描述有两种形态：标准形态是 Buttplug v3 规范（给 VAM 等按规范实现的库用），兼容形态把 LinearCmd 也写成执行器数组并带上 FeatureDescriptor / DeviceDisplayName（Beat Banger 这类自写客户端只认这种，否则会闪退）。程序会按客户端名字自动识别（bbfh-client 等），这里勾上则对所有客户端都用兼容形态。"/>
 
+            <DockPanel Margin="0 0 0 4" LastChildFill="False">
+                <TextBlock DockPanel.Dock="Left"
+                           MinWidth="150"
+                           VerticalAlignment="Center"
+                           Text="R 轴按位置暴露："/>
+
+                <CheckBox DockPanel.Dock="Left"
+                          VerticalAlignment="Center"
+                          IsChecked="{Binding RotateAsLinear}"/>
+            </DockPanel>
+
+            <TextBlock MaxWidth="470"
+                       Margin="0 0 0 8"
+                       HorizontalAlignment="Left"
+                       FontSize="12"
+                       Opacity="0.7"
+                       TextWrapping="Wrap"
+                       Text="勾上后 R 轴不再作为「旋转执行器」暴露，而是作为「位置执行器」（索引接在 L 轴后面）。有些软件只会发位置指令（LinearCmd）、一条旋转指令都不发 —— 那样 R 轴永远收不到指令，勾上这个才有机会被驱动。改完点「重启」生效。"/>
+
             <Border Margin="0 0 0 10"
                     Padding="10 8 10 8"
                     Background="{DynamicResource MaterialDesignToolBarBackground}"

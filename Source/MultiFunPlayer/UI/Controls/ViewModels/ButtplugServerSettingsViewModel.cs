@@ -37,6 +37,7 @@ internal sealed class ButtplugServerSettingsViewModel : Screen, IHandle<Settings
     public bool AutoTakeover { get; set; } = true;
     public int IdleRestoreSeconds { get; set; } = 3;
     public bool ForceCompat { get; set; } = false;
+    public bool RotateAsLinear { get; set; } = false;
 
     public bool IsRunning => _server?.IsRunning ?? false;
     public int ClientCount => _server?.ClientCount ?? 0;
@@ -44,9 +45,30 @@ internal sealed class ButtplugServerSettingsViewModel : Screen, IHandle<Settings
     public string LastCommand => _server?.LastCommand;
     public string LastError => _server?.LastError;
 
-    public string ActuatorSummary => _server == null || _server.Actuators.Count == 0
-        ? "（还没有暴露任何轴）"
-        : string.Join("、", _server.Actuators.Select(a => $"{a.Axis.Name}（{(a.Kind == ButtplugActuatorKind.Linear ? "位置" : a.Kind == ButtplugActuatorKind.Rotate ? "旋转" : "振动")} #{a.Index}）"));
+    public string ActuatorSummary
+    {
+        get
+        {
+            if (_server == null || _server.Actuators.Count == 0)
+                return "（还没有暴露任何轴）";
+
+            // 按类型分组、显式写出「索引=轴名」：索引是该类型里的第几个（从 0 开始、按你写的顺序），
+            // 和轴号不一定相同（比如只填 R2 时它就是旋转 #0）
+            var groups = _server.Actuators
+                .GroupBy(a => a.Kind)
+                .OrderBy(g => g.Key)
+                .Select(g => $"{KindName(g.Key)}：{string.Join("、", g.OrderBy(a => a.Index).Select(a => $"#{a.Index}={a.Axis.Name}"))}");
+
+            return string.Join("　", groups);
+        }
+    }
+
+    private static string KindName(ButtplugActuatorKind kind) => kind switch
+    {
+        ButtplugActuatorKind.Linear => "位置",
+        ButtplugActuatorKind.Rotate => "旋转",
+        _ => "振动",
+    };
 
     public string SkippedWarning => _server == null || _server.SkippedAxes.Count == 0
         ? string.Empty
@@ -74,6 +96,7 @@ internal sealed class ButtplugServerSettingsViewModel : Screen, IHandle<Settings
     public void OnAutoTakeoverChanged() => MarkDirty();
     public void OnIdleRestoreSecondsChanged() => MarkDirty();
     public void OnForceCompatChanged() => MarkDirty();
+    public void OnRotateAsLinearChanged() => MarkDirty();
 
     private void MarkDirty()
     {
@@ -145,7 +168,8 @@ internal sealed class ButtplugServerSettingsViewModel : Screen, IHandle<Settings
             .ToList(),
         AutoTakeover,
         Math.Clamp(IdleRestoreSeconds, 1, 60),
-        ForceCompat);
+        ForceCompat,
+        RotateAsLinear);
 
     private void RefreshStatus()
     {
@@ -178,6 +202,7 @@ internal sealed class ButtplugServerSettingsViewModel : Screen, IHandle<Settings
                 [nameof(AutoTakeover)] = AutoTakeover,
                 [nameof(IdleRestoreSeconds)] = IdleRestoreSeconds,
                 [nameof(ForceCompat)] = ForceCompat,
+                [nameof(RotateAsLinear)] = RotateAsLinear,
             };
         }
         else if (message.Action == SettingsAction.Loading)
@@ -203,6 +228,8 @@ internal sealed class ButtplugServerSettingsViewModel : Screen, IHandle<Settings
                         IdleRestoreSeconds = idleRestoreSeconds;
                     if (server.TryGetValue<bool>(nameof(ForceCompat), out var forceCompat))
                         ForceCompat = forceCompat;
+                    if (server.TryGetValue<bool>(nameof(RotateAsLinear), out var rotateAsLinear))
+                        RotateAsLinear = rotateAsLinear;
                 }
             }
             finally
