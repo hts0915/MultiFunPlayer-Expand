@@ -1,0 +1,165 @@
+<UserControl x:Class="MultiFunPlayer.UI.Controls.Views.ButtplugServerSettingsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:s="https://github.com/canton7/Stylet"
+             d:DesignHeight="450"
+             d:DesignWidth="800"
+             x:ClassModifier="internal"
+             mc:Ignorable="d">
+    <Grid Margin="20">
+        <StackPanel>
+            <DockPanel Margin="0 0 0 8" LastChildFill="False">
+                <TextBlock DockPanel.Dock="Left"
+                           MinWidth="150"
+                           VerticalAlignment="Center"
+                           Text="启用 Buttplug 服务器："/>
+
+                <CheckBox DockPanel.Dock="Left"
+                          VerticalAlignment="Center"
+                          IsChecked="{Binding Enabled}"/>
+
+                <Button DockPanel.Dock="Left"
+                        MinWidth="60"
+                        Margin="10 0 0 0"
+                        Style="{StaticResource MaterialDesignFlatButton}"
+                        Click="{s:Action OnRestart}"
+                        Content="重启"/>
+
+                <Button DockPanel.Dock="Left"
+                        MinWidth="60"
+                        Margin="6 0 0 0"
+                        Style="{StaticResource MaterialDesignFlatButton}"
+                        Click="{s:Action OnStop}"
+                        Content="停止"/>
+            </DockPanel>
+
+            <DockPanel Margin="0 0 0 8" LastChildFill="False">
+                <TextBlock DockPanel.Dock="Left"
+                           MinWidth="150"
+                           VerticalAlignment="Center"
+                           Text="监听端口："/>
+
+                <TextBox DockPanel.Dock="Left"
+                         Width="90"
+                         VerticalAlignment="Center"
+                         Text="{Binding Port}"/>
+
+                <TextBlock DockPanel.Dock="Left"
+                           Margin="8 0 0 0"
+                           VerticalAlignment="Center"
+                           FontSize="12"
+                           Opacity="0.7"
+                           Text="（Buttplug / Intiface 默认 12345；如果装了 Intiface Central 并开着，端口会冲突）"/>
+            </DockPanel>
+
+            <DockPanel Margin="0 0 0 8" LastChildFill="False">
+                <TextBlock DockPanel.Dock="Left"
+                           MinWidth="150"
+                           VerticalAlignment="Center"
+                           Text="服务器名称："/>
+
+                <TextBox DockPanel.Dock="Left"
+                         Width="200"
+                         VerticalAlignment="Center"
+                         Text="{Binding ServerName}"/>
+            </DockPanel>
+
+            <DockPanel Margin="0 0 0 8" LastChildFill="False">
+                <TextBlock DockPanel.Dock="Left"
+                           MinWidth="150"
+                           VerticalAlignment="Center"
+                           Text="设备名称："/>
+
+                <TextBox DockPanel.Dock="Left"
+                         Width="200"
+                         VerticalAlignment="Center"
+                         Text="{Binding DeviceName}"/>
+            </DockPanel>
+
+            <DockPanel Margin="0 0 0 8" LastChildFill="False">
+                <TextBlock DockPanel.Dock="Left"
+                           MinWidth="150"
+                           VerticalAlignment="Center"
+                           Text="暴露给客户端的轴："/>
+
+                <TextBox DockPanel.Dock="Left"
+                         Width="200"
+                         VerticalAlignment="Center"
+                         Text="{Binding ExposedAxes}"/>
+            </DockPanel>
+
+            <TextBlock MaxWidth="470"
+                       Margin="0 0 0 8"
+                       HorizontalAlignment="Left"
+                       FontSize="12"
+                       Opacity="0.7"
+                       TextWrapping="Wrap"
+                       Text="用逗号分隔，按顺序暴露成「位置」执行器（L / R 开头的轴，用 LinearCmd）或「振动」执行器（V / A 开头的轴，用 ScalarCmd）。默认只暴露 L0，兼容性最好；写成 L0,R0,R1,R2,V0 这种可以一次暴露多个（客户端会看到多个执行器）。"/>
+
+            <DockPanel Margin="0 0 0 8" LastChildFill="False">
+                <TextBlock DockPanel.Dock="Left"
+                           MinWidth="150"
+                           VerticalAlignment="Center"
+                           Text="外部控制时自动接管："/>
+
+                <CheckBox DockPanel.Dock="Left"
+                          VerticalAlignment="Center"
+                          IsChecked="{Binding AutoTakeover}"/>
+
+                <TextBlock DockPanel.Dock="Left"
+                           Margin="8 0 0 0"
+                           VerticalAlignment="Center"
+                           FontSize="12"
+                           Opacity="0.7"
+                           Text="（收到外部指令时暂时绕过脚本与运动提供器，交还后自动恢复）"/>
+            </DockPanel>
+
+            <DockPanel Margin="0 0 0 12" LastChildFill="False">
+                <TextBlock DockPanel.Dock="Left"
+                           MinWidth="150"
+                           VerticalAlignment="Center"
+                           Text="空闲多久交还控制权："/>
+
+                <TextBox DockPanel.Dock="Left"
+                         Width="60"
+                         VerticalAlignment="Center"
+                         Text="{Binding IdleRestoreSeconds}"/>
+
+                <TextBlock DockPanel.Dock="Left"
+                           Margin="8 0 0 0"
+                           VerticalAlignment="Center"
+                           Text="秒"/>
+            </DockPanel>
+
+            <Border Margin="0 0 0 10"
+                    Padding="10 8 10 8"
+                    Background="{DynamicResource MaterialDesignToolBarBackground}"
+                    CornerRadius="4">
+                <StackPanel>
+                    <TextBlock FontSize="12" TextWrapping="Wrap">
+                        <Run Text="状态："/><Run Text="{Binding StatusText, Mode=OneWay}"/>
+                    </TextBlock>
+                    <TextBlock Margin="0 4 0 0"
+                               FontSize="12"
+                               TextWrapping="Wrap">
+                        <Run Text="暴露的执行器："/><Run Text="{Binding ActuatorSummary, Mode=OneWay}"/>
+                    </TextBlock>
+                    <TextBlock Margin="0 4 0 0"
+                               FontSize="12"
+                               TextWrapping="Wrap">
+                        <Run Text="最后一条指令："/><Run Text="{Binding LastCommand, Mode=OneWay}"/>
+                    </TextBlock>
+                </StackPanel>
+            </Border>
+
+            <TextBlock MaxWidth="470"
+                       HorizontalAlignment="Left"
+                       FontSize="12"
+                       Opacity="0.7"
+                       TextWrapping="Wrap"
+                       Text="怎么用：启用后保持本程序运行，在支持 Buttplug 的软件的 Buttplug / Intiface 连接设置里填 ws://127.0.0.1:12345，它就会把这里的设备识别成一台可控制的多轴设备。外部软件发来的位置/振动指令会走本程序的轴管线，所以轴的限位、限速、归位照样生效，串口 / 蓝牙 / WiFi 也都能用。"/>
+        </StackPanel>
+    </Grid>
+</UserControl>

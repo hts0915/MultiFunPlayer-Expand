@@ -11,6 +11,7 @@ internal sealed class SettingsViewModel : Conductor<IScreen>.Collection.OneActiv
     [Inject] public ThemeSettingsViewModel Theme { get; set; }
     [Inject] public InputSettingsViewModel Input { get; set; }
     [Inject] public ShortcutSettingsViewModel Shortcut { get; set; }
+    [Inject] public ButtplugServerSettingsViewModel ButtplugServer { get; set; }
 
     public void ParametersInjected()
     {
@@ -20,5 +21,6 @@ internal sealed class SettingsViewModel : Conductor<IScreen>.Collection.OneActiv
         Items.Add(Theme);
         Items.Add(Input);
         Items.Add(Shortcut);
+        Items.Add(ButtplugServer);
     }
 }

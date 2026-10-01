@@ -2343,6 +2343,17 @@ internal sealed class AxisValueTransition
         _time = -1;
     }
 
+    /// <summary>取消当前过渡（例如 Buttplug 外部控制结束时，把控制权交还给脚本/运动提供器）。</summary>
+    public void Reset()
+    {
+        IsInitialized = false;
+        _currentValue = double.NaN;
+        _fromValue = double.NaN;
+        _toValue = double.NaN;
+        _duration = 0;
+        _time = 0;
+    }
+
     public void Append(double offset, double duration)
     {
         if (!IsInitialized)
