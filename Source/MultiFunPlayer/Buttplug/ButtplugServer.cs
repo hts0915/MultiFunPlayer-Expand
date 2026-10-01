@@ -48,6 +48,7 @@ internal sealed class ButtplugServer : IDisposable
     public string LastError { get; private set; }
     public string DeviceName => _bridge.DeviceName;
     public IReadOnlyList<ButtplugActuator> Actuators => _bridge.Actuators;
+    public IReadOnlyList<string> SkippedAxes => _bridge.SkippedAxes;
 
     public void Start(ButtplugServerOptions options)
     {

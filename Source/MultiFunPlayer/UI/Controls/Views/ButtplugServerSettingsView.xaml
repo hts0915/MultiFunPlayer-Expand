@@ -170,6 +170,12 @@
                                TextWrapping="Wrap">
                         <Run Text="最后一条指令："/><Run Text="{Binding LastCommand, Mode=OneWay}"/>
                     </TextBlock>
+                    <TextBlock Margin="0 4 0 0"
+                               FontSize="12"
+                               Foreground="#D32F2F"
+                               TextWrapping="Wrap"
+                               Visibility="{Binding HasSkippedAxes, Converter={StaticResource BooleanToVisibilityConverter}}"
+                               Text="{Binding SkippedWarning, Mode=OneWay}"/>
                 </StackPanel>
             </Border>
 

@@ -36,7 +36,13 @@ internal sealed class ButtplugServerSettingsViewModel : Screen, IHandle<Settings
 
     public string ActuatorSummary => _server.Actuators.Count == 0
         ? "（还没有暴露任何轴）"
-        : string.Join("、", _server.Actuators.Select(a => $"{a.Axis.Name}（{(a.Kind == ButtplugActuatorKind.Linear ? "位置" : "振动")} #{a.Index}）"));
+        : string.Join("、", _server.Actuators.Select(a => $"{a.Axis.Name}（{(a.Kind == ButtplugActuatorKind.Linear ? "位置" : a.Kind == ButtplugActuatorKind.Rotate ? "旋转" : "振动")} #{a.Index}）"));
+
+    public string SkippedWarning => _server.SkippedAxes.Count == 0
+        ? string.Empty
+        : $"⚠ 这些轴没能暴露：{string.Join("、", _server.SkippedAxes)} —— 它们没在「设置 → 设备」里启用，请先在那里勾上「启用」再点「重启」。";
+
+    public bool HasSkippedAxes => _server.SkippedAxes.Count > 0;
 
     public string StatusText => _server.IsRunning
         ? $"运行中　{_server.ListenAddress}　设备名：{_server.DeviceName}　客户端：{ClientCount}"
@@ -100,6 +106,8 @@ internal sealed class ButtplugServerSettingsViewModel : Screen, IHandle<Settings
         NotifyOfPropertyChange(nameof(LastCommand));
         NotifyOfPropertyChange(nameof(LastError));
         NotifyOfPropertyChange(nameof(ActuatorSummary));
+        NotifyOfPropertyChange(nameof(SkippedWarning));
+        NotifyOfPropertyChange(nameof(HasSkippedAxes));
         NotifyOfPropertyChange(nameof(StatusText));
     }
 

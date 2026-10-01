@@ -14,13 +14,15 @@ internal interface IButtplugAxisSink
     IReadOnlyList<ButtplugActuator> Actuators { get; }
     bool HasTakenOverAxes { get; }
 
+    /// <summary>配置里写了、但没能暴露出去的轴名（通常是没在「设置 → 设备」里启用）。</summary>
+    IReadOnlyList<string> SkippedAxes { get; }
+
     void Configure(ButtplugServerOptions options);
     bool ApplyLinear(int index, double position, double durationSeconds);
     bool ApplyRotate(int index, double speed, bool clockwise);
     bool ApplyScalar(int index, double value);
     void ReleaseAll();
 }
-
 /// <summary>
 /// 把 Buttplug 指令落到 MultiFunPlayer 的轴管线上。
 /// <br/>
@@ -42,21 +44,26 @@ internal sealed class ButtplugDeviceBridge(ScriptViewModel script) : IButtplugAx
     public IReadOnlyList<ButtplugActuator> Actuators { get; private set; } = [];
     public bool HasTakenOverAxes => _takenOver.Count > 0;
 
+    /// <summary>配置里写了、但没能暴露出去的轴名（通常是没在「设置 → 设备」里启用）。</summary>
+    public IReadOnlyList<string> SkippedAxes { get; private set; } = [];
+
     public void Configure(ButtplugServerOptions options)
     {
         DeviceName = string.IsNullOrWhiteSpace(options.DeviceName) ? "OSR" : options.DeviceName.Trim();
         _autoTakeover = options.AutoTakeover;
 
         var actuators = new List<ButtplugActuator>();
+        var skipped = new List<string>();
         var linearIndex = 0;
         var rotateIndex = 0;
         var scalarIndex = 0;
 
         foreach (var name in options.ExposedAxes)
         {
+            // DeviceAxis.All 只包含「设置 → 设备」里启用过的轴，所以禁用的轴会走到这里
             if (!DeviceAxis.TryParse(name, out var axis))
             {
-                Logger.Warn("Buttplug 服务器：跳过未知的轴 \"{0}\"", name);
+                skipped.Add(name);
                 continue;
             }
 
@@ -80,8 +87,15 @@ internal sealed class ButtplugDeviceBridge(ScriptViewModel script) : IButtplugAx
         }
 
         Actuators = actuators;
+        SkippedAxes = skipped;
         Logger.Info("Buttplug 服务器暴露的轴：{0}",
             actuators.Count == 0 ? "（无）" : string.Join("、", actuators.Select(a => $"{a.Axis.Name}={a.Kind}#{a.Index}")));
+
+        if (skipped.Count > 0)
+        {
+            Logger.Warn("Buttplug 服务器：这些轴没能暴露（没在「设置 → 设备」里启用）：{0}",
+                string.Join("、", skipped));
+        }
     }
 
     /// <summary>位置指令：LinearCmd 的 Vectors。</summary>
