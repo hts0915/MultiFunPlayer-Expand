@@ -7,6 +7,7 @@ using MultiFunPlayer.Shortcut;
 using Newtonsoft.Json.Linq;
 using NLog;
 using Stylet;
+using StyletIoC;
 using System.Net;
 using SerialPortInfo = MultiFunPlayer.OutputTarget.ViewModels.SerialOutputTarget.SerialPortInfo;
 
@@ -31,6 +32,9 @@ internal sealed class OutputTargetViewModel : Conductor<IOutputTarget>.Collectio
     private SemaphoreSlim _scanIntervalSemaphore;
 
     public List<Type> AvailableOutputTargetTypes { get; }
+
+    /// <summary>Buttplug 服务器：在「输出目标」面板里就能开关（详细设置在「设置 → Buttplug」）。</summary>
+    [Inject] public ButtplugServerSettingsViewModel ButtplugServer { get; set; }
 
     public bool ContentVisible { get; set; }
     public int ScanDelay { get; set; } = 2500;
@@ -346,6 +350,9 @@ internal sealed class OutputTargetViewModel : Conductor<IOutputTarget>.Collectio
 
     /// <summary>「启动连接」页的「自动探测设备地址」按钮：扫描局域网找设备并填回设置。</summary>
     public void Handle(DetectWifiDeviceMessage message) => _ = DetectWifiDeviceAsync();
+
+    /// <summary>「输出目标」面板上的 Buttplug 服务器「重启」按钮。</summary>
+    public void OnRestartButtplugServer() => ButtplugServer?.OnRestart();
 
     private async Task DetectWifiDeviceAsync()
     {

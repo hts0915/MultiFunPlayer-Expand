@@ -4,6 +4,7 @@ using MultiFunPlayer.Settings;
 using Newtonsoft.Json.Linq;
 using NLog;
 using Stylet;
+using StyletIoC;
 
 namespace MultiFunPlayer.UI.Controls.ViewModels;
 
@@ -17,7 +18,14 @@ internal sealed class ButtplugServerSettingsViewModel : Screen, IHandle<Settings
 {
     private static Logger Logger { get; } = LogManager.GetCurrentClassLogger();
 
-    private readonly ButtplugServer _server;
+    private readonly IContainer _container;
+    private ButtplugServer _server;
+
+    /// <summary>
+    /// 服务器延迟到真正启动时才创建：这样本页的构造不依赖 <see cref="ScriptViewModel"/>，
+    /// 被「输出目标」面板引用时不会影响那边的初始化顺序。
+    /// </summary>
+    private ButtplugServer Server => _server ??= new ButtplugServer(new ButtplugDeviceBridge(_container.Get<ScriptViewModel>()));
 
     public bool Enabled { get; set; } = false;
     public int Port { get; set; } = ButtplugProtocol.DefaultPort;
@@ -28,31 +36,38 @@ internal sealed class ButtplugServerSettingsViewModel : Screen, IHandle<Settings
     public int IdleRestoreSeconds { get; set; } = 3;
     public bool ForceCompat { get; set; } = false;
 
-    public bool IsRunning => _server.IsRunning;
-    public int ClientCount => _server.ClientCount;
-    public string ListenAddress => _server.ListenAddress;
-    public string LastCommand => _server.LastCommand;
-    public string LastError => _server.LastError;
+    public bool IsRunning => _server?.IsRunning ?? false;
+    public int ClientCount => _server?.ClientCount ?? 0;
+    public string ListenAddress => _server?.ListenAddress ?? $"ws://127.0.0.1:{Port}";
+    public string LastCommand => _server?.LastCommand;
+    public string LastError => _server?.LastError;
 
-    public string ActuatorSummary => _server.Actuators.Count == 0
+    public string ActuatorSummary => _server == null || _server.Actuators.Count == 0
         ? "（还没有暴露任何轴）"
         : string.Join("、", _server.Actuators.Select(a => $"{a.Axis.Name}（{(a.Kind == ButtplugActuatorKind.Linear ? "位置" : a.Kind == ButtplugActuatorKind.Rotate ? "旋转" : "振动")} #{a.Index}）"));
 
-    public string SkippedWarning => _server.SkippedAxes.Count == 0
+    public string SkippedWarning => _server == null || _server.SkippedAxes.Count == 0
         ? string.Empty
         : $"⚠ 这些轴没能暴露：{string.Join("、", _server.SkippedAxes)} —— 它们没在「设置 → 设备」里启用，请先在那里勾上「启用」再点「重启」。";
 
-    public bool HasSkippedAxes => _server.SkippedAxes.Count > 0;
+    public bool HasSkippedAxes => _server != null && _server.SkippedAxes.Count > 0;
 
-    public string StatusText => _server.IsRunning
-        ? $"运行中　{_server.ListenAddress}　设备名：{_server.DeviceName}　客户端：{ClientCount}"
-        : string.IsNullOrEmpty(_server.LastError) ? "未运行" : $"未运行（上次启动失败：{_server.LastError}）";
+    public string StatusText
+    {
+        get
+        {
+            if (_server == null)
+                return "未启动";
+            if (_server.IsRunning)
+                return $"运行中　{_server.ListenAddress}　设备名：{_server.DeviceName}　客户端：{ClientCount}";
+            return string.IsNullOrEmpty(_server.LastError) ? "未运行" : $"未运行（上次启动失败：{_server.LastError}）";
+        }
+    }
 
-    public ButtplugServerSettingsViewModel(ScriptViewModel script, IEventAggregator eventAggregator)
+    public ButtplugServerSettingsViewModel(IContainer container, IEventAggregator eventAggregator)
     {
         DisplayName = "Buttplug";
-        _server = new ButtplugServer(new ButtplugDeviceBridge(script));
-        _server.StatusChanged += () => Execute.OnUIThread(RefreshStatus);
+        _container = container;
         eventAggregator.Subscribe(this);
     }
 
@@ -76,15 +91,21 @@ internal sealed class ButtplugServerSettingsViewModel : Screen, IHandle<Settings
 
     private void Start()
     {
-        _server.Start(BuildOptions());
+        var server = Server;
+        server.StatusChanged -= HandleServerStatusChanged;
+        server.StatusChanged += HandleServerStatusChanged;
+        server.Start(BuildOptions());
         RefreshStatus();
     }
 
     private void Stop()
     {
-        _server.Stop();
+        _server?.Stop();
         RefreshStatus();
     }
+
+    // 名字别叫 OnXxxChanged：Fody 会当成属性变更回调而报警告
+    private void HandleServerStatusChanged() => Execute.OnUIThread(RefreshStatus);
 
     private ButtplugServerOptions BuildOptions() => new(
         Math.Clamp(Port, 1, 65535),

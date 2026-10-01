@@ -194,6 +194,36 @@
                     </DataTemplate>
                 </controls:NonReloadingTabControl.AdditionalPanelContent>
             </controls:NonReloadingTabControl>
+
+            <!-- Buttplug 服务器：让游戏 / Virt-A-Mate 这类支持 Buttplug 的外部软件驱动设备。
+                 开关和状态放在这里（连接设备的地方）一起管；端口、暴露的轴等详细设置在「设置 → Buttplug」 -->
+            <Border Margin="10 0 10 10"
+                    Padding="10 6 10 6"
+                    Background="{DynamicResource MaterialDesignToolBarBackground}"
+                    CornerRadius="4">
+                <DockPanel LastChildFill="True">
+                    <CheckBox DockPanel.Dock="Left"
+                              VerticalAlignment="Center"
+                              Content="Buttplug 服务器"
+                              IsChecked="{Binding ButtplugServer.Enabled}"
+                              ToolTip="让支持 Buttplug 的外部软件（游戏、Virt-A-Mate 等）连接 ws://127.0.0.1:12345 来驱动设备。端口、设备名、暴露给客户端的轴等详细设置在「设置 → Buttplug」里；勾选即启动，取消即停止。"/>
+                    <Button DockPanel.Dock="Right"
+                            MinWidth="60"
+                            Margin="8 0 0 0"
+                            VerticalAlignment="Center"
+                            Style="{StaticResource MaterialDesignFlatButton}"
+                            Click="{s:Action OnRestartButtplugServer}"
+                            Content="重启"
+                            ToolTip="改了端口 / 暴露的轴之后点这里让服务器重新读设置"/>
+                    <TextBlock Margin="10 0 0 0"
+                               VerticalAlignment="Center"
+                               FontSize="12"
+                               Opacity="0.75"
+                               Text="{Binding ButtplugServer.StatusText, Mode=OneWay}"
+                               TextTrimming="CharacterEllipsis"
+                               ToolTip="{Binding ButtplugServer.ActuatorSummary, Mode=OneWay}"/>
+                </DockPanel>
+            </Border>
         </StackPanel>
     </material:Card>
 </UserControl>
