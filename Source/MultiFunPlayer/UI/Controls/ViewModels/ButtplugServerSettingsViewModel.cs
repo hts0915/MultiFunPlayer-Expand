@@ -20,6 +20,7 @@ internal sealed class ButtplugServerSettingsViewModel : Screen, IHandle<Settings
 
     private readonly IContainer _container;
     private ButtplugServer _server;
+    private bool _loading;
 
     /// <summary>
     /// 服务器延迟到真正启动时才创建：这样本页的构造不依赖 <see cref="ScriptViewModel"/>，
@@ -74,6 +75,12 @@ internal sealed class ButtplugServerSettingsViewModel : Screen, IHandle<Settings
     /// <summary>设置里的开关一动就立刻生效（启用即启动，关闭即停止）。</summary>
     public void OnEnabledChanged()
     {
+        // 加载设置期间绝不能启动：Loading 是按字段逐个赋值的，而 Enabled 排在 ExposedAxes / Port
+        // 等字段前面 —— 那时候启动只会用到默认值（暴露的轴只剩默认的 L0），
+        // 表现就是"设了六个轴，重启后又只剩 L0"。加载完再统一启动。
+        if (_loading)
+            return;
+
         if (Enabled)
             Start();
         else
@@ -154,25 +161,37 @@ internal sealed class ButtplugServerSettingsViewModel : Screen, IHandle<Settings
         }
         else if (message.Action == SettingsAction.Loading)
         {
-            if (!settings.TryGetObject(out var server, "ButtplugServer"))
-                return;
+            _loading = true;
+            try
+            {
+                if (settings.TryGetObject(out var server, "ButtplugServer"))
+                {
+                    if (server.TryGetValue<bool>(nameof(Enabled), out var enabled))
+                        Enabled = enabled;
+                    if (server.TryGetValue<int>(nameof(Port), out var port))
+                        Port = port;
+                    if (server.TryGetValue<string>(nameof(ServerName), out var serverName))
+                        ServerName = serverName;
+                    if (server.TryGetValue<string>(nameof(DeviceName), out var deviceName))
+                        DeviceName = deviceName;
+                    if (server.TryGetValue<string>(nameof(ExposedAxes), out var exposedAxes))
+                        ExposedAxes = exposedAxes;
+                    if (server.TryGetValue<bool>(nameof(AutoTakeover), out var autoTakeover))
+                        AutoTakeover = autoTakeover;
+                    if (server.TryGetValue<int>(nameof(IdleRestoreSeconds), out var idleRestoreSeconds))
+                        IdleRestoreSeconds = idleRestoreSeconds;
+                    if (server.TryGetValue<bool>(nameof(ForceCompat), out var forceCompat))
+                        ForceCompat = forceCompat;
+                }
+            }
+            finally
+            {
+                _loading = false;
+            }
 
-            if (server.TryGetValue<bool>(nameof(Enabled), out var enabled))
-                Enabled = enabled;
-            if (server.TryGetValue<int>(nameof(Port), out var port))
-                Port = port;
-            if (server.TryGetValue<string>(nameof(ServerName), out var serverName))
-                ServerName = serverName;
-            if (server.TryGetValue<string>(nameof(DeviceName), out var deviceName))
-                DeviceName = deviceName;
-            if (server.TryGetValue<string>(nameof(ExposedAxes), out var exposedAxes))
-                ExposedAxes = exposedAxes;
-            if (server.TryGetValue<bool>(nameof(AutoTakeover), out var autoTakeover))
-                AutoTakeover = autoTakeover;
-            if (server.TryGetValue<int>(nameof(IdleRestoreSeconds), out var idleRestoreSeconds))
-                IdleRestoreSeconds = idleRestoreSeconds;
-            if (server.TryGetValue<bool>(nameof(ForceCompat), out var forceCompat))
-                ForceCompat = forceCompat;
+            // 所有字段都读完了才启动，否则会用到默认值（暴露的轴默认只有 L0）
+            if (Enabled)
+                Start();
         }
     }
 
