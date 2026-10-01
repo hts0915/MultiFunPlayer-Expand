@@ -21,6 +21,7 @@ internal sealed class ButtplugServerSettingsViewModel : Screen, IHandle<Settings
     private readonly IContainer _container;
     private ButtplugServer _server;
     private bool _loading;
+    private bool _dirty;
 
     /// <summary>
     /// 服务器延迟到真正启动时才创建：这样本页的构造不依赖 <see cref="ScriptViewModel"/>，
@@ -60,9 +61,27 @@ internal sealed class ButtplugServerSettingsViewModel : Screen, IHandle<Settings
             if (_server == null)
                 return "未启动";
             if (_server.IsRunning)
-                return $"运行中　{_server.ListenAddress}　设备名：{_server.DeviceName}　客户端：{ClientCount}";
+                return $"运行中　{_server.ListenAddress}　设备名：{_server.DeviceName}　客户端：{ClientCount}{(_dirty ? "　⚠ 设置已改，点「重启」生效" : string.Empty)}";
             return string.IsNullOrEmpty(_server.LastError) ? "未运行" : $"未运行（上次启动失败：{_server.LastError}）";
         }
+    }
+
+    // 端口 / 设备名 / 暴露的轴等改动不会立即生效，标记一下让状态栏提示去点「重启」
+    public void OnPortChanged() => MarkDirty();
+    public void OnServerNameChanged() => MarkDirty();
+    public void OnDeviceNameChanged() => MarkDirty();
+    public void OnExposedAxesChanged() => MarkDirty();
+    public void OnAutoTakeoverChanged() => MarkDirty();
+    public void OnIdleRestoreSecondsChanged() => MarkDirty();
+    public void OnForceCompatChanged() => MarkDirty();
+
+    private void MarkDirty()
+    {
+        if (_loading || !IsRunning || _dirty)
+            return;
+
+        _dirty = true;
+        NotifyOfPropertyChange(nameof(StatusText));
     }
 
     public ButtplugServerSettingsViewModel(IContainer container, IEventAggregator eventAggregator)
@@ -102,12 +121,14 @@ internal sealed class ButtplugServerSettingsViewModel : Screen, IHandle<Settings
         server.StatusChanged -= HandleServerStatusChanged;
         server.StatusChanged += HandleServerStatusChanged;
         server.Start(BuildOptions());
+        _dirty = false;
         RefreshStatus();
     }
 
     private void Stop()
     {
         _server?.Stop();
+        _dirty = false;
         RefreshStatus();
     }
 
