@@ -133,6 +133,25 @@
                            Text="秒"/>
             </DockPanel>
 
+            <DockPanel Margin="0 0 0 4" LastChildFill="False">
+                <TextBlock DockPanel.Dock="Left"
+                           MinWidth="150"
+                           VerticalAlignment="Center"
+                           Text="强制兼容形态："/>
+
+                <CheckBox DockPanel.Dock="Left"
+                          VerticalAlignment="Center"
+                          IsChecked="{Binding ForceCompat}"/>
+            </DockPanel>
+
+            <TextBlock MaxWidth="470"
+                       Margin="0 0 0 8"
+                       HorizontalAlignment="Left"
+                       FontSize="12"
+                       Opacity="0.7"
+                       TextWrapping="Wrap"
+                       Text="能力描述有两种形态：标准形态是 Buttplug v3 规范（给 VAM 等按规范实现的库用），兼容形态把 LinearCmd 也写成执行器数组并带上 FeatureDescriptor / DeviceDisplayName（Beat Banger 这类自写客户端只认这种，否则会闪退）。程序会按客户端名字自动识别（bbfh-client 等），这里勾上则对所有客户端都用兼容形态。"/>
+
             <Border Margin="0 0 0 10"
                     Padding="10 8 10 8"
                     Background="{DynamicResource MaterialDesignToolBarBackground}"

@@ -372,9 +372,13 @@ internal sealed class ButtplugServer : IDisposable
                     var requested = body.Value<uint?>("MessageVersion") ?? ButtplugProtocol.MessageVersion;
                     client.MessageVersion = (int)Math.Clamp(requested, 1, ButtplugProtocol.MessageVersion);
 
-                    // 这条最关键：日志里能看到游戏请求的是哪个协议版本
-                    Logger.Info("Buttplug 客户端握手 [名称: {0}, 地址: {1}, 请求协议版本: v{2} → 使用 v{3}]",
-                        client.Name ?? "(未提供)", client.Remote, requested, client.MessageVersion);
+                    // 自写客户端（例如 Beat Banger 的 bbfh-client）只认"兼容形态"的能力描述，
+                    // 用标准形态它会崩（它会无脑遍历 LinearCmd / RotateCmd / ScalarCmd）
+                    client.Compat = _options.ForceCompat || ButtplugProtocol.IsCompatClient(client.Name);
+
+                    Logger.Info("Buttplug 客户端握手 [名称: {0}, 地址: {1}, 请求协议版本: v{2} → 使用 v{3}, 能力描述: {4}]",
+                        client.Name ?? "(未提供)", client.Remote, requested, client.MessageVersion,
+                        client.Compat ? "兼容形态" : "标准形态");
 
                     responses.Add(ButtplugProtocol.ServerInfo(id, _options.ServerName, client.MessageVersion));
                     break;
@@ -386,7 +390,7 @@ internal sealed class ButtplugServer : IDisposable
 
             case "StartScanning":
                 responses.Add(ButtplugProtocol.Ok(id));
-                responses.Add(ButtplugProtocol.DeviceAdded(_bridge.DeviceName, _bridge.Actuators, client.MessageVersion));
+                responses.Add(ButtplugProtocol.DeviceAdded(_bridge.DeviceName, _bridge.Actuators, client.MessageVersion, client.Compat));
                 responses.Add(ButtplugProtocol.ScanningFinished());
                 break;
 
@@ -395,7 +399,7 @@ internal sealed class ButtplugServer : IDisposable
                 break;
 
             case "RequestDeviceList":
-                responses.Add(ButtplugProtocol.DeviceList(id, _bridge.DeviceName, _bridge.Actuators, client.MessageVersion));
+                responses.Add(ButtplugProtocol.DeviceList(id, _bridge.DeviceName, _bridge.Actuators, client.MessageVersion, client.Compat));
                 break;
 
             case "StopAllDevices":
@@ -450,8 +454,10 @@ internal sealed class ButtplugServer : IDisposable
                 break;
 
             case "RotateCmd":
-                // 没有旋转型执行器（TCode 的 R 轴是位置型，按 LinearCmd 暴露），确认即可
-                responses.Add(ButtplugProtocol.Ok(id));
+                if (!CheckDeviceIndex(body, id, responses))
+                    return;
+
+                HandleRotate(body, id, responses);
                 break;
 
             case "RequestLog":
@@ -521,8 +527,29 @@ internal sealed class ButtplugServer : IDisposable
         responses.Add(ButtplugProtocol.Ok(id));
     }
 
-    private void HandleVibrate(JObject body, uint id, List<JObject> responses)
+    private void HandleRotate(JObject body, uint id, List<JObject> responses)
     {
+        var rotations = body["Rotations"] as JArray ?? [];
+        foreach (var rotation in rotations.OfType<JObject>())
+        {
+            var index = (int)(rotation.Value<uint?>("Index") ?? 0);
+            var speed = rotation.Value<double?>("Speed") ?? double.NaN;
+            var clockwise = rotation.Value<bool?>("Clockwise") ?? true;
+
+            if (!double.IsFinite(speed))
+                continue;
+
+            if (_bridge.ApplyRotate(index, speed, clockwise))
+            {
+                LastCommand = $"RotateCmd #{index} → {speed:0.###}（{(clockwise ? "顺时针" : "逆时针")}）";
+                Interlocked.Exchange(ref _lastCommandTick, Environment.TickCount64);
+            }
+        }
+
+        responses.Add(ButtplugProtocol.Ok(id));
+    }
+
+    private void HandleVibrate(JObject body, uint id, List<JObject> responses)    {
         var speeds = body["Speeds"] as JArray ?? [];
         foreach (var speed in speeds.OfType<JObject>())
         {
@@ -600,6 +627,7 @@ internal sealed class ButtplugServer : IDisposable
         public WebSocket Socket { get; set; }
         public int MessageVersion { get; set; } = ButtplugProtocol.MessageVersion;
         public string Name { get; set; }
+        public bool Compat { get; set; }
         public bool LoggedFirstCommand { get; set; }
     }
 }

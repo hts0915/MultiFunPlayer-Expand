@@ -26,6 +26,7 @@ internal sealed class ButtplugServerSettingsViewModel : Screen, IHandle<Settings
     public string ExposedAxes { get; set; } = "L0";
     public bool AutoTakeover { get; set; } = true;
     public int IdleRestoreSeconds { get; set; } = 3;
+    public bool ForceCompat { get; set; } = false;
 
     public bool IsRunning => _server.IsRunning;
     public int ClientCount => _server.ClientCount;
@@ -88,7 +89,8 @@ internal sealed class ButtplugServerSettingsViewModel : Screen, IHandle<Settings
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList(),
         AutoTakeover,
-        Math.Clamp(IdleRestoreSeconds, 1, 60));
+        Math.Clamp(IdleRestoreSeconds, 1, 60),
+        ForceCompat);
 
     private void RefreshStatus()
     {
@@ -118,6 +120,7 @@ internal sealed class ButtplugServerSettingsViewModel : Screen, IHandle<Settings
                 [nameof(ExposedAxes)] = ExposedAxes,
                 [nameof(AutoTakeover)] = AutoTakeover,
                 [nameof(IdleRestoreSeconds)] = IdleRestoreSeconds,
+                [nameof(ForceCompat)] = ForceCompat,
             };
         }
         else if (message.Action == SettingsAction.Loading)
@@ -139,6 +142,8 @@ internal sealed class ButtplugServerSettingsViewModel : Screen, IHandle<Settings
                 AutoTakeover = autoTakeover;
             if (server.TryGetValue<int>(nameof(IdleRestoreSeconds), out var idleRestoreSeconds))
                 IdleRestoreSeconds = idleRestoreSeconds;
+            if (server.TryGetValue<bool>(nameof(ForceCompat), out var forceCompat))
+                ForceCompat = forceCompat;
         }
     }
 

@@ -16,6 +16,7 @@ internal interface IButtplugAxisSink
 
     void Configure(ButtplugServerOptions options);
     bool ApplyLinear(int index, double position, double durationSeconds);
+    bool ApplyRotate(int index, double speed, bool clockwise);
     bool ApplyScalar(int index, double value);
     void ReleaseAll();
 }
@@ -33,6 +34,7 @@ internal sealed class ButtplugDeviceBridge(ScriptViewModel script) : IButtplugAx
 
     private readonly ScriptViewModel _script = script;
     private readonly Dictionary<DeviceAxis, AxisBypassState> _takenOver = [];
+    private readonly Dictionary<DeviceAxis, double> _rotateDirection = [];
 
     private bool _autoTakeover;
 
@@ -40,12 +42,14 @@ internal sealed class ButtplugDeviceBridge(ScriptViewModel script) : IButtplugAx
     public IReadOnlyList<ButtplugActuator> Actuators { get; private set; } = [];
     public bool HasTakenOverAxes => _takenOver.Count > 0;
 
-    public void Configure(ButtplugServerOptions options)    {
+    public void Configure(ButtplugServerOptions options)
+    {
         DeviceName = string.IsNullOrWhiteSpace(options.DeviceName) ? "OSR" : options.DeviceName.Trim();
         _autoTakeover = options.AutoTakeover;
 
         var actuators = new List<ButtplugActuator>();
         var linearIndex = 0;
+        var rotateIndex = 0;
         var scalarIndex = 0;
 
         foreach (var name in options.ExposedAxes)
@@ -59,15 +63,20 @@ internal sealed class ButtplugDeviceBridge(ScriptViewModel script) : IButtplugAx
             if (actuators.Any(a => a.Axis == axis))
                 continue;
 
-            // L* / R* 是位置型轴（LinearCmd：位置 + 时长）；V* / A* 是强度型轴（ScalarCmd 的 Vibrate）
-            var kind = axis.Name.StartsWith("L", StringComparison.OrdinalIgnoreCase)
-                    || axis.Name.StartsWith("R", StringComparison.OrdinalIgnoreCase)
-                     ? ButtplugActuatorKind.Linear
-                     : ButtplugActuatorKind.Scalar;
+            // L* 位置（LinearCmd）、R* 旋转（RotateCmd）、V*/A* 强度（ScalarCmd 的 Vibrate）
+            var kind = axis.Name.ToUpperInvariant() switch
+            {
+                var n when n.StartsWith('L') => ButtplugActuatorKind.Linear,
+                var n when n.StartsWith('R') => ButtplugActuatorKind.Rotate,
+                _ => ButtplugActuatorKind.Scalar,
+            };
 
-            actuators.Add(kind == ButtplugActuatorKind.Linear
-                ? new ButtplugActuator(axis, kind, linearIndex++)
-                : new ButtplugActuator(axis, kind, scalarIndex++));
+            actuators.Add(kind switch
+            {
+                ButtplugActuatorKind.Linear => new ButtplugActuator(axis, kind, linearIndex++),
+                ButtplugActuatorKind.Rotate => new ButtplugActuator(axis, kind, rotateIndex++),
+                _ => new ButtplugActuator(axis, kind, scalarIndex++),
+            });
         }
 
         Actuators = actuators;
@@ -83,6 +92,30 @@ internal sealed class ButtplugDeviceBridge(ScriptViewModel script) : IButtplugAx
 
         TakeOver(actuator.Axis);
         _script.SetAxisTransition(actuator.Axis, MathUtils.Clamp01(position), Math.Max(durationSeconds, 0));
+        return true;
+    }
+
+    /// <summary>
+    /// 旋转指令：Buttplug 的 RotateCmd 是"转速 + 方向"，而 TCode 的 R 轴是位置型，
+    /// 所以折中成来回摆动：幅度和时长按转速折算，方向决定先往哪边。
+    /// </summary>
+    public bool ApplyRotate(int index, double speed, bool clockwise)
+    {
+        if (!TryGetActuator(ButtplugActuatorKind.Rotate, index, out var actuator))
+            return false;
+
+        TakeOver(actuator.Axis);
+
+        _rotateDirection.TryGetValue(actuator.Axis, out var direction);
+        direction = direction >= 0 ? -1 : 1;
+        _rotateDirection[actuator.Axis] = direction;
+
+        var speed01 = MathUtils.Clamp01(speed);
+        var side = direction * (clockwise ? 1 : -1);
+        var target = MathUtils.Clamp01(0.5 + 0.5 * speed01 * side);
+        var duration = Math.Max(0.08, 0.6 - 0.5 * speed01);
+
+        _script.SetAxisTransition(actuator.Axis, target, duration);
         return true;
     }
 

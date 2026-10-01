@@ -62,6 +62,7 @@
 * 端口默认 `12345`（Buttplug / Intiface 的默认值）。如果同时开着 Intiface Central 会**端口冲突**，在设置里改一个端口即可。
 * 「**暴露给客户端的轴**」用逗号分隔，按顺序映射成位置执行器（`L` / `R` 开头的轴，用 `LinearCmd`）或振动执行器（`V` / `A` 开头的轴，用 `ScalarCmd`）。默认只暴露 `L0`，兼容性最好。
 * 「**外部控制时自动接管**」打开时，收到外部指令会暂时绕过脚本与运动提供器，避免两边打架；外部软件停止 / 断开 / 空闲超过设定秒数后自动交还。
+* **自写客户端兼容**：能力描述默认按 Buttplug v3 规范发送；客户端名字命中已知的自写客户端（`bbfh-client` 等）时自动改用「兼容形态」（`LinearCmd` 也写成执行器数组并带 `FeatureDescriptor` / `DeviceDisplayName`）。也可以用「强制兼容形态」对所有客户端启用 —— Beat Banger 这类自写客户端只认兼容形态，用标准形态会直接闪退。
 * 想先验证一下，可以用仓库里的 `_devnotes/buttplug-client-test.ps1`（纯 PowerShell，不需要 VAM）：
 
   ```powershell

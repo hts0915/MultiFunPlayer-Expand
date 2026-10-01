@@ -10,8 +10,16 @@ namespace MultiFunPlayer.Buttplug;
 /// 规范允许一帧里放多条，但真正的 Intiface 是**一条一帧**发送的；有些软件只读一帧里的第一条，
 /// 所以这里也按一条一帧发（见 <see cref="ButtplugServer"/>）。
 /// <br/>
-/// 同时兼容 v1/v2 客户端：它们用 <c>VibrateCmd</c> / <c>SingleMotorVibrateCmd</c> 之类的旧消息名，
-/// 设备能力描述也不一样（<c>VibrateCmd.FeatureCount</c> 而不是 <c>ScalarCmd</c> 数组）。
+/// 关于能力描述（DeviceMessages）有两种形态：
+/// <list type="bullet">
+/// <item>标准：<c>LinearCmd</c> 是对象 <c>{StepCount:[...]}</c>，<c>RotateCmd</c>/<c>ScalarCmd</c> 是执行器数组
+/// —— 遵守 Buttplug v3 规范的库（VAM / buttplug-rs / buttplug-js）用这个。</item>
+/// <item>兼容：<c>LinearCmd</c> 也变成执行器数组，并带上 <c>ActuatorType</c> / <c>FeatureDescriptor</c>，
+/// 设备层再加 <c>DeviceDisplayName</c> / <c>DeviceMessageTimingGap</c>
+/// —— 实测 Beat Banger 的自写客户端（bbfh-client）只认这一种，用标准形态会直接崩，
+/// 因为它会无脑遍历 LinearCmd / RotateCmd / ScalarCmd 三个键。</item>
+/// </list>
+/// 两种形态都保证这三个键存在（哪怕是空数组），避免客户端遍历到 null。
 /// </summary>
 internal static class ButtplugProtocol
 {
@@ -29,6 +37,13 @@ internal static class ButtplugProtocol
     public const int ErrorPing = 3;
     public const int ErrorMessage = 4;
     public const int ErrorDevice = 5;
+
+    /// <summary>只会说"兼容形态"的自写客户端（按名字模糊匹配，不区分大小写）。</summary>
+    private static readonly string[] CompatClientNames = ["bbfh", "beat banger"];
+
+    public static bool IsCompatClient(string clientName)
+        => !string.IsNullOrEmpty(clientName)
+        && CompatClientNames.Any(name => clientName.Contains(name, StringComparison.OrdinalIgnoreCase));
 
     public static JObject Ok(uint id) => Message("Ok", new JObject { ["Id"] = id });
     public static JObject Error(uint id, int code, string message) => Message("Error", new JObject
@@ -52,48 +67,66 @@ internal static class ButtplugProtocol
     public static JObject ScanningFinished() => Message("ScanningFinished", new JObject { ["Id"] = 0 });
 
     /// <summary>DeviceAdded / DeviceList 里描述一台设备的内容。</summary>
-    public static JObject DeviceInfo(string deviceName, IReadOnlyCollection<ButtplugActuator> actuators, int messageVersion)
+    public static JObject DeviceInfo(string deviceName, IReadOnlyCollection<ButtplugActuator> actuators, int messageVersion, bool compat)
     {
-        var linearCount = actuators.Count(a => a.Kind == ButtplugActuatorKind.Linear);
-        var scalarCount = actuators.Count(a => a.Kind == ButtplugActuatorKind.Scalar);
+        var linear = actuators.Where(a => a.Kind == ButtplugActuatorKind.Linear).OrderBy(a => a.Index).ToList();
+        var rotate = actuators.Where(a => a.Kind == ButtplugActuatorKind.Rotate).OrderBy(a => a.Index).ToList();
+        var scalar = actuators.Where(a => a.Kind == ButtplugActuatorKind.Scalar).OrderBy(a => a.Index).ToList();
 
         var messages = new JObject();
-        if (linearCount > 0)
+
+        // LinearCmd：标准形态是对象，兼容形态是执行器数组
+        if (compat)
+        {
+            messages["LinearCmd"] = new JArray(linear.Select(a => Feature(a, "Position")));
+        }
+        else if (linear.Count > 0)
         {
             messages["LinearCmd"] = new JObject
             {
-                ["StepCount"] = new JArray(Enumerable.Repeat(100, linearCount)),
+                ["StepCount"] = new JArray(Enumerable.Repeat(100, linear.Count)),
             };
         }
 
-        if (scalarCount > 0)
+        // 这两个在规范里本来就是执行器数组；兼容形态只是多带 ActuatorType / FeatureDescriptor
+        messages["RotateCmd"] = new JArray(rotate.Select(a => Feature(a, "Rotate")));
+        messages["ScalarCmd"] = new JArray(scalar.Select(a => Feature(a, "Vibrate")));
+
+        if (messageVersion < 3 && scalar.Count > 0)
         {
-            if (messageVersion >= 3)
-            {
-                messages["ScalarCmd"] = new JArray(Enumerable.Repeat<object>(
-                    new JObject { ["StepCount"] = 100, ["ActuatorType"] = "Vibrate" }, scalarCount));
-            }
-            else
-            {
-                // v1/v2 没有 ScalarCmd，用 VibrateCmd + FeatureCount
-                messages["VibrateCmd"] = new JObject { ["FeatureCount"] = scalarCount };
-                messages["SingleMotorVibrateCmd"] = new JObject();
-            }
+            messages["VibrateCmd"] = new JObject { ["FeatureCount"] = scalar.Count };
+            messages["SingleMotorVibrateCmd"] = new JObject();
         }
 
         messages["StopDeviceCmd"] = new JObject();
 
-        return new JObject
+        var device = new JObject
         {
             ["Id"] = 0,
             ["DeviceName"] = deviceName,
             ["DeviceIndex"] = 0,
             ["DeviceMessages"] = messages,
         };
+
+        if (compat)
+        {
+            // Beat Banger 的自写客户端会直接读这两个字段
+            device["DeviceDisplayName"] = $"{deviceName}/SR6 (TCode v3)";
+            device["DeviceMessageTimingGap"] = 0;
+        }
+
+        return device;
+
+        static JObject Feature(ButtplugActuator actuator, string actuatorType) => new()
+        {
+            ["ActuatorType"] = actuatorType,
+            ["FeatureDescriptor"] = $"{actuator.Axis.FriendlyName} ({actuator.Axis.Name})",
+            ["StepCount"] = 100,
+        };
     }
 
-    public static JObject DeviceAdded(string deviceName, IReadOnlyCollection<ButtplugActuator> actuators, int messageVersion)
-        => Message("DeviceAdded", DeviceInfo(deviceName, actuators, messageVersion));
+    public static JObject DeviceAdded(string deviceName, IReadOnlyCollection<ButtplugActuator> actuators, int messageVersion, bool compat)
+        => Message("DeviceAdded", DeviceInfo(deviceName, actuators, messageVersion, compat));
 
     public static JObject DeviceRemoved(int deviceIndex) => Message("DeviceRemoved", new JObject
     {
@@ -101,9 +134,9 @@ internal static class ButtplugProtocol
         ["DeviceIndex"] = deviceIndex,
     });
 
-    public static JObject DeviceList(uint id, string deviceName, IReadOnlyCollection<ButtplugActuator> actuators, int messageVersion)
+    public static JObject DeviceList(uint id, string deviceName, IReadOnlyCollection<ButtplugActuator> actuators, int messageVersion, bool compat)
     {
-        var device = DeviceInfo(deviceName, actuators, messageVersion);
+        var device = DeviceInfo(deviceName, actuators, messageVersion, compat);
         device.Remove("Id");
         return Message("DeviceList", new JObject
         {
@@ -115,10 +148,11 @@ internal static class ButtplugProtocol
     private static JObject Message(string type, JObject body) => new() { [type] = body };
 }
 
-/// <summary>执行器的两类：位置型（LinearCmd）与强度型（振动）。</summary>
+/// <summary>执行器的三类：位置（LinearCmd）、旋转（RotateCmd）、强度（ScalarCmd）。</summary>
 internal enum ButtplugActuatorKind
 {
     Linear,
+    Rotate,
     Scalar,
 }
 
@@ -132,4 +166,5 @@ internal sealed record ButtplugServerOptions(
     string DeviceName,
     IReadOnlyList<string> ExposedAxes,
     bool AutoTakeover,
-    int IdleRestoreSeconds);
+    int IdleRestoreSeconds,
+    bool ForceCompat);
