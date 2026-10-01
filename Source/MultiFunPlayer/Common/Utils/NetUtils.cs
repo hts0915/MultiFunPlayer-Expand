@@ -50,6 +50,26 @@ public static partial class NetUtils
         return endpoint != null;
     }
 
+    /// <summary>把端点解析成 IP（主机名会走 DNS）。解析不出来返回 null。</summary>
+    public static IPAddress ResolveAddress(EndPoint endpoint)
+    {
+        try
+        {
+            return endpoint switch
+            {
+                IPEndPoint ip => ip.Address,
+                DnsEndPoint dns => Dns.GetHostAddresses(dns.Host)
+                                      .FirstOrDefault(a => a.AddressFamily == AddressFamily.InterNetwork)
+                                   ?? Dns.GetHostAddresses(dns.Host).FirstOrDefault(),
+                _ => null,
+            };
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     public static IEnumerable<IPAddress> GetAllLocalAddresses()
         => NetworkInterface.GetAllNetworkInterfaces()
                            .Where(i => i.OperationalStatus == OperationalStatus.Up)

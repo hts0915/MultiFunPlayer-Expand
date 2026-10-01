@@ -351,29 +351,77 @@ internal sealed class OutputTargetViewModel : Conductor<IOutputTarget>.Collectio
             return null;
         }
 
-        var target = GetOrAddWifiTarget(endpoint, _startupConnection.DefaultWifiProtocol, out var created);
+        var protocol = _startupConnection.DefaultWifiProtocol;
+        var endpointText = _startupConnection.DefaultWifiEndpoint;
+        var state = string.Empty;
+
+        if (_startupConnection.WifiProbeEnabled)
+        {
+            var online = TryProbeDevice(endpoint, protocol, out var probeError);
+            if (online)
+            {
+                state = $"，设备在线（{DescribeResolved(endpoint)}）";
+            }
+            else if (endpoint is not DnsEndPoint)
+            {
+                // 配置里写的是数字 IP：设备一换 IP 就失联，而 UDP 是无连接的，
+                // 光看输出目标"已连接"根本发现不了。设备固件支持 mDNS，所以退一步试 tcode.local，
+                // 通了就本次自动改用主机名（不受 DHCP 换址影响）
+                var fallback = new DnsEndPoint("tcode.local", EndpointPort(endpoint));
+                if (TryProbeDevice(fallback, protocol, out _))
+                {
+                    Logger.Info("Startup connection: 原地址 {0} 没响应（{1}），改用 tcode.local", endpointText, probeError);
+                    endpoint = fallback;
+                    endpointText = $"tcode.local:{fallback.Port}";
+                    state = $"，原地址没响应，已自动改用 {DescribeResolved(fallback)}，设备在线";
+
+                    // 顺手把设置里的地址也改成主机名：设备换 IP 也不会再失联
+                    _startupConnection.DefaultWifiEndpoint = endpointText;
+                }
+                else
+                {
+                    state = $"，设备暂时没响应（{probeError}）";
+                }
+            }
+            else if (!NetUtils.IsOnLocalSubnet(endpoint))
+            {
+                state = $"，但设备和电脑不在同一网络（电脑：{NetUtils.DescribeLocalAddresses()}）";
+            }
+            else
+            {
+                state = $"，设备暂时没响应（{probeError}）";
+            }
+
+            Logger.Info("Startup connection: WiFi endpoint {0} probe = {1}", endpointText, state);
+        }
+
+        var target = GetOrAddWifiTarget(endpoint, protocol, out var created);
         if (target == null)
             return null;
 
         SetAutoConnect(target, false);
-        Logger.Info("Startup connection: WiFi target {0} prepared [Endpoint: {1}, New: {2}]", target.Identifier, _startupConnection.DefaultWifiEndpoint, created);
+        Logger.Info("Startup connection: WiFi target {0} prepared [Endpoint: {1}, New: {2}]", target.Identifier, endpointText, created);
 
-        var state = string.Empty;
-        if (_startupConnection.WifiProbeEnabled)
-        {
-            string probeError;
-            var online = _startupConnection.DefaultWifiProtocol == WifiProtocol.Tcp
-                ? TcodeDeviceProbe.TryProbeTcp(endpoint, out _, out probeError)
-                : TcodeDeviceProbe.TryProbeUdp(endpoint, out _, out probeError);
+        return $"WiFi {target.Identifier}（{endpointText}{state}）";
+    }
 
-            state = online ? "，设备在线"
-                  : !NetUtils.IsOnLocalSubnet(endpoint) ? $"，但设备和电脑不在同一网络（电脑：{NetUtils.DescribeLocalAddresses()}）"
-                  : $"，设备暂时没响应（{probeError}）";
+    private static bool TryProbeDevice(EndPoint endpoint, WifiProtocol protocol, out string error)
+        => protocol == WifiProtocol.Tcp
+            ? TcodeDeviceProbe.TryProbeTcp(endpoint, out _, out error)
+            : TcodeDeviceProbe.TryProbeUdp(endpoint, out _, out error);
 
-            Logger.Info("Startup connection: WiFi endpoint {0} probe = {1}", _startupConnection.DefaultWifiEndpoint, state);
-        }
+    private static int EndpointPort(EndPoint endpoint) => endpoint switch
+    {
+        IPEndPoint ip => ip.Port,
+        DnsEndPoint dns => dns.Port,
+        _ => 8000,
+    };
 
-        return $"WiFi {target.Identifier}（{_startupConnection.DefaultWifiEndpoint}{state}）";
+    /// <summary>把端点显示成「地址 → 实际 IP」，方便在提示里看出设备当前在哪。</summary>
+    private static string DescribeResolved(EndPoint endpoint)
+    {
+        var address = NetUtils.ResolveAddress(endpoint);
+        return address == null ? endpoint.ToUriString() : $"{endpoint.ToUriString()} → {address}";
     }
 
     /// <summary>蓝牙用的串口目标：第一个串口目标归数据线，蓝牙用第二个，没有就新建一个（Serial/1）。</summary>

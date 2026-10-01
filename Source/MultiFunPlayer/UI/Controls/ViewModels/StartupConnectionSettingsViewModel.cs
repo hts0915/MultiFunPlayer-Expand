@@ -26,7 +26,7 @@ internal sealed class StartupConnectionSettingsViewModel : Screen, IHandle<Setti
     public string BluetoothDeviceMatch { get; set; } = "OSR6";
     public bool WifiProbeEnabled { get; set; } = true;
     public WifiProtocol DefaultWifiProtocol { get; set; } = WifiProtocol.Udp;
-    public string DefaultWifiEndpoint { get; set; } = "192.168.0.101:8000";
+    public string DefaultWifiEndpoint { get; set; } = "tcode.local:8000";
 
     public IReadOnlyCollection<WifiProtocol> WifiProtocols { get; } = [WifiProtocol.Udp, WifiProtocol.Tcp];
 

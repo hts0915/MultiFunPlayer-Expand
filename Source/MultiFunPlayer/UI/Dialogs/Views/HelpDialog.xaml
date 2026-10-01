@@ -380,7 +380,7 @@
                         <TextBlock Style="{StaticResource HelpItem}"><Run Style="{DynamicResource HelpKey}" Text="连接成功后提示"/><Run Text="　数据线连上后在右下角提示一行，关掉则静默连接（数据线失败时「已准备好哪些目标」的提示不受此开关影响）"/></TextBlock>
                         <TextBlock Style="{StaticResource HelpItem}"><Run Style="{DynamicResource HelpKey}" Text="数据线串口匹配"/><Run Text="　按设备 ID 片段找数据线端口，默认 CH340 的 VID_1A86&amp;PID_7523，换设备/换线时改这里，多个片段用分号分隔"/></TextBlock>
                         <TextBlock Style="{StaticResource HelpItem}"><Run Style="{DynamicResource HelpKey}" Text="蓝牙设备名匹配"/><Run Text="　按已配对蓝牙设备的名字找到它的蓝牙串口，默认 OSR6；找不到就不会准备蓝牙目标"/></TextBlock>
-                        <TextBlock Style="{StaticResource HelpItem}"><Run Style="{DynamicResource HelpKey}" Text="WiFi 默认协议 / 默认地址"/><Run Text="　准备 WiFi 目标时用的地址（设备在路由器里的 IP 与端口，例 192.168.0.101:8000）；UDP 最快，TCP 能确认设备是否在线"/></TextBlock>
+                        <TextBlock Style="{StaticResource HelpItem}"><Run Style="{DynamicResource HelpKey}" Text="WiFi 默认协议 / 默认地址"/><Run Text="　准备 WiFi 目标时用的地址，默认 tcode.local:8000（设备固件支持 mDNS，用它就不会因为设备换 IP 而失联；填 192.168.0.x:8000 这类固定 IP 也可以，但 DHCP 换址后会连不上）；UDP 最快，TCP 能确认设备是否在线"/></TextBlock>
                         <TextBlock Style="{StaticResource HelpItem}"><Run Style="{DynamicResource HelpKey}" Text="准备 WiFi 目标前探测设备"/><Run Text="　准备目标前先发一条查询指令（D1）确认设备有回应，并在提示里告诉你设备是否在线、是否和电脑同网段"/></TextBlock>
                         <TextBlock Style="{StaticResource HelpNote}" Text="无线注意：设备只支持 2.4GHz 网络，而且必须先用 USB 配好网才会连上（配网一般用设备自带的配置页：电脑 WiFi 连设备热点 TCodeESP32Setup，浏览器打开 http://192.168.4.1）。另外电脑必须和设备在同一个网络里，否则无线连不上。"/>
                         <TextBlock Style="{StaticResource HelpNote}" Text="串口的 DTR / RTS 在「输出目标 → 串口 → 高级设置」里，默认关闭且不建议打开：它们每跳变一次设备就会复位归位，表现为连接/断开瞬间乱扭。"/>

@@ -193,6 +193,9 @@ internal static class TcodeDeviceProbe
                 => $"网络不可达（{endpoint.ToUriString()}），电脑和设备可能不在同一个网络",
             SocketException socket when socket.SocketErrorCode == SocketError.TimedOut
                 => $"连接 {endpoint.ToUriString()} 超时",
+            // UDP 收到 ICMP 端口不可达时 Windows 报这个：地址上有主机，但没人在那个端口上听
+            SocketException socket when socket.SocketErrorCode == SocketError.ConnectionReset
+                => $"这个地址上没有设备在监听（{endpoint.ToUriString()}），设备的 IP 可能已经变了；建议改用 tcode.local",
             _ => exception.Message,
         };
     }

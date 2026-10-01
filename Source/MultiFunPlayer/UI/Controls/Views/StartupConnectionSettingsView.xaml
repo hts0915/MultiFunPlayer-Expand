@@ -122,7 +122,7 @@
                        FontSize="12"
                        Opacity="0.7"
                        TextWrapping="Wrap"
-                       Text="WiFi 默认地址填设备在路由器里的 IP 和端口（例如 192.168.0.101:8000）。注意电脑必须和设备在同一个网络里，否则无线连不上。"/>
+                       Text="WiFi 默认地址默认用 tcode.local:8000 —— 设备固件支持 mDNS，用它就不会因为设备换 IP 而失联（填 192.168.0.x:8000 这种固定 IP 也行，但路由器重新分配地址后会连不上；程序探测到原地址没响应时会自动改用 tcode.local 并把这里改过来）。注意电脑必须和设备在同一个网络里，否则无线连不上。"/>
 
             <TextBlock MaxWidth="440"
                        HorizontalAlignment="Left"
