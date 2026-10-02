@@ -22,7 +22,11 @@ internal interface IButtplugAxisSink
     bool ApplyRotate(int index, double speed, bool clockwise);
     bool ApplyScalar(int index, double value);
     void ReleaseAll();
+
+    /// <summary>本程序自己的脚本（视频脚本或预设脚本）是否刚刚开始播放。</summary>
+    bool TryTakeBackForOwnPlayback();
 }
+
 /// <summary>
 /// 把 Buttplug 指令落到 MultiFunPlayer 的轴管线上。
 /// <br/>
@@ -172,8 +176,7 @@ internal sealed class ButtplugDeviceBridge(ScriptViewModel script) : IButtplugAx
     }
 
     /// <summary>把控制权交还给脚本 / 运动提供器。</summary>
-    public void ReleaseAll()
-    {
+    public void ReleaseAll()    {
         if (_takenOver.Count == 0)
             return;
 
@@ -191,6 +194,26 @@ internal sealed class ButtplugDeviceBridge(ScriptViewModel script) : IButtplugAx
 
         Logger.Info("Buttplug 已交还控制权：{0}", string.Join("、", _takenOver.Keys.Select(a => a.Name)));
         _takenOver.Clear();
+    }
+
+    private bool _lastIsPlaying;
+    private bool _lastIsOverridePlaying;
+
+    /// <summary>
+    /// 「后到的覆盖先到的」：外部软件控制期间，只要本程序自己的脚本**开始运动**
+    /// （视频脚本开始播放，或预设脚本开始播放），就应该把控制权收回来。
+    /// 这里只认"从不播放变成播放"的那一刻，所以脚本一直在播时外部软件照样能再抢过去
+    /// （外部软件每条指令都会重新接管），也就是谁后动谁说话。
+    /// </summary>
+    public bool TryTakeBackForOwnPlayback()
+    {
+        var isPlaying = _script.IsPlaying;
+        var isOverridePlaying = _script.IsOverridePlaying;
+        var started = (isPlaying && !_lastIsPlaying) || (isOverridePlaying && !_lastIsOverridePlaying);
+
+        _lastIsPlaying = isPlaying;
+        _lastIsOverridePlaying = isOverridePlaying;
+        return started;
     }
 
     private readonly record struct AxisBypassState(bool BypassScript, bool BypassMotionProvider);

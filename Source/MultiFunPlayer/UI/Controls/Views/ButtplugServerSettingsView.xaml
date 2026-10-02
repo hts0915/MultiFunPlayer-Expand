@@ -132,7 +132,7 @@
                            VerticalAlignment="Center"
                            FontSize="12"
                            Opacity="0.7"
-                           Text="秒（填 0 = 不按空闲交还，只在对方明确停止或断开连接时交还）"/>
+                           Text="秒（默认 0 = 关闭：只在对方明确停止、断开连接、或本程序自己的脚本开始播放时才交还）"/>
             </DockPanel>
 
             <DockPanel Margin="0 0 0 4" LastChildFill="False">

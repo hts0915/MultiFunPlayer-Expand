@@ -35,7 +35,9 @@ internal sealed class ButtplugServerSettingsViewModel : Screen, IHandle<Settings
     public string DeviceName { get; set; } = "OSR6";
     public string ExposedAxes { get; set; } = "L0";
     public bool AutoTakeover { get; set; } = true;
-    public int IdleRestoreSeconds { get; set; } = 30;
+    // 0 = 默认关闭"按空闲时间交还"：只在对方明确停止、断开连接、
+    // 或本程序自己的脚本开始播放时才交还控制权（后到的覆盖先到的）
+    public int IdleRestoreSeconds { get; set; } = 0;
     public bool ForceCompat { get; set; } = false;
     // 默认开：实测只发位置指令（LinearCmd）的软件（例如 Beat Banger）只有这样才驱动得到 R 轴
     public bool RotateAsLinear { get; set; } = true;

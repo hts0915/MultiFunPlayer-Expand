@@ -86,7 +86,8 @@ internal sealed class ButtplugServer : IDisposable
                 throw lastError ?? new IOException("无法监听环回地址");
 
             _lastCommandTick = Environment.TickCount64;
-            _idleTimer = new Timer(OnIdleTimer, null, 1000, 1000);
+            // 250 毫秒一拍：既要判断"自己的脚本刚开始播放"，也要做（可选的）空闲交还
+            _idleTimer = new Timer(OnIdleTimer, null, 250, 250);
 
             IsRunning = true;
             LastError = null;
@@ -609,12 +610,27 @@ internal sealed class ButtplugServer : IDisposable
 
     private void OnIdleTimer(object state)
     {
-        if (!IsRunning || !_bridge.HasTakenOverAxes)
+        if (!IsRunning)
             return;
 
-        // 0 = 不按空闲时间交还：只在对方明确停止（StopDeviceCmd / StopAllDevices）或断开连接时交还。
-        // 游戏/软件在场景切换、暂停、没有节拍的段落里本来就会几秒不发指令，
-        // 交还太早会让设备突然回到（暂停的）脚本值，看起来就是"玩到一半控制不动了"。
+        // 每一拍都要问一次（内部记录上一拍的状态，用来判断"刚开始播放"这一刻）
+        var ownPlaybackStarted = _bridge.TryTakeBackForOwnPlayback();
+
+        // 「后到的覆盖先到的」：外部软件控制期间，本程序自己的脚本（视频脚本 / 预设脚本）
+        // 只要开始运动，就把控制权收回来交给脚本
+        if (ownPlaybackStarted && _bridge.HasTakenOverAxes)
+        {
+            Logger.Info("检测到本程序自己的脚本开始播放，收回控制权（后到的覆盖先到的）");
+            _bridge.ReleaseAll();
+            RaiseStatus();
+            return;
+        }
+
+        if (!_bridge.HasTakenOverAxes)
+            return;
+
+        // 0 = 关闭按空闲时间交还（默认）。只在对方明确停止（StopDeviceCmd / StopAllDevices）、
+        // 断开连接、或本程序自己的脚本开始播放时才交还。
         var idleRestoreSeconds = _options.IdleRestoreSeconds;
         if (idleRestoreSeconds <= 0)
             return;
