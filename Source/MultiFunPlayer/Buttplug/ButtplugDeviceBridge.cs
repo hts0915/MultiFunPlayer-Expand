@@ -25,6 +25,9 @@ internal interface IButtplugAxisSink
 
     /// <summary>本程序自己的脚本（视频脚本或预设脚本）是否刚刚开始播放。</summary>
     bool TryTakeBackForOwnPlayback();
+
+    /// <summary>排查用：外部目标值与轴当前实际值的对照。</summary>
+    string DescribeStatus();
 }
 
 /// <summary>
@@ -43,6 +46,9 @@ internal sealed class ButtplugDeviceBridge(ScriptViewModel script) : IButtplugAx
     private readonly Dictionary<DeviceAxis, double> _rotateDirection = [];
 
     private bool _autoTakeover;
+
+    private readonly Dictionary<DeviceAxis, double> _lastTargets = [];
+    private long _commandCount;
 
     public string DeviceName { get; private set; } = "OSR";
     public IReadOnlyList<ButtplugActuator> Actuators { get; private set; } = [];
@@ -112,6 +118,8 @@ internal sealed class ButtplugDeviceBridge(ScriptViewModel script) : IButtplugAx
 
         TakeOver(actuator.Axis);
         _script.SetAxisTransition(actuator.Axis, MathUtils.Clamp01(position), Math.Max(durationSeconds, 0));
+        _lastTargets[actuator.Axis] = MathUtils.Clamp01(position);
+        Interlocked.Increment(ref _commandCount);
         return true;
     }
 
@@ -136,6 +144,8 @@ internal sealed class ButtplugDeviceBridge(ScriptViewModel script) : IButtplugAx
         var duration = Math.Max(0.08, 0.6 - 0.5 * speed01);
 
         _script.SetAxisTransition(actuator.Axis, target, duration);
+        _lastTargets[actuator.Axis] = target;
+        Interlocked.Increment(ref _commandCount);
         return true;
     }
 
@@ -148,7 +158,22 @@ internal sealed class ButtplugDeviceBridge(ScriptViewModel script) : IButtplugAx
         TakeOver(actuator.Axis);
         // 强度是瞬时值，给一个很短的过渡：既走同一条管线（受轴限位约束），又不会慢得看得见
         _script.SetAxisTransition(actuator.Axis, MathUtils.Clamp01(value), 0.1);
+        _lastTargets[actuator.Axis] = MathUtils.Clamp01(value);
+        Interlocked.Increment(ref _commandCount);
         return true;
+    }
+
+    /// <summary>
+    /// 排查用：把「外部软件要求的值」和「轴当前实际值」放在一起。
+    /// 两者长期不一致就说明外部指令没落到设备上（被别的东西盖住了）。
+    /// </summary>
+    public string DescribeStatus()
+    {
+        if (_lastTargets.Count == 0)
+            return $"指令 {Interlocked.Read(ref _commandCount)} 条（还没有轴被接管）";
+
+        var detail = string.Join("、", _lastTargets.Select(kv => $"{kv.Key}: 外部 {kv.Value:0.###} / 轴 {_script.GetValue(kv.Key):0.###}"));
+        return $"指令 {Interlocked.Read(ref _commandCount)} 条；{detail}";
     }
 
     private bool TryGetActuator(ButtplugActuatorKind kind, int index, out ButtplugActuator actuator)

@@ -36,6 +36,7 @@ internal sealed class ButtplugServer : IDisposable
     private long _lastCommandTick;
     private int _clientCount;
     private bool _loggedSilence;
+    private long _lastSummaryTicks;
 
     public ButtplugServer(IButtplugAxisSink bridge) => _bridge = bridge;
 
@@ -658,6 +659,14 @@ internal sealed class ButtplugServer : IDisposable
         {
             _loggedSilence = false;
             Logger.Info("Buttplug 客户端恢复发送指令");
+        }
+
+        // 排查用：每 5 秒把「外部要求的值 / 轴实际值」记一条（Debug 级），
+        // 事后能看出外部指令有没有真正落到设备上
+        if (Environment.TickCount64 - _lastSummaryTicks >= 5000)
+        {
+            _lastSummaryTicks = Environment.TickCount64;
+            Logger.Debug("Buttplug 状态：{0}", _bridge.DescribeStatus());
         }
 
         // 0 = 关闭按空闲时间交还（默认）。只在对方明确停止（StopDeviceCmd / StopAllDevices）、
