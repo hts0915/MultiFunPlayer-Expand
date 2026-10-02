@@ -35,10 +35,14 @@ internal sealed class ButtplugServer : IDisposable
     private ButtplugServerOptions _options;
     private long _lastCommandTick;
     private int _clientCount;
+    private bool _loggedSilence;
 
     public ButtplugServer(IButtplugAxisSink bridge) => _bridge = bridge;
 
     public event Action StatusChanged;
+
+    /// <summary>外部软件断开连接、控制权因此交还给脚本时触发（界面用来提示用户）。</summary>
+    public event Action ClientReleasedControl;
 
     public bool IsRunning { get; private set; }
     public int Port => _options?.Port ?? ButtplugProtocol.DefaultPort;
@@ -178,7 +182,10 @@ internal sealed class ButtplugServer : IDisposable
                 return;
             }
 
-            socket = WebSocket.CreateFromStream(stream, isServer: true, subProtocol: null, keepAliveInterval: TimeSpan.FromSeconds(30));
+            // keepAliveInterval 用无限：.NET 会按这个间隔发 WebSocket ping，
+            // 而自写客户端（例如 Godot 的 WebSocketPeer）不一定回 pong，回不够就会被判超时断开。
+            // 我们不需要它来做保活：客户端有指令就说明活着，没指令有（可选的）空闲交还兜底。
+            socket = WebSocket.CreateFromStream(stream, isServer: true, subProtocol: null, keepAliveInterval: Timeout.InfiniteTimeSpan);
             connection.Socket = socket;
 
             Interlocked.Increment(ref _clientCount);
@@ -231,7 +238,14 @@ internal sealed class ButtplugServer : IDisposable
 
             // 最后一个客户端走了就把控制权交还给脚本
             if (ClientCount <= 0)
+            {
+                var wasControlling = _bridge.HasTakenOverAxes;
                 _bridge.ReleaseAll();
+
+                // 通知界面：外部软件断开导致设备控制权回到脚本（不然用户只会看到"设备突然不动了"）
+                if (wasControlling)
+                    ClientReleasedControl?.Invoke();
+            }
 
             RaiseStatus();
         }
@@ -627,7 +641,24 @@ internal sealed class ButtplugServer : IDisposable
         }
 
         if (!_bridge.HasTakenOverAxes)
+        {
+            _loggedSilence = false;
             return;
+        }
+
+        // 排查用：接管期间外部软件几秒不发指令很常见（菜单、暂停、没有节拍的段落），
+        // 记一条日志，事后能看出"设备不动"是发生在什么时刻
+        var silence = Environment.TickCount64 - Interlocked.Read(ref _lastCommandTick);
+        if (silence >= 5000 && !_loggedSilence)
+        {
+            _loggedSilence = true;
+            Logger.Info("Buttplug 客户端已 {0:0.0} 秒没有发指令（菜单/暂停时正常，设备保持最后一个值）", silence / 1000d);
+        }
+        else if (silence < 5000 && _loggedSilence)
+        {
+            _loggedSilence = false;
+            Logger.Info("Buttplug 客户端恢复发送指令");
+        }
 
         // 0 = 关闭按空闲时间交还（默认）。只在对方明确停止（StopDeviceCmd / StopAllDevices）、
         // 断开连接、或本程序自己的脚本开始播放时才交还。

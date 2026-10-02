@@ -42,8 +42,10 @@ internal sealed class ButtplugServerSettingsViewModel : Screen, IHandle<Settings
     // 默认开：实测只发位置指令（LinearCmd）的软件（例如 Beat Banger）只有这样才驱动得到 R 轴
     public bool RotateAsLinear { get; set; } = true;
 
-    public bool IsRunning => _server?.IsRunning ?? false;
-    public int ClientCount => _server?.ClientCount ?? 0;
+    /// <summary>外部软件断开、控制权交还给脚本（「输出目标」面板用来提示用户）。</summary>
+    public event Action ClientReleasedControl;
+
+    public bool IsRunning => _server?.IsRunning ?? false;    public int ClientCount => _server?.ClientCount ?? 0;
     public string ListenAddress => _server?.ListenAddress ?? $"ws://127.0.0.1:{Port}";
     public string LastCommand => _server?.LastCommand;
     public string LastError => _server?.LastError;
@@ -146,10 +148,14 @@ internal sealed class ButtplugServerSettingsViewModel : Screen, IHandle<Settings
         var server = Server;
         server.StatusChanged -= HandleServerStatusChanged;
         server.StatusChanged += HandleServerStatusChanged;
+        server.ClientReleasedControl -= HandleClientReleasedControl;
+        server.ClientReleasedControl += HandleClientReleasedControl;
         server.Start(BuildOptions());
         _dirty = false;
         RefreshStatus();
     }
+
+    private void HandleClientReleasedControl() => ClientReleasedControl?.Invoke();
 
     private void Stop()
     {

@@ -13,7 +13,7 @@ using SerialPortInfo = MultiFunPlayer.OutputTarget.ViewModels.SerialOutputTarget
 
 namespace MultiFunPlayer.UI.Controls.ViewModels;
 
-internal sealed class OutputTargetViewModel : Conductor<IOutputTarget>.Collection.OneActive, IHandle<SettingsMessage>, IHandle<DetectWifiDeviceMessage>, IDisposable
+internal sealed class OutputTargetViewModel : Conductor<IOutputTarget>.Collection.OneActive, IHandle<SettingsMessage>, IHandle<DetectWifiDeviceMessage>, IInjectionAware, IDisposable
 {
     private static Logger Logger { get; } = LogManager.GetCurrentClassLogger();
 
@@ -57,6 +57,19 @@ internal sealed class OutputTargetViewModel : Conductor<IOutputTarget>.Collectio
 
         AvailableOutputTargetTypes = ReflectionUtils.FindImplementations<IOutputTarget>().ToList();
     }
+
+    /// <summary>属性注入完成后再订阅：ButtplugServer 是 [Inject] 属性，构造函数里还是 null。</summary>
+    public void ParametersInjected()
+    {
+        if (ButtplugServer == null)
+            return;
+
+        ButtplugServer.ClientReleasedControl -= OnButtplugClientReleasedControl;
+        ButtplugServer.ClientReleasedControl += OnButtplugClientReleasedControl;
+    }
+
+    private void OnButtplugClientReleasedControl()
+        => NotifyAlways("外部软件（游戏等）已断开连接，控制权已交还给脚本");
 
     public void AddItem(Type type)
     {

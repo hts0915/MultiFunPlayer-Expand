@@ -61,6 +61,7 @@ internal sealed class Bootstrapper : Bootstrapper<RootViewModel>
         builder.Bind<JsonConverter>().ToAllImplementations();
 
         builder.Bind<OutputTargetViewModel>().ToSelf().InSingletonScope();
+        builder.Bind<PluginViewModel>().ToSelf().InSingletonScope();
         builder.Bind<SettingsViewModel>().ToSelf().InSingletonScope();
         builder.Bind<StartupConnectionSettingsViewModel>().ToSelf().InSingletonScope();
         builder.Bind<ButtplugServerSettingsViewModel>().ToSelf().InSingletonScope();

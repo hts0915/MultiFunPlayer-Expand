@@ -1,4 +1,4 @@
-﻿using MultiFunPlayer.Common;
+using MultiFunPlayer.Common;
 using MultiFunPlayer.Plugin;
 using PropertyChanged;
 using Stylet;
@@ -8,18 +8,35 @@ using System.Diagnostics;
 
 namespace MultiFunPlayer.UI.Controls.ViewModels;
 
-internal sealed class PluginViewModel : Conductor<PluginContainer>.Collection.OneActive
+internal sealed class PluginViewModel : Conductor<PluginContainer>.Collection.OneActive, IHandle<SettingsMessage>
 {
     private readonly IReadOnlyObservableConcurrentCollection<PluginContainer> _source;
 
-    public bool ContentVisible { get; set; }
+    // 插件面板标题栏的展开/收起状态。媒体源、输出目标那些同类属性都会存进配置，
+    // 这里原来漏了 —— 所以插件（例如预设脚本）每次启动都是收起状态。
+    public bool ContentVisible { get; set; } = true;
 
-    public PluginViewModel(IPluginManager pluginManager)
+    public PluginViewModel(IPluginManager pluginManager, IEventAggregator eventAggregator)
     {
         _source = pluginManager.Containers;
         _source.CollectionChanged += OnSourceCollectionChanged;
 
+        eventAggregator.Subscribe(this);
+
         OnSourceCollectionChanged(this, new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Reset));
+    }
+
+    public void Handle(SettingsMessage message)
+    {
+        if (message.Action == SettingsAction.Saving)
+        {
+            message.Settings["PluginContentVisible"] = ContentVisible;
+        }
+        else if (message.Action == SettingsAction.Loading)
+        {
+            if (message.Settings.TryGetValue<bool>("PluginContentVisible", out var contentVisible))
+                ContentVisible = contentVisible;
+        }
     }
 
     [SuppressPropertyChangedWarnings]
