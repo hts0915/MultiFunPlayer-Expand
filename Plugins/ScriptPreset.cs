@@ -124,6 +124,10 @@ public class ScriptPreset : PluginBase
     private bool _savedIsPlaying;
     private bool _pausedPlayer;
 
+    // 自己暂停/恢复播放器会造成状态变化通知，这段时间内忽略，避免误判成"用户开始播放视频"
+    private const int PlayerChangeSuppressMilliseconds = 2500;
+    private long _suppressPlayerStartTicks;
+
     private volatile bool _settingsDirty;
     private long _lastSaveTicks;
     private long _hintHideTicks;
@@ -233,14 +237,43 @@ public class ScriptPreset : PluginBase
     //   * 播放预设时 → 暂停视频（见 PlayCore）
     //   * 视频开始播放时 → 停下预设，设备交还给视频脚本（这里）
 
+    protected override void HandleMessage(MediaPlayingChangedMessage message)
+    {
+        // 播放器状态变化的真正通知（各媒体源在轮询到状态变化时发的就是这条）。
+        // 注意：MediaPlayPauseMessage 是"请求播放/暂停"，不是通知 —— 之前只监听它，
+        // 所以用户在 PotPlayer 里切视频自动播放时，预设根本收不到消息、不会停。
+        if (!message.IsPlaying)
+            return;
+
+        if (Environment.TickCount64 < Interlocked.Read(ref _suppressPlayerStartTicks))
+        {
+            Log.Debug("忽略这次播放状态变化（{0} 毫秒内视作本插件自己暂停/恢复造成的）", PlayerChangeSuppressMilliseconds);
+            return;
+        }
+
+        HandlePlayerStarted();
+    }
+
     protected override void HandleMessage(MediaPlayPauseMessage message)
     {
-        if (_activePreset == null || !message.ShouldBePlaying)
+        // 应用内按播放键时只会发这条（面板/快捷键），也当作"视频开始播放"
+        if (message.ShouldBePlaying)
+            HandlePlayerStarted();
+    }
+
+    /// <summary>视频开始播放 → 停下预设，把设备交还给视频脚本（预设进度会记住）。</summary>
+    private void HandlePlayerStarted()
+    {
+        if (_activePreset == null)
             return;
 
         Log.Info("检测到视频开始播放，停下预设（预设进度已记住）");
         Enqueue(() =>
         {
+            // 排队期间可能已经被别处停了
+            if (_activePreset == null)
+                return;
+
             _pausedPlayer = false;
             _savedIsPlaying = true;
             StopCore(false);
@@ -514,6 +547,9 @@ public class ScriptPreset : PluginBase
 
             _pausedPlayer = _savedIsPlaying;
             Log.Info("视频状态 [暂停前: {0}, 停止时会恢复播放: {1}]", _savedIsPlaying, _pausedPlayer);
+
+            // 这次暂停是我们自己做的，接下来几秒内的播放状态变化要忽略
+            Interlocked.Exchange(ref _suppressPlayerStartTicks, Environment.TickCount64 + PlayerChangeSuppressMilliseconds);
         }
 
         // ---- 3) 读取预设里的脚本文件 ----
@@ -625,6 +661,9 @@ public class ScriptPreset : PluginBase
         {
             PublishMessage(new MediaPlayPauseMessage(true));
             _pausedPlayer = false;
+
+            // 这次恢复也是我们自己做的，别被当成"视频开始播放"再触发一次停止
+            Interlocked.Exchange(ref _suppressPlayerStartTicks, Environment.TickCount64 + PlayerChangeSuppressMilliseconds);
         }
 
         _savedIsPlaying = false;

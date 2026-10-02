@@ -612,11 +612,18 @@ internal sealed class ButtplugServer : IDisposable
         if (!IsRunning || !_bridge.HasTakenOverAxes)
             return;
 
-        var idle = Environment.TickCount64 - Interlocked.Read(ref _lastCommandTick);
-        if (idle < Math.Max(1, _options.IdleRestoreSeconds) * 1000L)
+        // 0 = 不按空闲时间交还：只在对方明确停止（StopDeviceCmd / StopAllDevices）或断开连接时交还。
+        // 游戏/软件在场景切换、暂停、没有节拍的段落里本来就会几秒不发指令，
+        // 交还太早会让设备突然回到（暂停的）脚本值，看起来就是"玩到一半控制不动了"。
+        var idleRestoreSeconds = _options.IdleRestoreSeconds;
+        if (idleRestoreSeconds <= 0)
             return;
 
-        Logger.Info("Buttplug 服务器：{0} 秒没有收到指令，把控制权交还给脚本", _options.IdleRestoreSeconds);
+        var idle = Environment.TickCount64 - Interlocked.Read(ref _lastCommandTick);
+        if (idle < idleRestoreSeconds * 1000L)
+            return;
+
+        Logger.Info("Buttplug 服务器：{0} 秒没有收到指令，把控制权交还给脚本", idleRestoreSeconds);
         _bridge.ReleaseAll();
         RaiseStatus();
     }

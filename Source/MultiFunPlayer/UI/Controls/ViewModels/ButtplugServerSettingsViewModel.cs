@@ -35,7 +35,7 @@ internal sealed class ButtplugServerSettingsViewModel : Screen, IHandle<Settings
     public string DeviceName { get; set; } = "OSR6";
     public string ExposedAxes { get; set; } = "L0";
     public bool AutoTakeover { get; set; } = true;
-    public int IdleRestoreSeconds { get; set; } = 3;
+    public int IdleRestoreSeconds { get; set; } = 30;
     public bool ForceCompat { get; set; } = false;
     // 默认开：实测只发位置指令（LinearCmd）的软件（例如 Beat Banger）只有这样才驱动得到 R 轴
     public bool RotateAsLinear { get; set; } = true;
@@ -168,7 +168,7 @@ internal sealed class ButtplugServerSettingsViewModel : Screen, IHandle<Settings
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList(),
         AutoTakeover,
-        Math.Clamp(IdleRestoreSeconds, 1, 60),
+        Math.Clamp(IdleRestoreSeconds, 0, 600),
         ForceCompat,
         RotateAsLinear);
 
