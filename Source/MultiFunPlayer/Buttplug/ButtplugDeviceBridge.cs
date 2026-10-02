@@ -46,6 +46,7 @@ internal sealed class ButtplugDeviceBridge(ScriptViewModel script) : IButtplugAx
     private readonly Dictionary<DeviceAxis, double> _rotateDirection = [];
 
     private bool _autoTakeover;
+    private bool _warnedPlaybackPriority = false;
 
     private readonly Dictionary<DeviceAxis, double> _lastTargets = [];
     private long _commandCount;
@@ -190,6 +191,21 @@ internal sealed class ButtplugDeviceBridge(ScriptViewModel script) : IButtplugAx
         if (!_autoTakeover || _takenOver.ContainsKey(axis))
             return;
 
+        // 本程序自己的脚本正在播时不让外部抢：否则两边每 200 毫秒互相盖一次，
+        // 设备会来回跳。脚本停了之后，外部下一条指令自然就能接管。
+        if (OwnPlaybackActive)
+        {
+            if (!_warnedPlaybackPriority)
+            {
+                _warnedPlaybackPriority = true;
+                Logger.Info("本程序的脚本正在播放，外部软件的指令暂不接管设备（脚本停止后自动恢复）");
+            }
+
+            return;
+        }
+
+        _warnedPlaybackPriority = false;
+
         var settings = _script.AxisSettings[axis];
         _takenOver[axis] = new AxisBypassState(settings.BypassScript, settings.BypassMotionProvider);
 
@@ -221,24 +237,44 @@ internal sealed class ButtplugDeviceBridge(ScriptViewModel script) : IButtplugAx
         _takenOver.Clear();
     }
 
-    private bool _lastIsPlaying;
-    private bool _lastIsOverridePlaying;
+    private bool _playbackActive;
+    private bool _playbackReported;
+    private long _playbackStartedTicks;
+
+    /// <summary>本程序自己的脚本（视频脚本或预设脚本）正在播放。</summary>
+    public bool OwnPlaybackActive => _script.IsPlaying || _script.IsOverridePlaying;
 
     /// <summary>
     /// 「后到的覆盖先到的」：外部软件控制期间，只要本程序自己的脚本**开始运动**
     /// （视频脚本开始播放，或预设脚本开始播放），就应该把控制权收回来。
-    /// 这里只认"从不播放变成播放"的那一刻，所以脚本一直在播时外部软件照样能再抢过去
-    /// （外部软件每条指令都会重新接管），也就是谁后动谁说话。
+    /// 这里只认"从不播放变成持续播放"的那一次（并要求持续 1 秒，避免播放状态抖动误判），
+    /// 所以脚本一直在播时外部软件照样能再抢过去（外部每条指令都会重新接管），也就是谁后动谁说话。
     /// </summary>
     public bool TryTakeBackForOwnPlayback()
     {
-        var isPlaying = _script.IsPlaying;
-        var isOverridePlaying = _script.IsOverridePlaying;
-        var started = (isPlaying && !_lastIsPlaying) || (isOverridePlaying && !_lastIsOverridePlaying);
+        if (!OwnPlaybackActive)
+        {
+            _playbackActive = false;
+            _playbackReported = false;
+            return false;
+        }
 
-        _lastIsPlaying = isPlaying;
-        _lastIsOverridePlaying = isOverridePlaying;
-        return started;
+        if (!_playbackActive)
+        {
+            _playbackActive = true;
+            _playbackReported = false;
+            _playbackStartedTicks = Environment.TickCount64;
+            return false;
+        }
+
+        if (_playbackReported)
+            return false;
+
+        if (Environment.TickCount64 - _playbackStartedTicks < 1000)
+            return false;
+
+        _playbackReported = true;
+        return true;
     }
 
     private readonly record struct AxisBypassState(bool BypassScript, bool BypassMotionProvider);
