@@ -207,13 +207,16 @@ internal sealed class ButtplugDeviceBridge(ScriptViewModel script) : IButtplugAx
         _warnedPlaybackPriority = false;
 
         var settings = _script.AxisSettings[axis];
-        _takenOver[axis] = new AxisBypassState(settings.BypassScript, settings.BypassMotionProvider);
+        _takenOver[axis] = new AxisBypassState(settings.BypassScript, settings.BypassMotionProvider, settings.AutoHomeEnabled);
 
-        // 脚本和运动提供器都让开，保证外部指令是唯一来源（否则运动提供器会把值盖回去）
+        // 脚本和运动提供器都让开，保证外部指令是唯一来源（否则运动提供器会把值盖回去）；
+        // 自动归位也必须一起压住：外部软件一旦有几秒不发指令，轴就"空闲"了，
+        // 归位会把轴拉回默认值（例如 0.5），表现就是设备自己跑回去/不再响应外部控制。
         settings.BypassScript = true;
         settings.BypassMotionProvider = true;
+        settings.AutoHomeEnabled = false;
 
-        Logger.Info("Buttplug 接管轴 {0}（暂时绕过脚本与运动提供器）", axis);
+        Logger.Info("Buttplug 接管轴 {0}（暂时绕过脚本、运动提供器与自动归位）", axis);
     }
 
     /// <summary>把控制权交还给脚本 / 运动提供器。</summary>
@@ -226,6 +229,7 @@ internal sealed class ButtplugDeviceBridge(ScriptViewModel script) : IButtplugAx
             var settings = _script.AxisSettings[axis];
             settings.BypassScript = original.BypassScript;
             settings.BypassMotionProvider = original.BypassMotionProvider;
+            settings.AutoHomeEnabled = original.AutoHomeEnabled;
 
             // 清掉外部过渡，让脚本 / 运动提供器立刻接手
             var state = _script.AxisStates[axis];
@@ -277,5 +281,5 @@ internal sealed class ButtplugDeviceBridge(ScriptViewModel script) : IButtplugAx
         return true;
     }
 
-    private readonly record struct AxisBypassState(bool BypassScript, bool BypassMotionProvider);
+    private readonly record struct AxisBypassState(bool BypassScript, bool BypassMotionProvider, bool AutoHomeEnabled);
 }

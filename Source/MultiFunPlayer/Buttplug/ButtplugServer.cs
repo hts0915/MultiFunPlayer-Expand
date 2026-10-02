@@ -631,6 +631,14 @@ internal sealed class ButtplugServer : IDisposable
         // 每一拍都要问一次（内部记录上一拍的状态，用来判断"刚开始播放"这一刻）
         var ownPlaybackStarted = _bridge.TryTakeBackForOwnPlayback();
 
+        // 排查用：有客户端连着就每 5 秒记一条「外部要求的值 / 轴实际值」，
+        // 两者长期不一致说明外部指令没落到设备上（被脚本 / 运动提供器 / 归位盖住）
+        if (ClientCount > 0 && Environment.TickCount64 - _lastSummaryTicks >= 5000)
+        {
+            _lastSummaryTicks = Environment.TickCount64;
+            Logger.Info("Buttplug 状态：{0}", _bridge.DescribeStatus());
+        }
+
         // 「后到的覆盖先到的」：外部软件控制期间，本程序自己的脚本（视频脚本 / 预设脚本）
         // 只要开始运动，就把控制权收回来交给脚本
         if (ownPlaybackStarted && _bridge.HasTakenOverAxes)
@@ -659,14 +667,6 @@ internal sealed class ButtplugServer : IDisposable
         {
             _loggedSilence = false;
             Logger.Info("Buttplug 客户端恢复发送指令");
-        }
-
-        // 排查用：每 5 秒把「外部要求的值 / 轴实际值」记一条（Debug 级），
-        // 事后能看出外部指令有没有真正落到设备上
-        if (Environment.TickCount64 - _lastSummaryTicks >= 5000)
-        {
-            _lastSummaryTicks = Environment.TickCount64;
-            Logger.Debug("Buttplug 状态：{0}", _bridge.DescribeStatus());
         }
 
         // 0 = 关闭按空闲时间交还（默认）。只在对方明确停止（StopDeviceCmd / StopAllDevices）、
