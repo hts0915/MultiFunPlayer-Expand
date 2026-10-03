@@ -35,6 +35,7 @@ using System.Windows.Media;
 using System.Windows.Media.Effects;
 using System.Windows.Threading;
 using Microsoft.Win32;
+using MahApps.Metro.Controls;
 using MaterialDesignThemes.Wpf;
 using MultiFunPlayer.MediaSource.MediaResource;
 using MultiFunPlayer.UI.Controls;
@@ -116,6 +117,9 @@ public class ScriptPreset : PluginBase
     // 预设自己的传输区
     private KeyframesHeatmap _transportTimeline;
     private TextBlock _transportTimeText;
+    private TextBox _presetFileBox;
+    private NumericUpDown _presetOffsetBox;
+    private PresetDefinition _offsetPreset;
     private long _lastTransportUpdateTicks;
     private double _timelineDuration;
 
@@ -357,7 +361,9 @@ public class ScriptPreset : PluginBase
         if (preset == null || controller == null)
             return;
 
-        var position = controller.OverridePosition;
+        var offset = preset.OffsetSeconds;
+        var scriptPosition = controller.OverridePosition;      // 底层脚本位置
+        var position = scriptPosition + offset;                // 用户看到的位置（不含偏移）
         var duration = controller.OverrideDuration;
 
         _displayPosition = position;
@@ -369,13 +375,13 @@ public class ScriptPreset : PluginBase
 
         UpdateTransportPosition();
 
-        if (duration <= 0 || position < duration - 0.001)
+        if (duration <= 0 || scriptPosition < duration - 0.001)
             return;
 
         if (preset.Loop)
         {
             Log.Debug("预设「{0}」循环回到开头", preset.Name);
-            controller.SeekOverride(0);
+            controller.SeekOverride(-offset);
             _displayPosition = 0;
         }
         else
@@ -621,7 +627,8 @@ public class ScriptPreset : PluginBase
             startPosition = 0;
 
         // ---- 5) 交给内核：独立时间轴接管，MediaPosition / 各轴脚本都不受影响 ----
-        controller.StartOverride(scripts, startPosition);
+        // 带上预设自己的时间偏移（脚本位置 = 预设位置 − 偏移）
+        controller.StartOverride(scripts, startPosition - preset.OffsetSeconds);
 
         _activePreset = preset;
         _activePresetIndex = index;
@@ -670,9 +677,9 @@ public class ScriptPreset : PluginBase
 
         var controller = OverrideController;
 
-        // 记下这次播到哪，下次接着播
+        // 记下这次播到哪，下次接着播（用用户看到的位置，不含偏移）
         if (controller is { IsOverrideActive: true })
-            preset.ResumePosition = controller.OverridePosition;
+            preset.ResumePosition = controller.OverridePosition + preset.OffsetSeconds;
 
         controller?.StopOverride();   // 设备立刻回到视频脚本（各轴脚本从未被改动过）
 
@@ -836,8 +843,8 @@ public class ScriptPreset : PluginBase
         if (_activePreset == null || controller == null)
             return;
 
-        controller.SeekOverride(position);
-        _displayPosition = controller.OverridePosition;
+        controller.SeekOverride(position - (_offsetPreset?.OffsetSeconds ?? 0));
+        _displayPosition = position;
         UpdateTransportPosition(force: true);
     }
 
@@ -1240,9 +1247,134 @@ public class ScriptPreset : PluginBase
 
         var panel = new StackPanel { Margin = new Thickness(0, 0, 0, 4) };
         panel.Children.Add(topRow);
+        panel.Children.Add(BuildTransportInfo());
         panel.Children.Add(_transportTimeline);
 
         return panel;
+    }
+
+    /// <summary>
+    /// 预设区自己的「文件：／偏移：」一行（样式与视频脚本区完全一致）：
+    /// 上面显示这个预设用到的脚本文件，下面的偏移只作用于这个预设的时间轴，
+    /// 用来把预设的动作和视频对齐 —— 不影响视频脚本区，也不改任何全局设置。
+    /// </summary>
+    private UIElement BuildTransportInfo()
+    {
+        var panel = new StackPanel { Margin = new Thickness(0, 0, 0, 6) };
+
+        // 文件：
+        var fileRow = new DockPanel { LastChildFill = true };
+        var fileLabel = new TextBlock
+        {
+            Text = "文件：",
+            Width = 50,
+            Margin = new Thickness(0, 0, 5, 0),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        ApplyBodyForeground(fileLabel);
+        DockPanel.SetDock(fileLabel, Dock.Left);
+        fileRow.Children.Add(fileLabel);
+
+        _presetFileBox = new TextBox
+        {
+            IsReadOnly = true,
+            Margin = new Thickness(5, -10, 0, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+            TextAlignment = TextAlignment.Left
+        };
+        ApplyStyle(_presetFileBox, "MaterialDesignFloatingHintTextBox");
+        fileRow.Children.Add(_presetFileBox);
+
+        // 偏移：
+        var offsetRow = new DockPanel { LastChildFill = false, Margin = new Thickness(0, 2, 0, 0) };
+        var offsetLabel = new TextBlock
+        {
+            Text = "偏移：",
+            Width = 50,
+            Margin = new Thickness(0, 0, 5, 0),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        ApplyBodyForeground(offsetLabel);
+        DockPanel.SetDock(offsetLabel, Dock.Left);
+        offsetRow.Children.Add(offsetLabel);
+
+        _presetOffsetBox = new NumericUpDown
+        {
+            Width = 100,
+            Interval = 0.1,
+            StringFormat = "{}{0:F2}s",
+            TrackMouseWheelWhenMouseOver = true,
+            VerticalAlignment = VerticalAlignment.Center,
+            ToolTip = "这个预设自己的时间偏移：正值＝动作延后，负值＝提前。只作用于本预设，用来和视频对齐。"
+        };
+        _presetOffsetBox.ValueChanged += (_, e) =>
+        {
+            if (_updatingTransportInfo)
+                return;
+
+            OnPresetOffsetChanged(e.NewValue ?? 0);
+        };
+        DockPanel.SetDock(_presetOffsetBox, Dock.Left);
+        offsetRow.Children.Add(_presetOffsetBox);
+
+        panel.Children.Add(fileRow);
+        panel.Children.Add(offsetRow);
+        return panel;
+    }
+
+    private bool _updatingTransportInfo;
+
+    /// <summary>刷新「文件／偏移」这一行（跟随当前显示的预设）。</summary>
+    private void UpdateTransportInfo(PresetDefinition preset)
+    {
+        if (_presetFileBox == null || _presetOffsetBox == null)
+            return;
+
+        _updatingTransportInfo = true;
+        try
+        {
+            _offsetPreset = preset;
+
+            var entries = preset?.Entries ?? [];
+            var paths = entries.Select(e => e.ScriptPath).Where(p => !string.IsNullOrWhiteSpace(p)).ToList();
+            var folder = paths.Count > 0 ? Path.GetDirectoryName(paths[0]) : null;
+
+            _presetFileBox.Text = paths.Count switch
+            {
+                0 => string.Empty,
+                1 => Path.GetFileName(paths[0]),
+                _ => $"{Path.GetFileName(paths[0])} 等 {paths.Count} 个文件",
+            };
+            HintAssist.SetHint(_presetFileBox, folder ?? string.Empty);
+            _presetFileBox.ToolTip = paths.Count > 0 ? string.Join("\n", paths) : null;
+            _presetOffsetBox.IsEnabled = preset != null;
+            _presetOffsetBox.Value = preset?.OffsetSeconds ?? 0;
+        }
+        finally
+        {
+            _updatingTransportInfo = false;
+        }
+    }
+
+    /// <summary>
+    /// 改了偏移：立刻生效 —— 正在播这个预设时保持"用户看到的位置"不变，
+    /// 只把底层脚本位置按新偏移挪一下（脚本位置 = 预设位置 − 偏移）。
+    /// </summary>
+    private void OnPresetOffsetChanged(double value)
+    {
+        var preset = _offsetPreset;
+        if (preset == null)
+            return;
+
+        preset.OffsetSeconds = value;
+        MarkSettingsDirty();
+        Log.Info("预设「{0}」时间偏移改为 {1:F2}s", preset.Name, value);
+
+        var controller = OverrideController;
+        if (_activePreset != null && ReferenceEquals(_activePreset, preset) && controller is { IsOverrideActive: true })
+            controller.SeekOverride(_displayPosition - value);
+
+        UpdateTransportPosition(force: true);
     }
 
     /// <summary>套用宿主资源里的样式；键不存在时静默回退到默认样式。</summary>
@@ -1341,6 +1473,8 @@ public class ScriptPreset : PluginBase
             _presetListPanel.Children.Clear();
             if (presets.Count == 0)
             {
+                UpdateTransportInfo(null);
+
                 var emptyText = new TextBlock
                 {
                     Text = "还没有预设。点下面的「选择脚本文件…」挑一组 funscript（可多选，文件名决定对应的轴）。",
@@ -1364,6 +1498,7 @@ public class ScriptPreset : PluginBase
                         : ordered[0];
 
                 _presetListPanel.Children.Add(BuildPresetRow(header, withToggle: true));
+                UpdateTransportInfo(header);
             }
 
             _statusText.Text = active == null
@@ -1679,6 +1814,9 @@ public class PresetDefinition
 {
     public string Name { get; set; }
     public bool Loop { get; set; } = true;
+
+    /// <summary>预设自己的时间偏移（秒）：正值＝动作整体延后，负值＝提前。只影响这个预设。</summary>
+    [JsonProperty] public double OffsetSeconds { get; set; } = 0;
     public List<PresetEntry> Entries { get; set; } = [];
 
     /// <summary>上次播到的位置（秒）。下次播放这个预设时从这里接着播；播完或被重置则为 0。</summary>
