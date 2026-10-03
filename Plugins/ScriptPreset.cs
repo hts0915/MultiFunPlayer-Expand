@@ -150,6 +150,10 @@ public class ScriptPreset : PluginBase
     // 用户自己换过视频：这个预设会话里不再接管视频（否则会和用户来回抢，两个视频一直闪）
     private bool _mediaTakenOverByUser;
 
+    // 预设开始前视频是不是暂停状态：切过去的视频会自动开始播，
+    // 停止预设（含切回原视频）后要按这个状态恢复，否则"我明明暂停了"的视频会自己播起来
+    private bool _playerWasPausedBeforePreset;
+
     private static readonly string[] VideoExtensions =
         [".mp4", ".mkv", ".wmv", ".avi", ".mov", ".webm", ".m4v", ".ts", ".m2ts", ".mpg", ".mpeg", ".flv"];
 
@@ -599,6 +603,7 @@ public class ScriptPreset : PluginBase
         // 先试切换同名视频：切到了就让视频播着、预设跟着它的进度走（与视频脚本区同一套思路：
         // 脚本按媒体进度对齐），所以这时**不**去暂停播放器；没切到才按老规矩暂停视频。
         _mediaTakenOverByUser = false;   // 新的一次播放，重新允许接管视频
+        _playerWasPausedBeforePreset = !_savedIsPlaying;   // 记住用户离开时的暂停状态，停止预设后还原
         var switchedVideo = SwitchToPresetVideo(preset);
         if (switchedVideo)
         {
@@ -919,6 +924,8 @@ public class ScriptPreset : PluginBase
     /// <summary>
     /// 切回预设开始前正在播的视频。原来没有在播的视频时，把预设切过去的那个视频<b>暂停</b>掉
     /// —— 否则停止/暂停预设后视频还自己放着，看起来就是"预设停了视频不停"。
+    /// 另外：切视频（含切回）会让 PotPlayer 自动开始播放，所以预设开始前视频是暂停的话，
+    /// 这里要再按一次暂停，把状态还原成用户离开时的样子。
     /// </summary>
     private void RestorePreviousMedia()
     {
@@ -927,8 +934,10 @@ public class ScriptPreset : PluginBase
 
         var previous = _switchedFromMediaPath;
         var switchedTo = _switchedToMediaPath;
+        var restorePaused = _playerWasPausedBeforePreset;
         _switchedToMediaPath = null;
         _switchedFromMediaPath = null;
+        _playerWasPausedBeforePreset = false;
 
         if (OverrideController != null)
             OverrideController.OverrideMediaPath = null;
@@ -936,15 +945,9 @@ public class ScriptPreset : PluginBase
         if (string.IsNullOrWhiteSpace(previous) || !File.Exists(previous))
         {
             if (!string.IsNullOrEmpty(switchedTo))
-            {
-                Interlocked.Exchange(ref _suppressPlayerStartTicks, Environment.TickCount64 + PlayerChangeSuppressMilliseconds);
-                PublishMessage(new MediaPlayPauseMessage(false));
-                Log.Info("预设结束：暂停预设切过去的视频（原来没有在播的视频）");
-            }
+                PausePlayerWithRetries("预设停止，暂停预设切过去的视频");
             else
-            {
                 Log.Info("预设结束：没有可切回的视频（原来是未播放状态）");
-            }
 
             return;
         }
@@ -953,6 +956,28 @@ public class ScriptPreset : PluginBase
         PublishMessage(new MediaChangePathMessage(previous));
         Log.Info("预设结束：已切回原视频 {0}", previous);
         SetHint($"已切回原视频：{Path.GetFileName(previous)}");
+
+        // 切视频会让播放器自动开始播：预设开始前是暂停的，就还给用户一个暂停状态
+        if (restorePaused)
+            PausePlayerWithRetries("预设开始前视频是暂停的，切回后恢复暂停");
+    }
+
+    /// <summary>按暂停（带重试，直到播放器状态确实变成未播放）。</summary>
+    private void PausePlayerWithRetries(string reason)
+    {
+        for (var attempt = 1; attempt <= PauseAttempts; attempt++)
+        {
+            Interlocked.Exchange(ref _suppressPlayerStartTicks, Environment.TickCount64 + PlayerChangeSuppressMilliseconds);
+            PublishMessage(new MediaPlayPauseMessage(false));
+
+            if (WaitUntil(() => !ReadProp<bool>("Media::PlayPause"), 800))
+            {
+                Log.Info("已恢复暂停播放器（{0}）", reason);
+                return;
+            }
+        }
+
+        Log.Warn("恢复暂停播放器未生效（{0}）", reason);
     }
 
     /// <summary>用户自己换了视频：忘掉我们的切换记录，别再去动他的视频。</summary>
@@ -1002,18 +1027,9 @@ public class ScriptPreset : PluginBase
         if (refreshUi)
             RefreshUi();
 
-        if (!active || _mediaTakenOverByUser)
-            return;
-
-        // 只在"暂停 / 继续"这一次变化时动视频，不要每拍都切：
-        // 每拍都切的话，用户自己换了视频就会被我们不停抢回来，两个视频来回闪。
-        if (pauseChanged || (playerChanged && !presetPaused))
-        {
-            if (presetPaused)
-                RestorePreviousMedia();
-            else
-                SwitchToPresetVideo(_activePreset);
-        }
+        // 注意：暂停 / 继续这里**不要**去切换视频。
+        // 切视频（含切回）会让 PotPlayer 自动开始播放，用户"先在视频区暂停、再停预设"时
+        // 就会看到视频自己播起来。视频的切换只在开始播放预设、以及停止预设时做。
     }
 
     #endregion
