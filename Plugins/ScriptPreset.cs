@@ -125,7 +125,6 @@ public class ScriptPreset : PluginBase
     private TextBlock _transportTimeText;
     private TextBox _presetFileBox;
     private NumericUpDown _presetOffsetBox;
-    private Button _presetPauseButton;
     private PresetDefinition _offsetPreset;
     private long _lastTransportUpdateTicks;
     private double _timelineDuration;
@@ -1413,20 +1412,6 @@ public class ScriptPreset : PluginBase
             LastChildFill = true
         };
 
-        // 预设自己的暂停/继续：暂停时视频也会一起暂停（两边状态双向同步）
-        _presetPauseButton = MakeIconButton(PackIconKind.Pause, "暂停预设（视频一起暂停）", null,
-            (_, _) =>
-            {
-                var controller = OverrideController;
-                if (_activePreset == null || controller == null)
-                    return;
-
-                controller.SetOverridePaused(!controller.IsOverridePaused);
-                RefreshUi();
-            });
-        DockPanel.SetDock(_presetPauseButton, Dock.Left);
-        topRow.Children.Add(_presetPauseButton);
-
         DockPanel.SetDock(selectButton, Dock.Left);
         topRow.Children.Add(selectButton);
         topRow.Children.Add(_transportTimeText);   // 填充剩余宽度，右对齐
@@ -1706,15 +1691,6 @@ public class ScriptPreset : PluginBase
             _statusText.Text = active == null
                 ? $"空闲（共 {presets.Count} 个预设）"
                 : $"{(paused ? "⏸ 已暂停" : "▶ 正在播放")}「{active.Name}」";
-
-            if (_presetPauseButton != null)
-            {
-                _presetPauseButton.IsEnabled = active != null;
-                if (_presetPauseButton.Content is PackIcon pauseIcon)
-                    pauseIcon.Kind = paused ? PackIconKind.Play : PackIconKind.Pause;
-
-                _presetPauseButton.ToolTip = paused ? "继续预设（视频一起继续）" : "暂停预设（视频一起暂停）";
-            }
 
             if (_transportTimeline != null)
                 _transportTimeline.Opacity = active == null ? 0.35 : 1.0;
