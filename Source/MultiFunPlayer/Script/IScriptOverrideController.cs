@@ -40,4 +40,12 @@ public interface IScriptOverrideController
 
     /// <summary>暂停/继续覆盖时间轴。</summary>
     void SetOverridePaused(bool paused);
+
+    /// <summary>
+    /// 覆盖模式自己切过去的媒体路径（例如预设自动切到脚本的同名视频）。
+    /// 用于区分"这次换视频是预设做的"还是"用户自己打开的"：
+    /// 前者不把该视频的脚本加载进视频脚本区（预设正在驱动设备，两边互不干扰），
+    /// 后者照常加载（用户手动打开的视频要能找到自己的脚本）。
+    /// </summary>
+    string OverrideMediaPath { get; set; }
 }

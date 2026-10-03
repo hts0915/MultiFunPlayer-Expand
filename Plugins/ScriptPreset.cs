@@ -125,6 +125,7 @@ public class ScriptPreset : PluginBase
     private TextBlock _transportTimeText;
     private TextBox _presetFileBox;
     private NumericUpDown _presetOffsetBox;
+    private Button _presetPauseButton;
     private PresetDefinition _offsetPreset;
     private long _lastTransportUpdateTicks;
     private double _timelineDuration;
@@ -145,6 +146,7 @@ public class ScriptPreset : PluginBase
     private string _switchedFromMediaPath;
     private string _switchedToMediaPath;
     private bool _overrideWasPaused;
+    private bool _lastPlayerPlaying;
 
     private static readonly string[] VideoExtensions =
         [".mp4", ".mkv", ".wmv", ".avi", ".mov", ".webm", ".m4v", ".ts", ".m2ts", ".mpg", ".mpeg", ".flv"];
@@ -831,6 +833,10 @@ public class ScriptPreset : PluginBase
         _switchedFromMediaPath = current;
         _switchedToMediaPath = video;
 
+        // 告诉宿主"这次换视频是预设做的"：该视频的脚本不加载进视频脚本区（用户自己开的不受影响）
+        if (OverrideController != null)
+            OverrideController.OverrideMediaPath = video;
+
         Interlocked.Exchange(ref _suppressPlayerStartTicks, Environment.TickCount64 + PlayerChangeSuppressMilliseconds);
         PublishMessage(new MediaChangePathMessage(video));
         Log.Info("预设「{0}」已切换到同名视频：{1}", preset.Name, video);
@@ -851,10 +857,6 @@ public class ScriptPreset : PluginBase
         var videoPosition = ReadProp<double>("Media::Position");
         if (!double.IsFinite(videoPosition))
             return false;
-
-        // 视频暂停 -> 预设暂停；视频继续 -> 预设继续
-        if (controller.IsOverridePaused == playerPlaying)
-            controller.SetOverridePaused(!playerPlaying);
 
         if (playerPlaying)
         {
@@ -884,6 +886,9 @@ public class ScriptPreset : PluginBase
         _switchedToMediaPath = null;
         _switchedFromMediaPath = null;
 
+        if (OverrideController != null)
+            OverrideController.OverrideMediaPath = null;
+
         if (string.IsNullOrWhiteSpace(previous) || !File.Exists(previous))
         {
             Log.Info("预设结束：没有可切回的视频（原来是未播放状态）");
@@ -901,25 +906,48 @@ public class ScriptPreset : PluginBase
     {
         _switchedToMediaPath = null;
         _switchedFromMediaPath = null;
+
+        if (OverrideController != null)
+            OverrideController.OverrideMediaPath = null;
     }
 
-    /// <summary>预设的暂停/恢复也跟随视频（暂停切回原视频，恢复再切到同名视频）。</summary>
+    /// <summary>
+    /// 预设与视频的播放/暂停双向同步：不管哪一边被暂停或继续，另一边的状态都会跟过去。
+    /// 两边都可能是"用户按的"，所以按"谁刚变化"来判断方向，避免来回打架。
+    /// </summary>
     private void TrackPresetPauseState()
     {
-        var paused = OverrideController?.IsOverridePaused ?? false;
-        if (paused == _overrideWasPaused)
+        var controller = OverrideController;
+        var playerPlaying = ReadProp<bool>("Media::PlayPause");
+        var presetPaused = controller?.IsOverridePaused ?? false;
+        var active = _activePreset != null;
+
+        if (active && presetPaused != _overrideWasPaused)
+        {
+            // 预设这边刚被改（例如在预设区按了暂停）→ 同步给播放器
+            Log.Info("预设{0}，同步到播放器", presetPaused ? "已暂停" : "已继续");
+            Interlocked.Exchange(ref _suppressPlayerStartTicks, Environment.TickCount64 + PlayerChangeSuppressMilliseconds);
+            PublishMessage(new MediaPlayPauseMessage(!presetPaused));
+        }
+        else if (active && playerPlaying != _lastPlayerPlaying && controller is { IsOverrideActive: true })
+        {
+            // 播放器这边刚被改 → 同步给预设
+            Log.Info("播放器{0}，同步到预设", playerPlaying ? "已开始播放" : "已暂停");
+            controller.SetOverridePaused(!playerPlaying);
+        }
+
+        // 记下同步后的实际状态，避免下一拍把自己的动作又当成"对方刚变化"而回弹一次
+        _overrideWasPaused = controller?.IsOverridePaused ?? false;
+        _lastPlayerPlaying = playerPlaying;
+
+        if (!active)
             return;
 
-        _overrideWasPaused = paused;
-
-        var preset = _activePreset;
-        if (preset == null)
-            return;
-
-        if (paused)
+        // 暂停时切回原视频、恢复时再切到同名视频（只在跟随模式下有意义）
+        if (presetPaused)
             RestorePreviousMedia();
-        else
-            SwitchToPresetVideo(preset);
+        else if (IsFollowingVideo || AutoSwitchVideo)
+            SwitchToPresetVideo(_activePreset);
     }
 
     #endregion
@@ -1309,6 +1337,20 @@ public class ScriptPreset : PluginBase
             LastChildFill = true
         };
 
+        // 预设自己的暂停/继续：暂停时视频也会一起暂停（两边状态双向同步）
+        _presetPauseButton = MakeIconButton(PackIconKind.Pause, "暂停预设（视频一起暂停）", null,
+            (_, _) =>
+            {
+                var controller = OverrideController;
+                if (_activePreset == null || controller == null)
+                    return;
+
+                controller.SetOverridePaused(!controller.IsOverridePaused);
+                RefreshUi();
+            });
+        DockPanel.SetDock(_presetPauseButton, Dock.Left);
+        topRow.Children.Add(_presetPauseButton);
+
         DockPanel.SetDock(selectButton, Dock.Left);
         topRow.Children.Add(selectButton);
         topRow.Children.Add(_transportTimeText);   // 填充剩余宽度，右对齐
@@ -1588,6 +1630,15 @@ public class ScriptPreset : PluginBase
             _statusText.Text = active == null
                 ? $"空闲（共 {presets.Count} 个预设）"
                 : $"{(paused ? "⏸ 已暂停" : "▶ 正在播放")}「{active.Name}」";
+
+            if (_presetPauseButton != null)
+            {
+                _presetPauseButton.IsEnabled = active != null;
+                if (_presetPauseButton.Content is PackIcon pauseIcon)
+                    pauseIcon.Kind = paused ? PackIconKind.Play : PackIconKind.Pause;
+
+                _presetPauseButton.ToolTip = paused ? "继续预设（视频一起继续）" : "暂停预设（视频一起暂停）";
+            }
 
             if (_transportTimeline != null)
                 _transportTimeline.Opacity = active == null ? 0.35 : 1.0;

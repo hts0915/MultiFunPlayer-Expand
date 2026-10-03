@@ -55,6 +55,9 @@ internal sealed class ScriptViewModel : Screen, IDeviceAxisValueProvider, IScrip
     public double OverridePosition => _overridePosition;
     public double OverrideDuration => _overrideDuration;
     public bool IsOverridePlaying => IsOverrideActive && !_overridePaused;
+
+    /// <summary>覆盖模式自己切过去的媒体路径（见 <see cref="IScriptOverrideController.OverrideMediaPath"/>）。</summary>
+    public string OverrideMediaPath { get; set; }
     public double PlaybackSpeed { get; private set; }
     public double MediaDuration { get; private set; }
 
@@ -589,14 +592,16 @@ internal sealed class ScriptViewModel : Screen, IDeviceAxisValueProvider, IScrip
         SetSyncBypass(true);
         ResetAxes(null);
 
-        // 脚本覆盖（一键预设）播放期间不要去动视频脚本区的脚本：
-        // 换视频往往是预设自己做的（例如自动切到脚本的同名视频），把它的脚本加载进各轴
-        // 只会让视频脚本区显示成预设那一份波形，两个区互相干扰。
-        // 预设结束之后的路径变化会正常加载。
-        if (message.ReloadScripts && !IsOverrideActive)
+        // 换视频时要不要把该视频的脚本加载进视频脚本区：
+        //   * 预设自己切过去的同名视频 -> 跳过（预设正在驱动设备，避免两个区互相干扰）
+        //   * 用户自己打开的视频       -> 照常加载（要能找到自己的脚本）
+        var isOverrideMedia = IsOverrideActive
+                           && !string.IsNullOrEmpty(OverrideMediaPath)
+                           && string.Equals(message.Path, OverrideMediaPath, StringComparison.OrdinalIgnoreCase);
+        if (message.ReloadScripts && !isOverrideMedia)
             ReloadAxes(null);
         else if (message.ReloadScripts)
-            Logger.Info("预设正在播放，跳过视频脚本区的脚本加载 [Path: \"{0}\"]", message.Path);
+            Logger.Info("预设正在播放且这是预设切过去的视频，跳过视频脚本区的脚本加载 [Path: \"{0}\"]", message.Path);
 
         if (MediaResource == null)
             InvalidateMediaState();
