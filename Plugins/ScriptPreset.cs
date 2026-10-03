@@ -266,6 +266,13 @@ public class ScriptPreset : PluginBase
         if (!message.IsPlaying)
             return;
 
+        // 正在跟随同名视频时，视频在播正是预期（预设就该跟着它走），不能因此停掉预设
+        if (IsFollowingVideo)
+        {
+            Log.Debug("正在跟随同名视频，忽略这次播放状态变化");
+            return;
+        }
+
         if (Environment.TickCount64 < Interlocked.Read(ref _suppressPlayerStartTicks))
         {
             Log.Debug("忽略这次播放状态变化（{0} 毫秒内视作本插件自己暂停/恢复造成的）", PlayerChangeSuppressMilliseconds);
@@ -273,6 +280,20 @@ public class ScriptPreset : PluginBase
         }
 
         HandlePlayerStarted();
+    }
+
+    protected override void HandleMessage(MediaPathChangedMessage message)
+    {
+        // 跟随同名视频期间，若视频被换成了别的文件（不是我们切的那个），说明用户自己换片了：
+        // 解除跟随，让预设回到自己的独立时间轴（随后的播放状态变化会按老规矩停掉预设）。
+        if (_switchedToMediaPath == null)
+            return;
+
+        if (string.Equals(message.Path, _switchedToMediaPath, StringComparison.OrdinalIgnoreCase))
+            return;
+
+        Log.Info("视频被换成 {0}（不是预设的同名视频），解除进度跟随", message.Path);
+        ForgetSwitchedMedia();
     }
 
     protected override void HandleMessage(MediaPlayPauseMessage message)
@@ -365,6 +386,11 @@ public class ScriptPreset : PluginBase
         var preset = _activePreset;
         var controller = OverrideController;
         if (preset == null || controller == null)
+            return;
+
+        // 跟随同名视频时，预设进度完全由视频进度驱动（和视频脚本区一样"脚本按媒体进度对齐"），
+        // 这样两边的时间永远对得上，也不会被预设自己的续播位置/循环影响。
+        if (IsFollowingVideo && FollowVideoProgress(controller, preset))
             return;
 
         var offset = PresetTimeOffset;
@@ -560,8 +586,18 @@ public class ScriptPreset : PluginBase
         _savedIsPlaying = ReadProp<bool>("Media::PlayPause");
         _pausedPlayer = false;
 
-        // ---- 2) 与视频互斥：暂停视频 ----
-        if (PausePlayerOnPlay)
+        // ---- 2) 与视频互斥 / 跟随同名视频 ----
+        // 先试切换同名视频：切到了就让视频播着、预设跟着它的进度走（与视频脚本区同一套思路：
+        // 脚本按媒体进度对齐），所以这时**不**去暂停播放器；没切到才按老规矩暂停视频。
+        var switchedVideo = SwitchToPresetVideo(preset);
+        if (switchedVideo)
+        {
+            // 确保视频在播（SetFilename 打开后可能是暂停状态）
+            PublishMessage(new MediaPlayPauseMessage(true));
+            Interlocked.Exchange(ref _suppressPlayerStartTicks, Environment.TickCount64 + PlayerChangeSuppressMilliseconds);
+            Log.Info("已切到同名视频并跟随其进度播放");
+        }
+        else if (PausePlayerOnPlay)
         {
             for (var attempt = 1; attempt <= PauseAttempts; attempt++)
             {
@@ -766,22 +802,31 @@ public class ScriptPreset : PluginBase
         return null;
     }
 
-    /// <summary>切到预设的同名视频；记住原来在播的视频，暂停/停止时切回。</summary>
-    private void SwitchToPresetVideo(PresetDefinition preset)
+    /// <summary>
+    /// 切到预设的同名视频；记住原来在播的视频，暂停/停止时切回。
+    /// </summary>
+    /// <returns>true 表示当前视频就是预设的同名视频（已切过去或本来就在放），预设应当跟随它的进度。</returns>
+    private bool SwitchToPresetVideo(PresetDefinition preset)
     {
         if (!AutoSwitchVideo || preset == null || _switchedToMediaPath != null)
-            return;
+            return _switchedToMediaPath != null;
 
         var video = FindMatchingVideo(preset);
         if (video == null)
         {
             Log.Info("预设「{0}」没有找到同名视频，跳过自动切换", preset.Name);
-            return;
+            return false;
         }
 
         var current = GetCurrentMediaPath();
         if (!string.IsNullOrEmpty(current) && string.Equals(current, video, StringComparison.OrdinalIgnoreCase))
-            return;
+        {
+            // 已经在放这个视频了：不用切换，但预设照样跟随它的进度，停止时也不切走
+            _switchedToMediaPath = video;
+            _switchedFromMediaPath = null;
+            Log.Info("预设「{0}」当前视频已是同名视频，直接跟随其进度", preset.Name);
+            return true;
+        }
 
         _switchedFromMediaPath = current;
         _switchedToMediaPath = video;
@@ -790,6 +835,43 @@ public class ScriptPreset : PluginBase
         PublishMessage(new MediaChangePathMessage(video));
         Log.Info("预设「{0}」已切换到同名视频：{1}", preset.Name, video);
         SetHint($"已切换到同名视频：{Path.GetFileName(video)}");
+        return true;
+    }
+
+    /// <summary>正在跟随同名视频（预设进度由视频进度驱动）。</summary>
+    private bool IsFollowingVideo => _switchedToMediaPath != null;
+
+    /// <summary>
+    /// 让预设跟着视频走：位置按视频进度对齐（偏差超过 0.1 秒才纠正，避免抖动），
+    /// 播放/暂停也跟着视频。返回 true 表示这一拍已经处理完，不需要再走预设自己的推进逻辑。
+    /// </summary>
+    private bool FollowVideoProgress(IScriptOverrideController controller, PresetDefinition preset)
+    {
+        var playerPlaying = ReadProp<bool>("Media::PlayPause");
+        var videoPosition = ReadProp<double>("Media::Position");
+        if (!double.IsFinite(videoPosition))
+            return false;
+
+        // 视频暂停 -> 预设暂停；视频继续 -> 预设继续
+        if (controller.IsOverridePaused == playerPlaying)
+            controller.SetOverridePaused(!playerPlaying);
+
+        if (playerPlaying)
+        {
+            var target = videoPosition - PresetTimeOffset;
+            if (Math.Abs(controller.OverridePosition - target) > 0.1)
+            {
+                Log.Debug("跟随视频进度：脚本位置 {0:F2}s -> {1:F2}s", controller.OverridePosition, target);
+                controller.SeekOverride(target);
+            }
+        }
+
+        _displayPosition = videoPosition;
+        _timelineDuration = controller.OverrideDuration;
+        preset.ResumePosition = videoPosition;
+        MarkSettingsDirty();
+        UpdateTransportPosition();
+        return true;
     }
 
     /// <summary>切回预设开始前正在播的视频。</summary>
@@ -1585,7 +1667,7 @@ public class ScriptPreset : PluginBase
             IsChecked = AutoSwitchVideo,
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(8, 0, 8, 0),
-            ToolTip = "播放预设时自动切到脚本的同名视频（同一文件夹内），暂停或停止时切回原来播放的视频"
+            ToolTip = "播放预设时自动切到脚本的同名视频（同一文件夹内），并让预设跟着视频进度走（时间永远对得上，视频暂停预设也暂停）；暂停或停止预设时切回原来播放的视频"
         };
 
         followVideo.Checked += (_, _) => { AutoSwitchVideo = true; MarkSettingsDirty(); };
