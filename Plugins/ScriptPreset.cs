@@ -962,22 +962,35 @@ public class ScriptPreset : PluginBase
             PausePlayerWithRetries("预设开始前视频是暂停的，切回后恢复暂停");
     }
 
-    /// <summary>按暂停（带重试，直到播放器状态确实变成未播放）。</summary>
-    private void PausePlayerWithRetries(string reason)
+    /// <summary>
+    /// 让播放器保持暂停。
+    /// 注意时序：切视频时 PotPlayer 是**文件加载完成后**才开始播放的（实测比切换指令晚约 1 秒），
+    /// 所以只按一次暂停会被它随后开始的播放顶掉 —— 必须在一小段时间内反复确认。
+    /// </summary>
+    private void PausePlayerWithRetries(string reason, int holdMilliseconds = 2500)
     {
-        for (var attempt = 1; attempt <= PauseAttempts; attempt++)
+        var deadline = Environment.TickCount64 + holdMilliseconds;
+        var paused = false;
+
+        while (true)
         {
             Interlocked.Exchange(ref _suppressPlayerStartTicks, Environment.TickCount64 + PlayerChangeSuppressMilliseconds);
             PublishMessage(new MediaPlayPauseMessage(false));
 
-            if (WaitUntil(() => !ReadProp<bool>("Media::PlayPause"), 800))
-            {
-                Log.Info("已恢复暂停播放器（{0}）", reason);
-                return;
-            }
+            // 等它变成"未播放"（最多 800ms），再看离截止时间还有多久
+            WaitUntil(() => !ReadProp<bool>("Media::PlayPause"), 800);
+            paused = !ReadProp<bool>("Media::PlayPause");
+
+            if (Environment.TickCount64 >= deadline)
+                break;
+
+            Thread.Sleep(250);
         }
 
-        Log.Warn("恢复暂停播放器未生效（{0}）", reason);
+        if (paused)
+            Log.Info("已恢复暂停播放器（{0}）", reason);
+        else
+            Log.Warn("恢复暂停播放器未生效（{0}）", reason);
     }
 
     /// <summary>用户自己换了视频：忘掉我们的切换记录，别再去动他的视频。</summary>
