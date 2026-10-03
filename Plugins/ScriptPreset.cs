@@ -908,7 +908,7 @@ public class ScriptPreset : PluginBase
             var target = videoPosition - PresetTimeOffset;
             if (Math.Abs(controller.OverridePosition - target) > 0.1)
             {
-                Log.Info("跟随视频进度：脚本位置 {0:F2}s -> {1:F2}s", controller.OverridePosition, target);
+                Log.Debug("跟随视频进度：脚本位置 {0:F2}s -> {1:F2}s", controller.OverridePosition, target);
                 controller.SeekOverride(target);
             }
         }
