@@ -588,8 +588,15 @@ internal sealed class ScriptViewModel : Screen, IDeviceAxisValueProvider, IScrip
 
         SetSyncBypass(true);
         ResetAxes(null);
-        if (message.ReloadScripts)
+
+        // 脚本覆盖（一键预设）播放期间不要去动视频脚本区的脚本：
+        // 换视频往往是预设自己做的（例如自动切到脚本的同名视频），把它的脚本加载进各轴
+        // 只会让视频脚本区显示成预设那一份波形，两个区互相干扰。
+        // 预设结束之后的路径变化会正常加载。
+        if (message.ReloadScripts && !IsOverrideActive)
             ReloadAxes(null);
+        else if (message.ReloadScripts)
+            Logger.Info("预设正在播放，跳过视频脚本区的脚本加载 [Path: \"{0}\"]", message.Path);
 
         if (MediaResource == null)
             InvalidateMediaState();

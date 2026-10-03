@@ -80,6 +80,12 @@ public class ScriptPreset : PluginBase
     [JsonProperty] public bool AutoSwitchVideo { get; set; } = true;
 
     /// <summary>
+    /// 预设时间偏移（秒）：正值＝动作整体延后，负值＝提前。
+    /// 全局一份、所有预设通用（和视频脚本区那行的偏移一样，设一次到处生效）。
+    /// </summary>
+    [JsonProperty] public double PresetTimeOffset { get; set; } = 0;
+
+    /// <summary>
     /// 是否自动修复「首次连接播放器拿不到视频路径」的问题。
     /// 这是 MultiFunPlayer 的 PotPlayer 媒体源 bug（向播放器要文件名时没有超时，读循环会卡死），
     /// 断开重连一次即可恢复，插件在检测到连接后迟迟拿不到路径时自动做这件事。
@@ -361,7 +367,7 @@ public class ScriptPreset : PluginBase
         if (preset == null || controller == null)
             return;
 
-        var offset = preset.OffsetSeconds;
+        var offset = PresetTimeOffset;
         var scriptPosition = controller.OverridePosition;      // 底层脚本位置
         var position = scriptPosition + offset;                // 用户看到的位置（不含偏移）
         var duration = controller.OverrideDuration;
@@ -628,7 +634,7 @@ public class ScriptPreset : PluginBase
 
         // ---- 5) 交给内核：独立时间轴接管，MediaPosition / 各轴脚本都不受影响 ----
         // 带上预设自己的时间偏移（脚本位置 = 预设位置 − 偏移）
-        controller.StartOverride(scripts, startPosition - preset.OffsetSeconds);
+        controller.StartOverride(scripts, startPosition - PresetTimeOffset);
 
         _activePreset = preset;
         _activePresetIndex = index;
@@ -679,7 +685,7 @@ public class ScriptPreset : PluginBase
 
         // 记下这次播到哪，下次接着播（用用户看到的位置，不含偏移）
         if (controller is { IsOverrideActive: true })
-            preset.ResumePosition = controller.OverridePosition + preset.OffsetSeconds;
+            preset.ResumePosition = controller.OverridePosition + PresetTimeOffset;
 
         controller?.StopOverride();   // 设备立刻回到视频脚本（各轴脚本从未被改动过）
 
@@ -843,7 +849,7 @@ public class ScriptPreset : PluginBase
         if (_activePreset == null || controller == null)
             return;
 
-        controller.SeekOverride(position - (_offsetPreset?.OffsetSeconds ?? 0));
+        controller.SeekOverride(position - PresetTimeOffset);
         _displayPosition = position;
         UpdateTransportPosition(force: true);
     }
@@ -1305,7 +1311,7 @@ public class ScriptPreset : PluginBase
             StringFormat = "{}{0:F2}s",
             TrackMouseWheelWhenMouseOver = true,
             VerticalAlignment = VerticalAlignment.Center,
-            ToolTip = "这个预设自己的时间偏移：正值＝动作延后，负值＝提前。只作用于本预设，用来和视频对齐。"
+            ToolTip = "预设时间偏移：正值＝动作延后，负值＝提前。所有预设通用（与视频脚本区的偏移互不影响）。"
         };
         _presetOffsetBox.ValueChanged += (_, e) =>
         {
@@ -1348,7 +1354,7 @@ public class ScriptPreset : PluginBase
             HintAssist.SetHint(_presetFileBox, folder ?? string.Empty);
             _presetFileBox.ToolTip = paths.Count > 0 ? string.Join("\n", paths) : null;
             _presetOffsetBox.IsEnabled = preset != null;
-            _presetOffsetBox.Value = preset?.OffsetSeconds ?? 0;
+            _presetOffsetBox.Value = PresetTimeOffset;
         }
         finally
         {
@@ -1362,16 +1368,12 @@ public class ScriptPreset : PluginBase
     /// </summary>
     private void OnPresetOffsetChanged(double value)
     {
-        var preset = _offsetPreset;
-        if (preset == null)
-            return;
-
-        preset.OffsetSeconds = value;
+        PresetTimeOffset = value;
         MarkSettingsDirty();
-        Log.Info("预设「{0}」时间偏移改为 {1:F2}s", preset.Name, value);
+        Log.Info("预设时间偏移改为 {0:F2}s（所有预设通用）", value);
 
         var controller = OverrideController;
-        if (_activePreset != null && ReferenceEquals(_activePreset, preset) && controller is { IsOverrideActive: true })
+        if (_activePreset != null && controller is { IsOverrideActive: true })
             controller.SeekOverride(_displayPosition - value);
 
         UpdateTransportPosition(force: true);
@@ -1814,9 +1816,6 @@ public class PresetDefinition
 {
     public string Name { get; set; }
     public bool Loop { get; set; } = true;
-
-    /// <summary>预设自己的时间偏移（秒）：正值＝动作整体延后，负值＝提前。只影响这个预设。</summary>
-    [JsonProperty] public double OffsetSeconds { get; set; } = 0;
     public List<PresetEntry> Entries { get; set; } = [];
 
     /// <summary>上次播到的位置（秒）。下次播放这个预设时从这里接着播；播完或被重置则为 0。</summary>
