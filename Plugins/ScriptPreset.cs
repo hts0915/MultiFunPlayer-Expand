@@ -148,6 +148,9 @@ public class ScriptPreset : PluginBase
     private bool _overrideWasPaused;
     private bool _lastPlayerPlaying;
 
+    // 用户自己换过视频：这个预设会话里不再接管视频（否则会和用户来回抢，两个视频一直闪）
+    private bool _mediaTakenOverByUser;
+
     private static readonly string[] VideoExtensions =
         [".mp4", ".mkv", ".wmv", ".avi", ".mov", ".webm", ".m4v", ".ts", ".m2ts", ".mpg", ".mpeg", ".flv"];
 
@@ -286,16 +289,21 @@ public class ScriptPreset : PluginBase
 
     protected override void HandleMessage(MediaPathChangedMessage message)
     {
-        // 跟随同名视频期间，若视频被换成了别的文件（不是我们切的那个），说明用户自己换片了：
-        // 解除跟随，让预设回到自己的独立时间轴（随后的播放状态变化会按老规矩停掉预设）。
+        // 跟随同名视频期间，若视频被换成了别的文件（不是我们切的那个），说明用户自己换片了。
+        // 这时必须**停止接管视频**：否则下一拍又会把视频切回预设的同名视频，
+        // 用户那边再切回来……两个视频就会来回抢。
         if (_switchedToMediaPath == null)
             return;
 
-        if (string.Equals(message.Path, _switchedToMediaPath, StringComparison.OrdinalIgnoreCase))
+        // 注意：PotPlayer 的轮询偶尔会返回带乱码尾巴的同一个路径，必须按"同一个视频"放过
+        if (IsSameVideoPath(message.Path, _switchedToMediaPath))
             return;
 
-        Log.Info("视频被换成 {0}（不是预设的同名视频），解除进度跟随", message.Path);
+        Log.Info("用户换成了其它视频（{0}），预设不再接管视频，并停止预设", message.Path);
+        _mediaTakenOverByUser = true;
         ForgetSwitchedMedia();
+        SetHint("检测到你自己换了视频，预设已停止（不会再和你的视频抢）");
+        Enqueue(() => StopCore(false, restoreMedia: false));
     }
 
     protected override void HandleMessage(MediaPlayPauseMessage message)
@@ -591,6 +599,7 @@ public class ScriptPreset : PluginBase
         // ---- 2) 与视频互斥 / 跟随同名视频 ----
         // 先试切换同名视频：切到了就让视频播着、预设跟着它的进度走（与视频脚本区同一套思路：
         // 脚本按媒体进度对齐），所以这时**不**去暂停播放器；没切到才按老规矩暂停视频。
+        _mediaTakenOverByUser = false;   // 新的一次播放，重新允许接管视频
         var switchedVideo = SwitchToPresetVideo(preset);
         if (switchedVideo)
         {
@@ -770,6 +779,29 @@ public class ScriptPreset : PluginBase
         }
     }
 
+    /// <summary>清掉路径里的乱码与非法字符（PotPlayer 轮询偶尔会返回脏路径）。</summary>
+    private static string CleanMediaPath(string path)
+        => path == null ? null : new string(path.Where(c => !char.IsControl(c) && c != '\uFFFD' && !Path.GetInvalidPathChars().Contains(c)).ToArray()).Trim();
+
+    /// <summary>
+    /// 两个路径是否其实是同一个视频：整串相同，或只差一截很短的乱码尾巴。
+    /// 用于识别"还是我们切过去的那个视频"，避免被脏路径骗着以为是用户换片了。
+    /// </summary>
+    private static bool IsSameVideoPath(string left, string right)
+    {
+        left = CleanMediaPath(left);
+        right = CleanMediaPath(right);
+        if (string.IsNullOrEmpty(left) || string.IsNullOrEmpty(right))
+            return false;
+
+        if (string.Equals(left, right, StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        var shorter = left.Length <= right.Length ? left : right;
+        var longer = left.Length <= right.Length ? right : left;
+        return longer.StartsWith(shorter, StringComparison.OrdinalIgnoreCase) && longer.Length - shorter.Length <= 8;
+    }
+
     /// <summary>在预设脚本所在文件夹里找同名视频（先按完全同名，再按"以脚本名开头"）。</summary>
     private static string FindMatchingVideo(PresetDefinition preset)
     {
@@ -813,6 +845,12 @@ public class ScriptPreset : PluginBase
         if (!AutoSwitchVideo || preset == null || _switchedToMediaPath != null)
             return _switchedToMediaPath != null;
 
+        if (_mediaTakenOverByUser)
+        {
+            Log.Debug("用户已自己选过视频，本次预设不再接管视频");
+            return false;
+        }
+
         var video = FindMatchingVideo(preset);
         if (video == null)
         {
@@ -821,7 +859,7 @@ public class ScriptPreset : PluginBase
         }
 
         var current = GetCurrentMediaPath();
-        if (!string.IsNullOrEmpty(current) && string.Equals(current, video, StringComparison.OrdinalIgnoreCase))
+        if (IsSameVideoPath(current, video))
         {
             // 已经在放这个视频了：不用切换，但预设照样跟随它的进度，停止时也不切走
             _switchedToMediaPath = video;
@@ -929,8 +967,8 @@ public class ScriptPreset : PluginBase
     }
 
     /// <summary>
-    /// 预设与视频的播放/暂停双向同步：不管哪一边被暂停或继续，另一边的状态都会跟过去。
-    /// 两边都可能是"用户按的"，所以按"谁刚变化"来判断方向，避免来回打架。
+    /// 预设与视频的播放/暂停双向同步：不管哪一边被暂停或继续，另一边都跟过去，
+    /// 并刷新预设区界面（视频那边暂停时，预设区的暂停图标/文字也要跟着显示为已暂停）。
     /// </summary>
     private void TrackPresetPauseState()
     {
@@ -938,33 +976,45 @@ public class ScriptPreset : PluginBase
         var playerPlaying = ReadProp<bool>("Media::PlayPause");
         var presetPaused = controller?.IsOverridePaused ?? false;
         var active = _activePreset != null;
+        var pauseChanged = presetPaused != _overrideWasPaused;
+        var playerChanged = playerPlaying != _lastPlayerPlaying;
+        var refreshUi = false;
 
-        if (active && presetPaused != _overrideWasPaused)
+        if (active && pauseChanged && !_mediaTakenOverByUser)
         {
             // 预设这边刚被改（例如在预设区按了暂停）→ 同步给播放器
             Log.Info("预设{0}，同步到播放器", presetPaused ? "已暂停" : "已继续");
             Interlocked.Exchange(ref _suppressPlayerStartTicks, Environment.TickCount64 + PlayerChangeSuppressMilliseconds);
             PublishMessage(new MediaPlayPauseMessage(!presetPaused));
+            refreshUi = true;
         }
-        else if (active && playerPlaying != _lastPlayerPlaying && controller is { IsOverrideActive: true })
+        else if (active && playerChanged && controller is { IsOverrideActive: true })
         {
-            // 播放器这边刚被改 → 同步给预设
+            // 播放器这边刚被改 → 同步给预设（预设区 UI 也要跟着变，不能只暂停了脚本却还显示"正在播放"）
             Log.Info("播放器{0}，同步到预设", playerPlaying ? "已开始播放" : "已暂停");
             controller.SetOverridePaused(!playerPlaying);
+            refreshUi = true;
         }
 
         // 记下同步后的实际状态，避免下一拍把自己的动作又当成"对方刚变化"而回弹一次
         _overrideWasPaused = controller?.IsOverridePaused ?? false;
         _lastPlayerPlaying = playerPlaying;
 
-        if (!active)
+        if (refreshUi)
+            RefreshUi();
+
+        if (!active || _mediaTakenOverByUser)
             return;
 
-        // 暂停时切回原视频、恢复时再切到同名视频（只在跟随模式下有意义）
-        if (presetPaused)
-            RestorePreviousMedia();
-        else if (IsFollowingVideo || AutoSwitchVideo)
-            SwitchToPresetVideo(_activePreset);
+        // 只在"暂停 / 继续"这一次变化时动视频，不要每拍都切：
+        // 每拍都切的话，用户自己换了视频就会被我们不停抢回来，两个视频来回闪。
+        if (pauseChanged || (playerChanged && !presetPaused))
+        {
+            if (presetPaused)
+                RestorePreviousMedia();
+            else
+                SwitchToPresetVideo(_activePreset);
+        }
     }
 
     #endregion
