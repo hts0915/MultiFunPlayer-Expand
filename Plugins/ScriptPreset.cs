@@ -75,6 +75,9 @@ public class ScriptPreset : PluginBase
     /// <summary>播放预设时是否暂停视频（与视频互斥）。</summary>
     [JsonProperty] public bool PausePlayerOnPlay { get; set; } = true;
 
+    /// <summary>播放预设时自动切换到脚本的同名视频（同一文件夹内），暂停/停止时切回原来的视频。</summary>
+    [JsonProperty] public bool AutoSwitchVideo { get; set; } = true;
+
     /// <summary>
     /// 是否自动修复「首次连接播放器拿不到视频路径」的问题。
     /// 这是 MultiFunPlayer 的 PotPlayer 媒体源 bug（向播放器要文件名时没有超时，读循环会卡死），
@@ -127,6 +130,14 @@ public class ScriptPreset : PluginBase
     // 自己暂停/恢复播放器会造成状态变化通知，这段时间内忽略，避免误判成"用户开始播放视频"
     private const int PlayerChangeSuppressMilliseconds = 2500;
     private long _suppressPlayerStartTicks;
+
+    // 跟随同名视频：记住"切换前正在播的视频"和"我们切过去的视频"，用于暂停/停止时切回
+    private string _switchedFromMediaPath;
+    private string _switchedToMediaPath;
+    private bool _overrideWasPaused;
+
+    private static readonly string[] VideoExtensions =
+        [".mp4", ".mkv", ".wmv", ".avi", ".mov", ".webm", ".m4v", ".ts", ".m2ts", ".mpg", ".mpeg", ".flv"];
 
     private volatile bool _settingsDirty;
     private long _lastSaveTicks;
@@ -276,7 +287,10 @@ public class ScriptPreset : PluginBase
 
             _pausedPlayer = false;
             _savedIsPlaying = true;
-            StopCore(false);
+
+            // 用户自己开始播视频：以他的视频为准，不要再切回我们记着的那个
+            ForgetSwitchedMedia();
+            StopCore(false, restoreMedia: false);
         });
     }
 
@@ -300,6 +314,7 @@ public class ScriptPreset : PluginBase
                     {
                         MonitorPreset();
                         TrackMediaSourceConnection();
+                        TrackPresetPauseState();
                         FlushSettingsIfDirty();
                         HideExpiredHint();
                     }
@@ -524,9 +539,9 @@ public class ScriptPreset : PluginBase
             return;
         }
 
-        // 切换预设时先停下上一个
+        // 切换预设时先停下上一个（视频不切回：新预设马上会切到它自己的同名视频）
         if (_activePreset != null)
-            StopCore(true);
+            StopCore(true, restoreMedia: false);
 
         // ---- 1) 等播放器状态稳定后读取，用于停止预设时决定要不要恢复视频播放 ----
         Thread.Sleep(250);
@@ -613,6 +628,9 @@ public class ScriptPreset : PluginBase
         _displayPosition = startPosition;
         _timelineDuration = controller.OverrideDuration;
 
+        // 播放预设时自动切到它的同名视频（同一文件夹内），暂停/停止时切回原视频
+        SwitchToPresetVideo(preset);
+
         // 把预设脚本的关键帧交给波形时间轴（原生 KeyframesHeatmap，和脚本区长得一样）
         var keyframes = scripts
             .Where(pair => pair.Value?.Keyframes is { Count: > 1 })
@@ -639,8 +657,13 @@ public class ScriptPreset : PluginBase
     }
 
     /// <param name="resumePlayer">是否按之前记录的状态恢复视频播放。</param>
-    private void StopCore(bool resumePlayer)
+    /// <param name="restoreMedia">是否把我们切过去的同名视频切回原来那个（用户自己换了视频时要传 false）。</param>
+    private void StopCore(bool resumePlayer, bool restoreMedia = true)
     {
+        // 先切回视频：即使预设已经停了（preset == null）也要处理，避免视频留在预设那边
+        if (restoreMedia)
+            RestorePreviousMedia();
+
         var preset = _activePreset;
         if (preset == null)
             return;
@@ -674,6 +697,137 @@ public class ScriptPreset : PluginBase
         RefreshUi();
         UpdateTransportPosition(force: true);
     }
+
+    #region 跟随同名视频
+
+    // 播放哪个脚本就放哪个脚本的视频：
+    //   * 预设开播 -> 在同名位置找视频（同一文件夹内，例如 a.funscript -> a.mp4）并切过去
+    //   * 预设暂停 / 停止 -> 切回切换前正在播的那个视频
+    // 切换用的是宿主给媒体源发的「换文件」指令（PotPlayer 用 SetFilename 真的会打开文件）。
+    // 注意：我们自己切视频会造成一次"开始播放"通知，必须落在抑制窗口里，
+    // 否则会被 HandleMessage(MediaPlayingChangedMessage) 当成用户主动播放而把预设停掉。
+
+    private string GetCurrentMediaPath()
+    {
+        try
+        {
+            return ReadProp<MediaResourceInfo>("Media::Resource")?.Path;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>在预设脚本所在文件夹里找同名视频（先按完全同名，再按"以脚本名开头"）。</summary>
+    private static string FindMatchingVideo(PresetDefinition preset)
+    {
+        foreach (var entry in preset?.Entries ?? [])
+        {
+            if (string.IsNullOrWhiteSpace(entry.ScriptPath) || !File.Exists(entry.ScriptPath))
+                continue;
+
+            var folder = Path.GetDirectoryName(entry.ScriptPath);
+            var name = Path.GetFileNameWithoutExtension(entry.ScriptPath);
+            if (string.IsNullOrEmpty(folder) || string.IsNullOrEmpty(name) || !Directory.Exists(folder))
+                continue;
+
+            // 1) 与脚本完全同名，只换扩展名
+            foreach (var extension in VideoExtensions)
+            {
+                var candidate = Path.Combine(folder, name + extension);
+                if (File.Exists(candidate))
+                    return candidate;
+            }
+
+            // 2) 同目录下以脚本名开头的视频（例如 a.funscript -> a (1080p).mp4）
+            foreach (var file in Directory.EnumerateFiles(folder))
+            {
+                if (!VideoExtensions.Contains(Path.GetExtension(file), StringComparer.OrdinalIgnoreCase))
+                    continue;
+                if (Path.GetFileNameWithoutExtension(file).StartsWith(name, StringComparison.OrdinalIgnoreCase))
+                    return file;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>切到预设的同名视频；记住原来在播的视频，暂停/停止时切回。</summary>
+    private void SwitchToPresetVideo(PresetDefinition preset)
+    {
+        if (!AutoSwitchVideo || preset == null || _switchedToMediaPath != null)
+            return;
+
+        var video = FindMatchingVideo(preset);
+        if (video == null)
+        {
+            Log.Info("预设「{0}」没有找到同名视频，跳过自动切换", preset.Name);
+            return;
+        }
+
+        var current = GetCurrentMediaPath();
+        if (!string.IsNullOrEmpty(current) && string.Equals(current, video, StringComparison.OrdinalIgnoreCase))
+            return;
+
+        _switchedFromMediaPath = current;
+        _switchedToMediaPath = video;
+
+        Interlocked.Exchange(ref _suppressPlayerStartTicks, Environment.TickCount64 + PlayerChangeSuppressMilliseconds);
+        PublishMessage(new MediaChangePathMessage(video));
+        Log.Info("预设「{0}」已切换到同名视频：{1}", preset.Name, video);
+        SetHint($"已切换到同名视频：{Path.GetFileName(video)}");
+    }
+
+    /// <summary>切回预设开始前正在播的视频。</summary>
+    private void RestorePreviousMedia()
+    {
+        if (_switchedToMediaPath == null)
+            return;
+
+        var previous = _switchedFromMediaPath;
+        _switchedToMediaPath = null;
+        _switchedFromMediaPath = null;
+
+        if (string.IsNullOrWhiteSpace(previous) || !File.Exists(previous))
+        {
+            Log.Info("预设结束：没有可切回的视频（原来是未播放状态）");
+            return;
+        }
+
+        Interlocked.Exchange(ref _suppressPlayerStartTicks, Environment.TickCount64 + PlayerChangeSuppressMilliseconds);
+        PublishMessage(new MediaChangePathMessage(previous));
+        Log.Info("预设结束：已切回原视频 {0}", previous);
+        SetHint($"已切回原视频：{Path.GetFileName(previous)}");
+    }
+
+    /// <summary>用户自己换了视频：忘掉我们的切换记录，别再去动他的视频。</summary>
+    private void ForgetSwitchedMedia()
+    {
+        _switchedToMediaPath = null;
+        _switchedFromMediaPath = null;
+    }
+
+    /// <summary>预设的暂停/恢复也跟随视频（暂停切回原视频，恢复再切到同名视频）。</summary>
+    private void TrackPresetPauseState()
+    {
+        var paused = OverrideController?.IsOverridePaused ?? false;
+        if (paused == _overrideWasPaused)
+            return;
+
+        _overrideWasPaused = paused;
+
+        var preset = _activePreset;
+        if (preset == null)
+            return;
+
+        if (paused)
+            RestorePreviousMedia();
+        else
+            SwitchToPresetVideo(preset);
+    }
+
+    #endregion
 
     /// <summary>把预设时间轴跳到指定位置。</summary>
     private void SeekPresetTo(double position)
@@ -1285,6 +1439,23 @@ public class ScriptPreset : PluginBase
         ApplyBodyForeground(loop);
         DockPanel.SetDock(loop, Dock.Right);
         row.Children.Add(loop);
+
+        // 右侧：跟随同名视频（播放预设时自动切到脚本同名视频，暂停/停止切回）
+        var followVideo = new CheckBox
+        {
+            Content = "跟随视频",
+            FontSize = 14,
+            IsChecked = AutoSwitchVideo,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(8, 0, 8, 0),
+            ToolTip = "播放预设时自动切到脚本的同名视频（同一文件夹内），暂停或停止时切回原来播放的视频"
+        };
+
+        followVideo.Checked += (_, _) => { AutoSwitchVideo = true; MarkSettingsDirty(); };
+        followVideo.Unchecked += (_, _) => { AutoSwitchVideo = false; MarkSettingsDirty(); };
+        ApplyBodyForeground(followVideo);
+        DockPanel.SetDock(followVideo, Dock.Right);
+        row.Children.Add(followVideo);
 
         // 左侧：播放/停止合一按钮
         var isActive = ReferenceEquals(_activePreset, preset);
