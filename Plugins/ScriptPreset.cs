@@ -826,6 +826,9 @@ public class ScriptPreset : PluginBase
             // 已经在放这个视频了：不用切换，但预设照样跟随它的进度，停止时也不切走
             _switchedToMediaPath = video;
             _switchedFromMediaPath = null;
+            if (OverrideController != null)
+                OverrideController.OverrideMediaPath = video;
+
             Log.Info("预设「{0}」当前视频已是同名视频，直接跟随其进度", preset.Name);
             return true;
         }
@@ -863,7 +866,7 @@ public class ScriptPreset : PluginBase
             var target = videoPosition - PresetTimeOffset;
             if (Math.Abs(controller.OverridePosition - target) > 0.1)
             {
-                Log.Debug("跟随视频进度：脚本位置 {0:F2}s -> {1:F2}s", controller.OverridePosition, target);
+                Log.Info("跟随视频进度：脚本位置 {0:F2}s -> {1:F2}s", controller.OverridePosition, target);
                 controller.SeekOverride(target);
             }
         }
@@ -876,13 +879,17 @@ public class ScriptPreset : PluginBase
         return true;
     }
 
-    /// <summary>切回预设开始前正在播的视频。</summary>
+    /// <summary>
+    /// 切回预设开始前正在播的视频。原来没有在播的视频时，把预设切过去的那个视频<b>暂停</b>掉
+    /// —— 否则停止/暂停预设后视频还自己放着，看起来就是"预设停了视频不停"。
+    /// </summary>
     private void RestorePreviousMedia()
     {
         if (_switchedToMediaPath == null)
             return;
 
         var previous = _switchedFromMediaPath;
+        var switchedTo = _switchedToMediaPath;
         _switchedToMediaPath = null;
         _switchedFromMediaPath = null;
 
@@ -891,7 +898,17 @@ public class ScriptPreset : PluginBase
 
         if (string.IsNullOrWhiteSpace(previous) || !File.Exists(previous))
         {
-            Log.Info("预设结束：没有可切回的视频（原来是未播放状态）");
+            if (!string.IsNullOrEmpty(switchedTo))
+            {
+                Interlocked.Exchange(ref _suppressPlayerStartTicks, Environment.TickCount64 + PlayerChangeSuppressMilliseconds);
+                PublishMessage(new MediaPlayPauseMessage(false));
+                Log.Info("预设结束：暂停预设切过去的视频（原来没有在播的视频）");
+            }
+            else
+            {
+                Log.Info("预设结束：没有可切回的视频（原来是未播放状态）");
+            }
+
             return;
         }
 
@@ -961,6 +978,15 @@ public class ScriptPreset : PluginBase
 
         controller.SeekOverride(position - PresetTimeOffset);
         _displayPosition = position;
+
+        // 跟随模式下拖预设时间轴，必须同时把视频拖到同一位置 ——
+        // 否则下一拍"跟随视频进度"又会把脚本位置拽回视频那边，表现就是"拖不动"。
+        if (IsFollowingVideo)
+        {
+            Interlocked.Exchange(ref _suppressPlayerStartTicks, Environment.TickCount64 + PlayerChangeSuppressMilliseconds);
+            PublishMessage(new MediaSeekMessage(TimeSpan.FromSeconds(Math.Max(0, position))));
+            Log.Info("预设时间轴跳到 {0:F2}s，同时把视频拖到同一位置", position);
+        }
         UpdateTransportPosition(force: true);
     }
 

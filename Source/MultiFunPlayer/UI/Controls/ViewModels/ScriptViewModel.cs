@@ -585,6 +585,15 @@ internal sealed class ScriptViewModel : Screen, IDeviceAxisValueProvider, IScrip
         if (MediaResource == resource)
             return;
 
+        // PotPlayer 轮询偶尔会返回带乱码尾巴的路径（例如 "xxx.mp4\ufffdZ\ufffd\ufffd"），
+        // 其实还是同一个视频。不识别的话这里会被当成"换了视频"，
+        // 视频脚本区跟着反复重载/闪烁（预设也可能被误判），所以要挡掉。
+        if (resource != null && MediaResource != null && IsSameMediaPath(resource.Path, MediaResource.Path))
+        {
+            Logger.Debug("忽略几乎相同的媒体路径变化 [\"{0}\" ≈ \"{1}\"]", resource.Path, MediaResource.Path);
+            return;
+        }
+
         MediaResource = resource;
         if (SyncSettings.SyncOnMediaResourceChanged)
             ResetSync(true);
@@ -608,6 +617,29 @@ internal sealed class ScriptViewModel : Screen, IDeviceAxisValueProvider, IScrip
 
         InvalidateAxisState(null);
         SetSyncBypass(false);
+    }
+
+    /// <summary>清掉媒体路径里的乱码与非法字符，用于判断两次通知是不是同一个视频。</summary>
+    private static string CleanMediaPath(string path)
+        => path == null ? null : new string(path.Where(c => !char.IsControl(c) && c != '\uFFFD' && !Path.GetInvalidPathChars().Contains(c)).ToArray()).Trim();
+
+    /// <summary>
+    /// 两次媒体路径通知是否其实是同一个视频：整串相同，或者只差一截很短的乱码尾巴
+    /// （PotPlayer 的轮询偶尔会在文件名后面粘上几个乱码字符）。
+    /// </summary>
+    private static bool IsSameMediaPath(string left, string right)
+    {
+        left = CleanMediaPath(left);
+        right = CleanMediaPath(right);
+        if (string.IsNullOrEmpty(left) || string.IsNullOrEmpty(right))
+            return false;
+
+        if (string.Equals(left, right, StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        var shorter = left.Length <= right.Length ? left : right;
+        var longer = left.Length <= right.Length ? right : left;
+        return longer.StartsWith(shorter, StringComparison.OrdinalIgnoreCase) && longer.Length - shorter.Length <= 8;
     }
 
     public void Handle(MediaPlayingChangedMessage message)
