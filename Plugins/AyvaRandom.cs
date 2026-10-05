@@ -1436,7 +1436,7 @@ public class AyvaRandom : PluginBase
     private UIElement BuildRangeSlider(double minimum, double maximum, double step,
         Func<double> getMinimum, Action<double> setMinimum,
         Func<double> getMaximum, Action<double> setMaximum,
-        Func<bool> isEnabled = null)
+        Func<bool> isEnabled = null, Action onChanged = null)
     {
         const double thumbSize = 16;
         const double trackHeight = 4;
@@ -1522,6 +1522,9 @@ public class AyvaRandom : PluginBase
 
             MarkSettingsDirty();
             Layout();
+
+            // 拖动时立刻刷新数值显示（原来只在 RefreshUi 时刷新，所以拖了数字不动）
+            onChanged?.Invoke();
         }
 
         minThumb.DragDelta += (_, e) => Drag(minThumb, true, e.HorizontalChange);
@@ -1579,9 +1582,14 @@ public class AyvaRandom : PluginBase
         head.Children.Add(valueText);
         panel.Children.Add(head);
 
-        panel.Children.Add(BuildRangeSlider(minimum, maximum, step, getMinimum, setMinimum, getMaximum, setMaximum, isEnabled));
+        void UpdateValueText()
+            => valueText.Text = $"{getMinimum().ToString(format)}{unit} ~ {getMaximum().ToString(format)}{unit}";
 
-        _refreshControls.Add(() => valueText.Text = $"{getMinimum().ToString(format)}{unit} ~ {getMaximum().ToString(format)}{unit}");
+        UpdateValueText();
+
+        panel.Children.Add(BuildRangeSlider(minimum, maximum, step, getMinimum, setMinimum, getMaximum, setMaximum, isEnabled, UpdateValueText));
+
+        _refreshControls.Add(UpdateValueText);
 
         return panel;
     }
