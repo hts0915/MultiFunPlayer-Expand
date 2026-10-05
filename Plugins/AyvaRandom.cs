@@ -26,6 +26,8 @@ using MahApps.Metro.Controls;
 using MaterialDesignThemes.Wpf;
 using MultiFunPlayer.Common;
 using MultiFunPlayer.Script;
+using MultiFunPlayer.UI.Controls;
+using MultiFunPlayer.UI.Controls.ViewModels;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Stylet;
@@ -174,6 +176,57 @@ public class AyvaRandom : PluginBase
 
     private static string GetSourceFilePath([System.Runtime.CompilerServices.CallerFilePath] string path = null) => path;
 
+    /// <summary>42 条内置行程的中文名（界面里显示这个，内部仍用英文键）。</summary>
+    private static readonly Dictionary<string, string> ChineseNames = new()
+    {
+        ["down-forward"] = "下前插",
+        ["down-backward"] = "下后拉",
+        ["back-thrust-down"] = "后顶下压",
+        ["back-thrust-down-swirl"] = "后顶下压·旋",
+        ["thrust-forward"] = "前顶",
+        ["thrust-forward-swirl"] = "前顶·旋",
+        ["lean-forward-thrust-down"] = "前倾下压",
+        ["lean-forward-thrust-down-swirl"] = "前倾下压·旋",
+        ["diagonal-down-back"] = "斜向下后",
+        ["diagonal-down-forward"] = "斜向下前",
+        ["orbit-tease"] = "绕圈挑逗",
+        ["left-right-tease"] = "左右挑逗",
+        ["forward-back-tease"] = "前后挑逗",
+        ["vortex-tease"] = "漩涡挑逗",
+        ["swirl-tease"] = "旋涡挑逗",
+        ["forward-back-grind"] = "前后研磨",
+        ["orbit-grind"] = "绕圈研磨",
+        ["short-low-roll-forward"] = "短·低位翻滚·前",
+        ["short-low-roll-backward"] = "短·低位翻滚·后",
+        ["short-mid-roll-forward"] = "短·中位翻滚·前",
+        ["short-mid-roll-backward"] = "短·中位翻滚·后",
+        ["short-high-roll-forward"] = "短·高位翻滚·前",
+        ["short-high-roll-backward"] = "短·高位翻滚·后",
+        ["long-stroke-1"] = "长行程 1",
+        ["long-stroke-2"] = "长行程 2",
+        ["long-stroke-3"] = "长行程 3",
+        ["long-stroke-4"] = "长行程 4",
+        ["long-stroke-5"] = "长行程 5",
+        ["grind-circular"] = "圆周研磨",
+        ["grind-vortex"] = "漩涡研磨",
+        ["grind-forward-back"] = "前后研磨（同步）",
+        ["grind-forward-back-phased"] = "前后研磨·错相",
+        ["grind-forward-back-tilt"] = "前后研磨·倾斜",
+        ["grind-forward-tilt"] = "前向研磨·倾斜",
+        ["tease-orbit-right"] = "环绕挑逗·右",
+        ["tease-orbit-left"] = "环绕挑逗·左",
+        ["tease-left-right-rock"] = "左右摇摆挑逗",
+        ["tease-down-back"] = "下后挑逗",
+        ["tease-back-swirl-right"] = "后旋挑逗·右",
+        ["tease-back-swirl-left"] = "后旋挑逗·左",
+        ["tease-up-down-circle-right"] = "上下绕圈·右",
+        ["tease-up-down-circle-left"] = "上下绕圈·左",
+    };
+
+    /// <summary>行程的中文显示名（没有登记就退回英文键）。</summary>
+    private static string DisplayNameOf(string key)
+        => ChineseNames.TryGetValue(key, out var chinese) ? chinese : key;
+
     #endregion
 
     #region 引擎状态
@@ -193,6 +246,7 @@ public class AyvaRandom : PluginBase
     private double _bpm = 120;
     private double _targetBpm = 120;
     private double _segmentRemaining;
+    private double _segmentTotal;
     private double _transitionRemaining;
     private double _transitionTotal;
     private bool _playing;
@@ -309,6 +363,7 @@ public class AyvaRandom : PluginBase
                     FlushSettingsIfDirty();
                     HideExpiredHint();
                     UpdateStatusText();
+                    RefreshTimeline();
                 }
             }
             catch (OperationCanceledException)
@@ -391,6 +446,7 @@ public class AyvaRandom : PluginBase
             _transitionFrom = null;
             _transitionRemaining = 0;
             _transitionTotal = 0;
+            _segmentTotal = 0;
         }
 
         try
@@ -419,6 +475,7 @@ public class AyvaRandom : PluginBase
         if (wasPlaying)
             Log.Info("AyvaRandom 已停止");
 
+        RefreshTimeline(force: true);
         RefreshUi();
     }
 
@@ -485,6 +542,11 @@ public class AyvaRandom : PluginBase
         _bpm = initial || !ContinuousBpm ? NextRandomBpm() : _bpm;
         _targetBpm = NextRandomBpm();
         _segmentRemaining = NextRandomSegmentSeconds();
+        _segmentTotal = _segmentRemaining;
+
+        // 给这一段生成波形（用和播放同一条公式，所以画出来就是接下来要走的形状）
+        BuildSegmentPreview(axes, _segmentTotal, _bpm);
+        RefreshTimeline(force: true);
 
         if (!initial)
             Log.Debug("AyvaRandom 换段：{0}（bpm {1:0}，本段 {2:0.0}s，过渡 {3:0.0}s）", name, _bpm, _segmentRemaining, _transitionTotal);
@@ -635,6 +697,10 @@ public class AyvaRandom : PluginBase
     private TextBlock _statusText;
     private TextBlock _hintText;
     private PluginViewBase _view;
+    private KeyframesHeatmap _timeline;
+    private TextBlock _timelineTimeText;
+    private IReadOnlyDictionary<DeviceAxis, KeyframeCollection> _segmentPreview;
+    private long _lastTimelineUpdateTicks;
     private Button _playButton;
     private WrapPanel _strokePoolPanel;
     private NumericUpDown _bpmMinBox;
@@ -664,6 +730,7 @@ public class AyvaRandom : PluginBase
 
         var root = new StackPanel { Margin = new Thickness(12, 8, 12, 12) };
         root.Children.Add(BuildTransport());
+        root.Children.Add(BuildTimeline());
         root.Children.Add(BuildStrokePool());
         root.Children.Add(BuildRanges());
 
@@ -713,6 +780,145 @@ public class AyvaRandom : PluginBase
         // 这里绝不能再 add 一次 —— 同一个 UI 元素挂两个父级会让 WPF 抛
         // "在指定子级连接到新的父 Visual 之前必须断开与当前父 Visual 的连接" 并直接崩溃。
         return row;
+    }
+
+    /// <summary>
+    /// 本段行程的波形时间轴：和「脚本预设」面板一样用原生的 KeyframesHeatmap，
+    /// 显示当前这一段随机行程的形状，进度条随时间前进（因为是实时随机的，不能拖动）。
+    /// </summary>
+    private UIElement BuildTimeline()
+    {
+        var panel = new StackPanel { Margin = new Thickness(0, 2, 0, 6) };
+
+        var head = new DockPanel { LastChildFill = true, Margin = new Thickness(0, 0, 0, 4) };
+
+        var label = new TextBlock { Text = "本段波形：", FontSize = 14, VerticalAlignment = VerticalAlignment.Center };
+        ApplyBodyForeground(label);
+        DockPanel.SetDock(label, Dock.Left);
+        head.Children.Add(label);
+
+        _timelineTimeText = new TextBlock
+        {
+            FontSize = 14,
+            VerticalAlignment = VerticalAlignment.Center,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Text = "-- : --"
+        };
+        ApplyBodyForeground(_timelineTimeText);
+        head.Children.Add(_timelineTimeText);
+
+        _timeline = new KeyframesHeatmap
+        {
+            Height = 36,
+            VerticalAlignment = VerticalAlignment.Center,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            BucketCount = 333,
+            CombineHeat = true,
+            ShowRange = true,
+            EnablePreview = true,
+            InvertY = false,
+            Duration = double.NaN,
+            Position = double.NaN,
+            Settings = BuildHeatmapSettings(),
+            ToolTip = "这一段的波形（实时随机生成，不能拖动）"
+        };
+
+        panel.Children.Add(head);
+        panel.Children.Add(_timeline);
+        return panel;
+    }
+
+    /// <summary>波形控件需要各轴的设置（插值类型）才能画得和脚本区一致。</summary>
+    private Dictionary<DeviceAxis, AxisSettings> BuildHeatmapSettings()
+    {
+        var result = new Dictionary<DeviceAxis, AxisSettings>();
+
+        foreach (var axis in DeviceAxis.All)
+        {
+            var settings = new AxisSettings(axis);
+            try
+            {
+                settings.InterpolationType = ReadProperty<DeviceAxis, InterpolationType>("Axis::InterpolationType", axis);
+            }
+            catch (Exception e)
+            {
+                Log.Trace(e, "读取插值类型失败 [{0}]", axis);
+            }
+
+            result[axis] = settings;
+        }
+
+        return result;
+    }
+
+    /// <summary>给一段行程生成波形预览（各轴按 20ms 采样，用的就是播放时那条公式）。</summary>
+    private void BuildSegmentPreview(Dictionary<DeviceAxis, StrokeAxisParameter> stroke, double seconds, double bpm)
+    {
+        var preview = new Dictionary<DeviceAxis, KeyframeCollection>();
+        if (stroke == null || seconds <= 0)
+        {
+            _segmentPreview = preview;
+            return;
+        }
+
+        const double step = 0.02;
+        var count = Math.Max(2, (int)Math.Ceiling(seconds / step));
+        var rate = Math.Max(1, bpm) * 2 * Math.PI / 60;
+
+        foreach (var (axis, parameter) in stroke)
+        {
+            if (Math.Abs(parameter.From - parameter.To) < 1e-9)
+                continue;   // 全程不动的轴不画
+
+            var keyframes = new KeyframeCollection(count + 1);
+            var angle = 0.0;
+            for (var i = 0; i <= count; i++)
+            {
+                keyframes.Add(i * step, Math.Clamp(parameter.Evaluate(angle), 0, 1));
+                angle += rate * step;
+                while (angle >= 2 * Math.PI)
+                    angle -= 2 * Math.PI;
+            }
+
+            preview[axis] = keyframes;
+        }
+
+        _segmentPreview = preview;
+    }
+
+    /// <summary>刷新波形与进度（限流到 20Hz，避免刷界面太频繁）。</summary>
+    private void RefreshTimeline(bool force = false)
+    {
+        if (_timeline == null)
+            return;
+
+        var now = Stopwatch.GetTimestamp();
+        if (!force && now - _lastTimelineUpdateTicks < Stopwatch.Frequency / 20)
+            return;
+
+        _lastTimelineUpdateTicks = now;
+
+        double position, total;
+        lock (_engineLock)
+        {
+            total = _segmentTotal;
+            position = Math.Max(0, _segmentTotal - _segmentRemaining);
+        }
+
+        var preview = _segmentPreview;
+
+        Execute.OnUIThread(() =>
+        {
+            if (_timeline == null)
+                return;
+
+            _timeline.Keyframes = preview;
+            _timeline.Duration = total > 0 ? total : double.NaN;
+            _timeline.Position = total > 0 ? position : double.NaN;
+
+            if (_timelineTimeText != null)
+                _timelineTimeText.Text = total > 0 ? $"{position:0.0} / {total:0.0} 秒" : "-- : --";
+        });
     }
 
     private UIElement BuildStrokePool()
@@ -871,7 +1077,8 @@ public class AyvaRandom : PluginBase
                     {
                         var box = new CheckBox
                         {
-                            Content = name,
+                            Content = DisplayNameOf(name),
+                            ToolTip = name,
                             FontSize = 13,
                             Margin = new Thickness(0, 0, 12, 4),
                             VerticalAlignment = VerticalAlignment.Center,
@@ -955,7 +1162,7 @@ public class AyvaRandom : PluginBase
         }
 
         var transition = _transitionRemaining > 0 ? $"　过渡中 {_transitionRemaining:0.0}s" : string.Empty;
-        _statusText.Text = $"▶ {CurrentStrokeName}　bpm {CurrentBpm:0}　本段剩余 {SegmentRemaining:0.0}s{transition}";
+        _statusText.Text = $"▶ {DisplayNameOf(CurrentStrokeName)}　bpm {CurrentBpm:0}　本段剩余 {SegmentRemaining:0.0}s{transition}";
     }
 
     private void SetHint(string message, double autoHideSeconds = 4)
