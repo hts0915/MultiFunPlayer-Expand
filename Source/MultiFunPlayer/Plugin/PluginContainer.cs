@@ -1,4 +1,4 @@
-﻿using MultiFunPlayer.Common;
+using MultiFunPlayer.Common;
 using MultiFunPlayer.Settings;
 using NLog;
 using Stylet;
@@ -29,6 +29,12 @@ internal sealed class PluginContainer : PropertyChangedBase, IChildDelegate, ISc
 
     public UIElement View => _compilationResult?.PluginInstance?.View;
     public PluginBase ViewModel => _compilationResult?.PluginInstance;
+
+    /// <summary>
+    /// 标签页标题：插件还没编译完（或编译失败）时退回用文件名，保证标签页总有名字 ——
+    /// 否则会出现"插件加载了、却在界面上找不到"（标签没标题）的情况。
+    /// </summary>
+    public string DisplayName => ViewModel?.DisplayName ?? Path.GetFileNameWithoutExtension(File.Name);
 
     public bool CanCompile => State is not PluginState.Compiling;
 
@@ -65,6 +71,7 @@ internal sealed class PluginContainer : PropertyChangedBase, IChildDelegate, ISc
 
             HandleSettings(SettingsAction.Loading);
             NotifyOfPropertyChange(nameof(View));
+            NotifyOfPropertyChange(nameof(DisplayName));
         });
     }
 
@@ -104,6 +111,7 @@ internal sealed class PluginContainer : PropertyChangedBase, IChildDelegate, ISc
         _compilationResult = null;
 
         NotifyOfPropertyChange(nameof(View));
+        NotifyOfPropertyChange(nameof(DisplayName));
 
         State = PluginState.Stopped;
     }

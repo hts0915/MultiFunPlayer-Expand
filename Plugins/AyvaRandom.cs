@@ -649,6 +649,8 @@ public class AyvaRandom : PluginBase
 
     private UIElement BuildView()
     {
+        Log.Info("AyvaRandom 面板已创建（插件标签页应出现在「脚本预设」旁边）");
+
         _statusText = new TextBlock
         {
             VerticalAlignment = VerticalAlignment.Center,
