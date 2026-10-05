@@ -868,8 +868,10 @@ public class AyvaRandom : PluginBase
         _simulatorModel = new Model3DGroup();
 
         var bodyMaterial = new DiffuseMaterial(new SolidColorBrush(Color.FromRgb(0x5B, 0x74, 0xA8)));
-        var jointMaterial = new DiffuseMaterial(new SolidColorBrush(Color.FromRgb(0x2E, 0x33, 0x3B)));
-        var receiverMaterial = new DiffuseMaterial(new SolidColorBrush(Color.FromRgb(0x1A, 0x1C, 0x20)));
+        var bodyDarkMaterial = new DiffuseMaterial(new SolidColorBrush(Color.FromRgb(0x41, 0x55, 0x7E)));
+        var jointMaterial = new DiffuseMaterial(new SolidColorBrush(Color.FromRgb(0x33, 0x38, 0x40)));
+        var armMaterial = new DiffuseMaterial(new SolidColorBrush(Color.FromRgb(0x22, 0x25, 0x2B)));
+        var receiverMaterial = new DiffuseMaterial(new SolidColorBrush(Color.FromRgb(0x17, 0x19, 0x1D)));
         var steelMaterial = new DiffuseMaterial(new SolidColorBrush(Color.FromRgb(0x9A, 0xA3, 0xB0)));
 
         // 变换链：底座 → 左右(L2) → 前后(L1) → 上下(L0) → 扭转(R0) → 侧倾(R1) → 俯仰(R2)
@@ -887,21 +889,44 @@ public class AyvaRandom : PluginBase
         _rollTransform.Children.Add(new RotateTransform3D(new AxisAngleRotation3D(new Vector3D(1, 0, 0), 0)));
         _pitchTransform.Children.Add(new RotateTransform3D(new AxisAngleRotation3D(new Vector3D(0, 0, 1), 0)));
 
-        // 底座（不动）
-        _simulatorModel.Children.Add(MakeBox(120, 14, 96, bodyMaterial, new TranslateTransform3D(0, -42, 0)));
-        _simulatorModel.Children.Add(MakeBox(96, 10, 76, jointMaterial, new TranslateTransform3D(0, -31, 0)));
+        // ---------- 底座（固定不动）：后板 + 前板 + 四颗螺丝 + 两根竖直导轨 ----------
+        _simulatorModel.Children.Add(MakeBox(132, 16, 104, bodyMaterial, new TranslateTransform3D(0, -46, 0)));
+        _simulatorModel.Children.Add(MakeBox(104, 6, 82, bodyDarkMaterial, new TranslateTransform3D(0, -36, 0)));
+        foreach (var x in new[] { -52.0, 52.0 })
+            foreach (var z in new[] { -38.0, 38.0 })
+                _simulatorModel.Children.Add(MakeCylinder(5, 5, 16, steelMaterial, new TranslateTransform3D(x, -35, z)));
 
-        foreach (var x in new[] { -34.0, 34.0 })
-            _simulatorModel.Children.Add(MakeBox(9, 62, 9, bodyMaterial, new TranslateTransform3D(x, -6, -8)));
+        foreach (var x in new[] { -40.0, 40.0 })
+            _simulatorModel.Children.Add(MakeBox(11, 74, 12, bodyMaterial, new TranslateTransform3D(x, -2, 6)));
 
-        // 会随各轴运动的托架 + 接收器
+        // ---------- 会随各轴运动的托架 + 连杆 + 接收器 ----------
         var carriage = new Model3DGroup();
-        carriage.Children.Add(MakeBox(88, 10, 64, bodyMaterial));
-        carriage.Children.Add(MakeBox(20, 46, 20, jointMaterial, new TranslateTransform3D(-30, 26, 0)));
-        carriage.Children.Add(MakeBox(20, 46, 20, jointMaterial, new TranslateTransform3D(30, 26, 0)));
-        carriage.Children.Add(MakeBox(74, 12, 16, steelMaterial, new TranslateTransform3D(0, 52, 0)));
-        carriage.Children.Add(MakeCylinder(30, 12, 28, steelMaterial, new TranslateTransform3D(0, 62, 0)));
-        carriage.Children.Add(MakeCylinder(26, 74, 28, receiverMaterial, new TranslateTransform3D(0, 100, 0)));
+
+        // 托架本体
+        carriage.Children.Add(MakeBox(96, 12, 66, bodyMaterial, new TranslateTransform3D(0, 0, 6)));
+        carriage.Children.Add(MakeBox(70, 8, 40, bodyDarkMaterial, new TranslateTransform3D(0, 8, 6)));
+
+        // 左右两组关节块
+        foreach (var x in new[] { -34.0, 34.0 })
+        {
+            carriage.Children.Add(MakeBox(22, 52, 20, jointMaterial, new TranslateTransform3D(x, 30, 6)));
+            carriage.Children.Add(MakeCylinder(6.5, 6, 16, steelMaterial, new TranslateTransform3D(x, 56, 22)));
+        }
+
+        // 三组连杆（照着 OSR 的剪式连杆外形做近似：每侧上下两根细臂）
+        foreach (var x in new[] { -34.0, 34.0 })
+        {
+            carriage.Children.Add(MakeBox(9, 74, 9, armMaterial, new TranslateTransform3D(x, 20, -22)));
+            carriage.Children.Add(MakeBox(9, 74, 9, armMaterial, new TranslateTransform3D(x, 20, 30)));
+            carriage.Children.Add(MakeCylinder(5.5, 6, 14, steelMaterial, new TranslateTransform3D(x, 56, 4)));
+        }
+
+        // 接收器支架（蓝色）+ 黑色接收器（下粗上细的锥形，带外翻口）
+        carriage.Children.Add(MakeBox(84, 12, 20, bodyMaterial, new TranslateTransform3D(0, 62, 6)));
+        carriage.Children.Add(MakeCylinder(34, 14, 32, steelMaterial, new TranslateTransform3D(0, 74, 6)));
+        carriage.Children.Add(MakeTaperedCylinder(24, 30, 86, 32, receiverMaterial, new TranslateTransform3D(0, 124, 6)));
+        carriage.Children.Add(MakeCylinder(33, 10, 32, receiverMaterial, new TranslateTransform3D(0, 170, 6)));
+
         carriage.Transform = _swayTransform;
         _simulatorModel.Children.Add(carriage);
 
@@ -912,7 +937,8 @@ public class AyvaRandom : PluginBase
         _rollTransform.Children.Add(_pitchTransform);
 
         _simulatorModel.Children.Add(new DirectionalLight(Colors.White, new Vector3D(-1, -1.4, -1)));
-        _simulatorModel.Children.Add(new DirectionalLight(Color.FromRgb(0x66, 0x66, 0x66), new Vector3D(1, -0.6, 1)));
+        _simulatorModel.Children.Add(new DirectionalLight(Color.FromRgb(0x77, 0x77, 0x77), new Vector3D(1, -0.5, 1)));
+        _simulatorModel.Children.Add(new AmbientLight(Color.FromRgb(0x33, 0x33, 0x33)));
 
         _simulator = new Viewport3D
         {
@@ -970,8 +996,8 @@ public class AyvaRandom : PluginBase
 
         var yaw = _simulatorYaw * Math.PI / 180;
         var pitch = _simulatorPitch * Math.PI / 180;
-        var distance = 400.0;
-        var target = new Point3D(0, 10, 0);
+        var distance = 520.0;
+        var target = new Point3D(0, 55, 0);
 
         var eye = new Point3D(
             target.X + (distance * Math.Cos(pitch) * Math.Sin(yaw)),
@@ -1062,6 +1088,44 @@ public class AyvaRandom : PluginBase
 
         foreach (var index in faces)
             mesh.TriangleIndices.Add(index);
+
+        return new GeometryModel3D(mesh, material) { Transform = transform };
+    }
+
+    /// <summary>造一个上下半径不同的锥形圆柱（沿 Y 轴）。</summary>
+    private static GeometryModel3D MakeTaperedCylinder(double bottomRadius, double topRadius, double height, int segments, Material material, Transform3D transform = null)
+    {
+        var mesh = new MeshGeometry3D();
+        var half = height / 2;
+
+        for (var i = 0; i < segments; i++)
+        {
+            var angle = 2 * Math.PI * i / segments;
+            var cos = Math.Cos(angle);
+            var sin = Math.Sin(angle);
+            mesh.Positions.Add(new Point3D(bottomRadius * cos, -half, bottomRadius * sin));
+            mesh.Positions.Add(new Point3D(topRadius * cos, half, topRadius * sin));
+        }
+
+        for (var i = 0; i < segments; i++)
+        {
+            var next = (i + 1) % segments;
+            var a = i * 2;
+            var b = (i * 2) + 1;
+            var c = next * 2;
+            var d = (next * 2) + 1;
+
+            mesh.TriangleIndices.Add(a); mesh.TriangleIndices.Add(d); mesh.TriangleIndices.Add(b);
+            mesh.TriangleIndices.Add(a); mesh.TriangleIndices.Add(c); mesh.TriangleIndices.Add(d);
+
+            var bottom = mesh.Positions.Count;
+            mesh.Positions.Add(new Point3D(0, -half, 0));
+            mesh.TriangleIndices.Add(a); mesh.TriangleIndices.Add(bottom); mesh.TriangleIndices.Add(c);
+
+            var top = mesh.Positions.Count;
+            mesh.Positions.Add(new Point3D(0, half, 0));
+            mesh.TriangleIndices.Add(b); mesh.TriangleIndices.Add(d); mesh.TriangleIndices.Add(top);
+        }
 
         return new GeometryModel3D(mesh, material) { Transform = transform };
     }
