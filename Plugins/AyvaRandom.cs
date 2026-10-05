@@ -709,7 +709,9 @@ public class AyvaRandom : PluginBase
         DockPanel.SetDock(restartButton, Dock.Left);
         row.Children.Add(restartButton);
 
-        row.Children.Add(_statusText);
+        // 注意：_statusText 只放在 PluginViewBase.ToolBarContent 里（见 BuildView），
+        // 这里绝不能再 add 一次 —— 同一个 UI 元素挂两个父级会让 WPF 抛
+        // "在指定子级连接到新的父 Visual 之前必须断开与当前父 Visual 的连接" 并直接崩溃。
         return row;
     }
 
