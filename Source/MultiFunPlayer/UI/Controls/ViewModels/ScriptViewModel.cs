@@ -47,6 +47,7 @@ internal sealed class ScriptViewModel : Screen, IDeviceAxisValueProvider, IScrip
     private double _overridePosition;
     private double _overrideDuration;
     private bool _overridePaused;
+    private IReadOnlyDictionary<DeviceAxis, double> _overrideLiveValues;
 
     public bool IsPlaying { get; private set; }
 
@@ -818,14 +819,25 @@ internal sealed class ScriptViewModel : Screen, IDeviceAxisValueProvider, IScrip
         }
     }
 
-    private double GetAxisPosition(DeviceAxis axis) => IsOverrideActive
-        ? _overridePosition - AxisSettings[axis].Offset
-        : MediaPosition - GlobalOffset - AxisSettings[axis].Offset;
+    private double GetAxisPosition(DeviceAxis axis)
+    {
+        if (IsOverrideActive)
+        {
+            // 「实时值」模式：插件直接给各轴的当前值（例如 Ayva 随机行程插件实时生成动作），
+            // 此时不再按覆盖时间轴取关键帧。限位 / 限速 / 软启动 / 归位等轴设置照旧生效。
+            if (_overrideLiveValues != null && _overrideLiveValues.TryGetValue(axis, out var liveValue))
+                return Math.Clamp(liveValue, 0, 1);
+
+            return _overridePosition - AxisSettings[axis].Offset;
+        }
+
+        return MediaPosition - GlobalOffset - AxisSettings[axis].Offset;
+    }
 
     /// <summary>当前该轴实际生效的关键帧：覆盖模式用覆盖脚本，否则用媒体源加载的脚本。</summary>
     private KeyframeCollection GetActiveKeyframes(DeviceAxis axis)
     {
-        if (IsOverrideActive)
+        if (IsOverrideActive && _overrideLiveValues == null)
             return _overrideScripts.TryGetValue(axis, out var overrideScript) ? overrideScript?.Keyframes : null;
 
         return AxisKeyframes.TryGetValue(axis, out var keyframes) ? keyframes : null;
@@ -1105,9 +1117,36 @@ internal sealed class ScriptViewModel : Screen, IDeviceAxisValueProvider, IScrip
         SetSyncBypass(false);
     }
 
-    public void StopOverride()
+    /// <summary>
+    /// 「实时值」模式：插件直接提供各轴的当前值（例如 Ayva 随机行程插件实时生成动作）。
+    /// 传 null 关闭该模式。非 null 时即视为覆盖已激活，轴的限位 / 限速 / 软启动等设置照旧生效。
+    /// </summary>
+    public void SetOverrideLiveValues(IReadOnlyDictionary<DeviceAxis, double> values)
     {
-        if (!IsOverrideActive)
+        if (values == null)
+        {
+            var wasLive = _overrideLiveValues != null;
+            _overrideLiveValues = null;
+            if (wasLive && _overrideScripts.Count == 0)
+                StopOverride();
+
+            return;
+        }
+
+        _overrideLiveValues = values;
+        if (IsOverrideActive)
+            return;
+
+        _overrideScripts.Clear();
+        _overrideDuration = 0;
+        _overridePosition = 0;
+        _overridePaused = false;
+        IsOverrideActive = true;
+        Logger.Info("Script override started in live-value mode");
+    }
+
+    public void StopOverride()
+    {        if (!IsOverrideActive)
             return;
 
         Logger.Info("Script override stopped");
@@ -1117,6 +1156,7 @@ internal sealed class ScriptViewModel : Screen, IDeviceAxisValueProvider, IScrip
         _overrideDuration = 0;
         _overridePosition = 0;
         _overridePaused = false;
+        _overrideLiveValues = null;
 
         SetSyncBypass(true);
         InvalidateAxisState(null);

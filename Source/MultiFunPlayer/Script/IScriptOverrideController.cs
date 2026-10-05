@@ -48,4 +48,11 @@ public interface IScriptOverrideController
     /// 后者照常加载（用户手动打开的视频要能找到自己的脚本）。
     /// </summary>
     string OverrideMediaPath { get; set; }
+
+    /// <summary>
+    /// 「实时值」模式：直接给各轴的当前值（0..1），用于实时生成动作的插件（例如随机行程）。
+    /// 传非 null 即视为覆盖已激活；传 null 关闭该模式并交还控制权。
+    /// 轴的限位 / 限速 / 软启动 / 自动归位等设置照旧生效。
+    /// </summary>
+    void SetOverrideLiveValues(IReadOnlyDictionary<DeviceAxis, double> values);
 }
