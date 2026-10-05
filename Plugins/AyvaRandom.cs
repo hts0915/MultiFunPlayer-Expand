@@ -54,8 +54,14 @@ public class AyvaRandom : PluginBase
 
     #region 设置（持久化到 AyvaRandom.config.json）
 
-    /// <summary>参与随机的行程名；为空表示全部参与。</summary>
+    /// <summary>参与随机的行程名（AllStrokes=false 时生效）。</summary>
     [JsonProperty] public List<string> EnabledStrokes { get; set; } = [];
+
+    /// <summary>true = 全部行程都参与随机（默认）；false = 只参与 <see cref="EnabledStrokes"/> 里勾选的。</summary>
+    [JsonProperty] public bool AllStrokes { get; set; } = true;
+
+    /// <summary>每条行程的权重（1~5，越大越容易被随机选中）。</summary>
+    [JsonProperty] public Dictionary<string, int> StrokeWeights { get; set; } = [];
 
     [JsonProperty] public double BpmMinimum { get; set; } = 90;
     [JsonProperty] public double BpmMaximum { get; set; } = 150;
@@ -179,44 +185,44 @@ public class AyvaRandom : PluginBase
     /// <summary>42 条内置行程的中文名（界面里显示这个，内部仍用英文键）。</summary>
     private static readonly Dictionary<string, string> ChineseNames = new()
     {
-        ["down-forward"] = "下前插",
-        ["down-backward"] = "下后拉",
-        ["back-thrust-down"] = "后顶下压",
-        ["back-thrust-down-swirl"] = "后顶下压·旋",
-        ["thrust-forward"] = "前顶",
-        ["thrust-forward-swirl"] = "前顶·旋",
-        ["lean-forward-thrust-down"] = "前倾下压",
-        ["lean-forward-thrust-down-swirl"] = "前倾下压·旋",
+        ["down-forward"] = "向下向前",
+        ["down-backward"] = "向下向后",
+        ["back-thrust-down"] = "后推向下",
+        ["back-thrust-down-swirl"] = "后推向下旋转",
+        ["thrust-forward"] = "向前推",
+        ["thrust-forward-swirl"] = "向前推旋转",
+        ["lean-forward-thrust-down"] = "身体前倾向下推",
+        ["lean-forward-thrust-down-swirl"] = "身体前倾-向下猛推-旋转",
         ["diagonal-down-back"] = "斜向下后",
         ["diagonal-down-forward"] = "斜向下前",
-        ["orbit-tease"] = "绕圈挑逗",
+        ["orbit-tease"] = "环绕挑逗",
         ["left-right-tease"] = "左右挑逗",
-        ["forward-back-tease"] = "前后挑逗",
+        ["forward-back-tease"] = "前进-后退-挑衅",
         ["vortex-tease"] = "漩涡挑逗",
-        ["swirl-tease"] = "旋涡挑逗",
-        ["forward-back-grind"] = "前后研磨",
-        ["orbit-grind"] = "绕圈研磨",
+        ["swirl-tease"] = "旋转挑逗",
+        ["forward-back-grind"] = "前进-后退-磨砺",
+        ["orbit-grind"] = "环绕研磨",
         ["short-low-roll-forward"] = "短·低位翻滚·前",
         ["short-low-roll-backward"] = "短·低位翻滚·后",
         ["short-mid-roll-forward"] = "短·中位翻滚·前",
         ["short-mid-roll-backward"] = "短·中位翻滚·后",
         ["short-high-roll-forward"] = "短·高位翻滚·前",
         ["short-high-roll-backward"] = "短·高位翻滚·后",
-        ["long-stroke-1"] = "长行程 1",
-        ["long-stroke-2"] = "长行程 2",
-        ["long-stroke-3"] = "长行程 3",
-        ["long-stroke-4"] = "长行程 4",
-        ["long-stroke-5"] = "长行程 5",
-        ["grind-circular"] = "圆周研磨",
-        ["grind-vortex"] = "漩涡研磨",
-        ["grind-forward-back"] = "前后研磨（同步）",
-        ["grind-forward-back-phased"] = "前后研磨·错相",
-        ["grind-forward-back-tilt"] = "前后研磨·倾斜",
-        ["grind-forward-tilt"] = "前向研磨·倾斜",
+        ["long-stroke-1"] = "长笔画-1",
+        ["long-stroke-2"] = "长笔画-2",
+        ["long-stroke-3"] = "长笔画-3",
+        ["long-stroke-4"] = "长笔画-4",
+        ["long-stroke-5"] = "长笔画-5",
+        ["grind-circular"] = "研磨圆盘",
+        ["grind-vortex"] = "研磨涡流",
+        ["grind-forward-back"] = "艰难前进后退",
+        ["grind-forward-back-phased"] = "前进后退阶段",
+        ["grind-forward-back-tilt"] = "向前-向后-倾斜",
+        ["grind-forward-tilt"] = "向前倾斜",
         ["tease-orbit-right"] = "环绕挑逗·右",
         ["tease-orbit-left"] = "环绕挑逗·左",
         ["tease-left-right-rock"] = "左右摇摆挑逗",
-        ["tease-down-back"] = "下后挑逗",
+        ["tease-down-back"] = "后下方挑逗",
         ["tease-back-swirl-right"] = "后旋挑逗·右",
         ["tease-back-swirl-left"] = "后旋挑逗·左",
         ["tease-up-down-circle-right"] = "上下绕圈·右",
@@ -398,6 +404,13 @@ public class AyvaRandom : PluginBase
             return;
         }
 
+        // 没勾任何行程时别"默默播全部"，直接提示（原来空列表被当成全部，导致「全不选」看起来没反应）
+        if (Pool().Count == 0)
+        {
+            SetHint("⚠ 没有勾选任何行程 —— 先在上面勾几条（或点「全选」）再播放。");
+            return;
+        }
+
         // 可选：暂停视频播放器（和预设插件一样，避免两边同时抢设备）
         _pausedPlayer = false;
         if (PausePlayerOnPlay)
@@ -488,18 +501,39 @@ public class AyvaRandom : PluginBase
             StartNextSegment(initial: false);
     }
 
-    /// <summary>可选的行程池（勾选的行程；一个都没勾就全部参与）。</summary>
+    /// <summary>可选的行程池（「全选」= 全部；否则用勾选的那些；可能为空）。</summary>
     private List<string> Pool()
     {
         var library = StrokeLibrary;
-        if (EnabledStrokes is { Count: > 0 })
+        if (AllStrokes)
+            return [.. library.Keys];
+
+        return [.. (EnabledStrokes ?? []).Where(library.ContainsKey)];
+    }
+
+    /// <summary>某条行程的权重（1~5，默认 3）。</summary>
+    private int WeightOf(string name)
+        => StrokeWeights != null && StrokeWeights.TryGetValue(name, out var weight) ? Math.Clamp(weight, 1, 5) : 3;
+
+    /// <summary>按权重随机挑一条：权重越大越容易被选中。</summary>
+    private string PickRandomStroke(List<string> pool)
+    {
+        var total = 0;
+        foreach (var name in pool)
+            total += WeightOf(name);
+
+        if (total <= 0)
+            return pool[Random.Shared.Next(pool.Count)];
+
+        var roll = Random.Shared.Next(total);
+        foreach (var name in pool)
         {
-            var pool = EnabledStrokes.Where(library.ContainsKey).ToList();
-            if (pool.Count > 0)
-                return pool;
+            roll -= WeightOf(name);
+            if (roll < 0)
+                return name;
         }
 
-        return [.. library.Keys];
+        return pool[^1];
     }
 
     private double NextRandomBpm()
@@ -526,7 +560,7 @@ public class AyvaRandom : PluginBase
             return;
         }
 
-        var name = pool[Random.Shared.Next(pool.Count)];
+        var name = PickRandomStroke(pool);
         if (!StrokeLibrary.TryGetValue(name, out var axes))
             return;
 
@@ -702,7 +736,7 @@ public class AyvaRandom : PluginBase
     private IReadOnlyDictionary<DeviceAxis, KeyframeCollection> _segmentPreview;
     private long _lastTimelineUpdateTicks;
     private Button _playButton;
-    private WrapPanel _strokePoolPanel;
+    private StackPanel _strokePoolPanel;
     private NumericUpDown _bpmMinBox;
     private NumericUpDown _bpmMaxBox;
     private NumericUpDown _segmentMinBox;
@@ -923,7 +957,7 @@ public class AyvaRandom : PluginBase
 
     private UIElement BuildStrokePool()
     {
-        _strokePoolPanel = new WrapPanel { Margin = new Thickness(0, 2, 0, 6) };
+        _strokePoolPanel = new StackPanel { Margin = new Thickness(0, 2, 0, 6) };
 
         var head = new DockPanel { LastChildFill = false, Margin = new Thickness(0, 0, 0, 4) };
         var label = new TextBlock { Text = "参与随机的行程：", VerticalAlignment = VerticalAlignment.Center, FontSize = 14 };
@@ -939,11 +973,22 @@ public class AyvaRandom : PluginBase
         DockPanel.SetDock(noneButton, Dock.Left);
         head.Children.Add(noneButton);
 
+        var weightHint = new TextBlock
+        {
+            Text = "（右侧滑块 = 权重，越大越常被选中）",
+            VerticalAlignment = VerticalAlignment.Center,
+            FontSize = 12,
+            Opacity = 0.8
+        };
+        ApplyBodyForeground(weightHint);
+        DockPanel.SetDock(weightHint, Dock.Left);
+        head.Children.Add(weightHint);
+
         var panel = new StackPanel();
         panel.Children.Add(head);
         panel.Children.Add(new ScrollViewer
         {
-            MaxHeight = 150,
+            MaxHeight = 220,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             Content = _strokePoolPanel
         });
@@ -1054,6 +1099,7 @@ public class AyvaRandom : PluginBase
 
     private void SetAllStrokes(bool enabled)
     {
+        AllStrokes = enabled;
         EnabledStrokes = enabled ? [.. StrokeLibrary.Keys] : [];
         MarkSettingsDirty();
         RefreshUi();
@@ -1075,22 +1121,57 @@ public class AyvaRandom : PluginBase
                     var enabled = EnabledStrokes ?? [];
                     foreach (var name in StrokeLibrary.Keys.OrderBy(x => x, StringComparer.Ordinal))
                     {
+                        var captured = name;
+                        var row = new DockPanel { LastChildFill = true, Margin = new Thickness(0, 0, 0, 3) };
+
+                        // 右：权重滑块（1~5，越大越常被选中）
+                        var weight = new Slider
+                        {
+                            Minimum = 1,
+                            Maximum = 5,
+                            TickFrequency = 1,
+                            IsSnapToTickEnabled = true,
+                            Width = 96,
+                            Margin = new Thickness(8, 0, 0, 0),
+                            VerticalAlignment = VerticalAlignment.Center,
+                            Value = WeightOf(name),
+                            ToolTip = $"{DisplayNameOf(name)}（{name}）的权重：{WeightOf(name)}/5"
+                        };
+                        weight.ValueChanged += (_, e) =>
+                        {
+                            if (_loadingUi)
+                                return;
+
+                            StrokeWeights ??= [];
+                            StrokeWeights[captured] = (int)Math.Round(e.NewValue);
+                            weight.ToolTip = $"{DisplayNameOf(captured)}（{captured}）的权重：{StrokeWeights[captured]}/5";
+                            MarkSettingsDirty();
+                        };
+                        DockPanel.SetDock(weight, Dock.Right);
+                        row.Children.Add(weight);
+
+                        // 左：勾选框（显示中文名，悬停看英文原名）
                         var box = new CheckBox
                         {
                             Content = DisplayNameOf(name),
                             ToolTip = name,
                             FontSize = 13,
-                            Margin = new Thickness(0, 0, 12, 4),
                             VerticalAlignment = VerticalAlignment.Center,
-                            IsChecked = enabled.Count == 0 || enabled.Contains(name)
+                            IsChecked = AllStrokes || enabled.Contains(name)
                         };
-                        var captured = name;
                         box.Checked += (_, _) =>
                         {
                             if (_loadingUi)
                                 return;
 
                             EnabledStrokes ??= [];
+                            if (AllStrokes)
+                            {
+                                // 从"全部参与"切成"逐个挑选"：先铺开全部，再确保这一条在里面
+                                EnabledStrokes = [.. StrokeLibrary.Keys];
+                                AllStrokes = false;
+                            }
+
                             if (!EnabledStrokes.Contains(captured))
                                 EnabledStrokes.Add(captured);
 
@@ -1101,15 +1182,24 @@ public class AyvaRandom : PluginBase
                             if (_loadingUi)
                                 return;
 
-                            EnabledStrokes ??= [];
-                            if (EnabledStrokes.Count == 0)
-                                return;   // 从"全部"取消某一个：先把全部铺开再移除
+                            if (AllStrokes)
+                            {
+                                // 从"全部参与"里排掉这一条
+                                EnabledStrokes = [.. StrokeLibrary.Keys.Where(x => x != captured)];
+                                AllStrokes = false;
+                            }
+                            else
+                            {
+                                EnabledStrokes?.Remove(captured);
+                            }
 
-                            EnabledStrokes.Remove(captured);
                             MarkSettingsDirty();
                         };
                         ApplyBodyForeground(box);
-                        _strokePoolPanel.Children.Add(box);
+                        DockPanel.SetDock(box, Dock.Left);
+                        row.Children.Add(box);
+
+                        _strokePoolPanel.Children.Add(row);
                     }
                 }
 
