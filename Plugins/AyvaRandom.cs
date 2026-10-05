@@ -266,6 +266,9 @@ public class AyvaRandom : PluginBase
     private double _bpm = 120;
     private double _targetBpm = 120;
     private double _acceleration = 20;
+
+    /// <summary>下一段强制播放的行程（点列表里的名字时用；用完就清空）。</summary>
+    private string _nextStrokeOverride;
     private double _segmentRemaining;
     private double _segmentTotal;
     private double _transitionRemaining;
@@ -419,8 +422,9 @@ public class AyvaRandom : PluginBase
             return;
         }
 
-        // 没勾任何行程时别"默默播全部"，直接提示（原来空列表被当成全部，导致「全不选」看起来没反应）
-        if (Pool().Count == 0)
+        // 没勾任何行程时别"默默播全部"，直接提示（原来空列表被当成全部，导致「全不选」看起来没反应）；
+        // 但点名字直接播放时不算（那是明确的单条选择）
+        if (Pool().Count == 0 && _nextStrokeOverride == null)
         {
             SetHint("⚠ 没有勾选任何行程 —— 先在上面勾几条（或点「全选」）再播放。");
             return;
@@ -516,6 +520,36 @@ public class AyvaRandom : PluginBase
             StartNextSegment(initial: false);
     }
 
+    /// <summary>
+    /// 点列表里的名字：立刻播放这一条（像网页那样）。
+    /// 没在播放就以它作为第一段开始；正在播放则平滑切到它，之后继续随机。
+    /// </summary>
+    private void PlaySingleStroke(string name)
+    {
+        if (!StrokeLibrary.ContainsKey(name))
+            return;
+
+        if (!IsPlaying)
+        {
+            _nextStrokeOverride = name;
+            StartCore();
+            _nextStrokeOverride = null;
+            return;
+        }
+
+        lock (_engineLock)
+        {
+            if (_strokeName == name)
+                return;   // 已经在放这一条
+
+            _nextStrokeOverride = name;
+            StartNextSegment(initial: false);
+            _nextStrokeOverride = null;
+        }
+
+        RefreshUi();
+    }
+
     /// <summary>可选的行程池（「全选」= 全部；否则用勾选的那些；可能为空）。</summary>
     private List<string> Pool()
     {
@@ -584,13 +618,13 @@ public class AyvaRandom : PluginBase
     private void StartNextSegment(bool initial)
     {
         var pool = Pool();
-        if (pool.Count == 0)
+        if (pool.Count == 0 && _nextStrokeOverride == null)
         {
             _playing = false;
             return;
         }
 
-        var name = PickRandomStroke(pool);
+        var name = _nextStrokeOverride ?? PickRandomStroke(pool);
         if (!StrokeLibrary.TryGetValue(name, out var axes))
             return;
 
@@ -790,6 +824,10 @@ public class AyvaRandom : PluginBase
     /// <summary>界面控件的回填动作（刷新时统一调用，省得为每个滑块留字段）。</summary>
     private readonly List<Action> _refreshControls = [];
 
+    /// <summary>行程名按钮（用于高亮"正在播放"的那一条）。</summary>
+    private readonly Dictionary<string, Button> _strokeButtons = [];
+    private string _highlightedStroke;
+
     private UIElement BuildView()
     {
         Log.Info("AyvaRandom 面板已创建（插件标签页应出现在「脚本预设」旁边）");
@@ -889,43 +927,12 @@ public class AyvaRandom : PluginBase
         _rollTransform.Children.Add(new RotateTransform3D(new AxisAngleRotation3D(new Vector3D(1, 0, 0), 0)));
         _pitchTransform.Children.Add(new RotateTransform3D(new AxisAngleRotation3D(new Vector3D(0, 0, 1), 0)));
 
-        // ---------- 底座（固定不动）：后板 + 前板 + 四颗螺丝 + 两根竖直导轨 ----------
-        _simulatorModel.Children.Add(MakeBox(132, 16, 104, bodyMaterial, new TranslateTransform3D(0, -46, 0)));
-        _simulatorModel.Children.Add(MakeBox(104, 6, 82, bodyDarkMaterial, new TranslateTransform3D(0, -36, 0)));
-        foreach (var x in new[] { -52.0, 52.0 })
-            foreach (var z in new[] { -38.0, 38.0 })
-                _simulatorModel.Children.Add(MakeCylinder(5, 5, 16, steelMaterial, new TranslateTransform3D(x, -35, z)));
-
-        foreach (var x in new[] { -40.0, 40.0 })
-            _simulatorModel.Children.Add(MakeBox(11, 74, 12, bodyMaterial, new TranslateTransform3D(x, -2, 6)));
-
-        // ---------- 会随各轴运动的托架 + 连杆 + 接收器 ----------
+        // ---------- 只保留接收器圆柱体（按用户要求删掉底座与连杆） ----------
         var carriage = new Model3DGroup();
 
-        // 托架本体
-        carriage.Children.Add(MakeBox(96, 12, 66, bodyMaterial, new TranslateTransform3D(0, 0, 6)));
-        carriage.Children.Add(MakeBox(70, 8, 40, bodyDarkMaterial, new TranslateTransform3D(0, 8, 6)));
-
-        // 左右两组关节块
-        foreach (var x in new[] { -34.0, 34.0 })
-        {
-            carriage.Children.Add(MakeBox(22, 52, 20, jointMaterial, new TranslateTransform3D(x, 30, 6)));
-            carriage.Children.Add(MakeCylinder(6.5, 6, 16, steelMaterial, new TranslateTransform3D(x, 56, 22)));
-        }
-
-        // 三组连杆（照着 OSR 的剪式连杆外形做近似：每侧上下两根细臂）
-        foreach (var x in new[] { -34.0, 34.0 })
-        {
-            carriage.Children.Add(MakeBox(9, 74, 9, armMaterial, new TranslateTransform3D(x, 20, -22)));
-            carriage.Children.Add(MakeBox(9, 74, 9, armMaterial, new TranslateTransform3D(x, 20, 30)));
-            carriage.Children.Add(MakeCylinder(5.5, 6, 14, steelMaterial, new TranslateTransform3D(x, 56, 4)));
-        }
-
-        // 接收器支架（蓝色）+ 黑色接收器（下粗上细的锥形，带外翻口）
-        carriage.Children.Add(MakeBox(84, 12, 20, bodyMaterial, new TranslateTransform3D(0, 62, 6)));
-        carriage.Children.Add(MakeCylinder(34, 14, 32, steelMaterial, new TranslateTransform3D(0, 74, 6)));
-        carriage.Children.Add(MakeTaperedCylinder(24, 30, 86, 32, receiverMaterial, new TranslateTransform3D(0, 124, 6)));
-        carriage.Children.Add(MakeCylinder(33, 10, 32, receiverMaterial, new TranslateTransform3D(0, 170, 6)));
+        carriage.Children.Add(MakeTaperedCylinder(24, 30, 86, 32, receiverMaterial, new TranslateTransform3D(0, 0, 0)));
+        carriage.Children.Add(MakeCylinder(33, 10, 32, receiverMaterial, new TranslateTransform3D(0, 46, 0)));
+        carriage.Children.Add(MakeCylinder(30, 8, 32, steelMaterial, new TranslateTransform3D(0, -45, 0)));
 
         carriage.Transform = _swayTransform;
         _simulatorModel.Children.Add(carriage);
@@ -996,8 +1003,8 @@ public class AyvaRandom : PluginBase
 
         var yaw = _simulatorYaw * Math.PI / 180;
         var pitch = _simulatorPitch * Math.PI / 180;
-        var distance = 520.0;
-        var target = new Point3D(0, 55, 0);
+        var distance = 340.0;
+        var target = new Point3D(0, 0, 0);
 
         var eye = new Point3D(
             target.X + (distance * Math.Cos(pitch) * Math.Sin(yaw)),
@@ -1589,6 +1596,7 @@ public class AyvaRandom : PluginBase
                 if (_strokePoolPanel != null)
                 {
                     _strokePoolPanel.Children.Clear();
+                    _strokeButtons.Clear();
                     var enabled = EnabledStrokes ?? [];
                     foreach (var name in StrokeLibrary.Keys.OrderBy(x => x, StringComparer.Ordinal))
                     {
@@ -1621,14 +1629,12 @@ public class AyvaRandom : PluginBase
                         DockPanel.SetDock(weight, Dock.Right);
                         row.Children.Add(weight);
 
-                        // 左：勾选框（显示中文名，悬停看英文原名）
+                        // 左：勾选框（只决定"是否参与随机"）
                         var box = new CheckBox
                         {
-                            Content = DisplayNameOf(name),
-                            ToolTip = name,
-                            FontSize = 13,
                             VerticalAlignment = VerticalAlignment.Center,
-                            IsChecked = AllStrokes || enabled.Contains(name)
+                            IsChecked = AllStrokes || enabled.Contains(name),
+                            ToolTip = "勾上 = 参与随机挑选"
                         };
                         box.Checked += (_, _) =>
                         {
@@ -1669,6 +1675,25 @@ public class AyvaRandom : PluginBase
                         ApplyBodyForeground(box);
                         DockPanel.SetDock(box, Dock.Left);
                         row.Children.Add(box);
+
+                        // 名字本身可以点：点一下立刻播放这一条（像网页里那样）
+                        var nameButton = new Button
+                        {
+                            Content = DisplayNameOf(name),
+                            ToolTip = $"{name}\n点一下立即播放这一条",
+                            FontSize = 13,
+                            HorizontalAlignment = HorizontalAlignment.Left,
+                            HorizontalContentAlignment = HorizontalAlignment.Left,
+                            VerticalAlignment = VerticalAlignment.Center,
+                            Margin = new Thickness(6, 0, 0, 0),
+                            Padding = new Thickness(8, 1, 8, 1),
+                            BorderThickness = new Thickness(0),
+                            Background = Brushes.Transparent
+                        };
+                        nameButton.Click += (_, _) => Enqueue(() => PlaySingleStroke(captured));
+                        DockPanel.SetDock(nameButton, Dock.Left);
+                        row.Children.Add(nameButton);
+                        _strokeButtons[captured] = nameButton;
 
                         _strokePoolPanel.Children.Add(row);
                     }
@@ -1716,6 +1741,23 @@ public class AyvaRandom : PluginBase
             return;
 
         Execute.OnUIThread(UpdateStatusTextCore);
+        UpdateStrokeHighlight();
+    }
+
+    /// <summary>把"正在播放"的那条行程在列表里标出来（▶ 前缀）。</summary>
+    private void UpdateStrokeHighlight()
+    {
+        var current = IsPlaying ? CurrentStrokeName : null;
+        if (current == _highlightedStroke)
+            return;
+
+        _highlightedStroke = current;
+
+        Execute.OnUIThread(() =>
+        {
+            foreach (var (name, button) in _strokeButtons)
+                button.Content = (name == current ? "▶ " : string.Empty) + DisplayNameOf(name);
+        });
     }
 
     private void UpdateStatusTextCore()
