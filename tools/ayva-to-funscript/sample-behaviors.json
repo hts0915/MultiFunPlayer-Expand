@@ -1,0 +1,15 @@
+[
+  {"name":"down-forward","type":"tempest-stroke","data":{
+    "L0":{"from":0,"to":1,"phase":0,"ecc":0.5},
+    "L1":{"from":0.8,"to":0.2,"phase":1,"ecc":0.8},
+    "L2":{"from":0.5,"to":0.5,"phase":0,"ecc":0},
+    "R0":{"from":0.5,"to":0.5,"phase":0,"ecc":0},
+    "R1":{"from":0.5,"to":0.5,"phase":0,"ecc":0},
+    "R2":{"from":0.2,"to":0.8,"phase":1,"ecc":0.8}
+  }},
+  {"name":"my-custom","type":"tempest-stroke","data":{
+    "L0":{"from":0.1,"to":0.9,"phase":0,"ecc":0.6},
+    "R0":{"from":0,"to":1,"phase":0.25,"ecc":0.5}
+  }},
+  {"name":"my-js","type":"ayvascript","data":{"script":"// custom"}}
+]
