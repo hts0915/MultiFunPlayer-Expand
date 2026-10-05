@@ -63,23 +63,36 @@ public class AyvaRandom : PluginBase
     /// <summary>每条行程的权重（1~5，越大越容易被随机选中）。</summary>
     [JsonProperty] public Dictionary<string, int> StrokeWeights { get; set; } = [];
 
-    [JsonProperty] public double BpmMinimum { get; set; } = 90;
-    [JsonProperty] public double BpmMaximum { get; set; } = 150;
+    [JsonProperty] public double BpmMinimum { get; set; } = 20;
+    [JsonProperty] public double BpmMaximum { get; set; } = 60;
 
-    /// <summary>每段行程持续时间的范围（秒）。</summary>
-    [JsonProperty] public double StrokeSecondsMinimum { get; set; } = 8;
-    [JsonProperty] public double StrokeSecondsMaximum { get; set; } = 20;
+    /// <summary>true = bpm 只在换段（过渡）时改变（站点默认）；false = 段内持续变化。</summary>
+    [JsonProperty] public bool BpmChangeOnTransition { get; set; } = true;
 
-    /// <summary>段与段之间的过渡时长（秒）。</summary>
-    [JsonProperty] public double TransitionSeconds { get; set; } = 2.0;
+    /// <summary>加速度范围（bpm/s），只在「持续变化」模式下生效。</summary>
+    [JsonProperty] public double AccelerationMinimum { get; set; } = 0;
+    [JsonProperty] public double AccelerationMaximum { get; set; } = 20;
 
-    /// <summary>true = bpm 在段内连续变化；false = 只在换段时变。</summary>
-    [JsonProperty] public bool ContinuousBpm { get; set; } = true;
+    /// <summary>每段行程持续时间的范围（秒），对应站点的 Pattern Duration。</summary>
+    [JsonProperty] public double StrokeSecondsMinimum { get; set; } = 5;
+    [JsonProperty] public double StrokeSecondsMaximum { get; set; } = 10;
 
-    /// <summary>行程本身没有 R0 时，是否补一个慢速扭转。</summary>
+    /// <summary>段与段之间过渡时长的范围（秒），对应站点的 Transition Duration。</summary>
+    [JsonProperty] public double TransitionSecondsMinimum { get; set; } = 2;
+    [JsonProperty] public double TransitionSecondsMaximum { get; set; } = 5;
+
+    /// <summary>行程本身没有 R0 时，是否补一个扭转。</summary>
     [JsonProperty] public bool DefaultTwist { get; set; } = false;
 
-    [JsonProperty] public double DefaultTwistBpm { get; set; } = 8;
+    /// <summary>扭转的范围（对应站点的 Twist Range）。</summary>
+    [JsonProperty] public double TwistRangeFrom { get; set; } = 0;
+    [JsonProperty] public double TwistRangeTo { get; set; } = 1;
+
+    /// <summary>扭转的相位（对应站点的 Twist Phase，范围 -4~4）。</summary>
+    [JsonProperty] public double TwistPhase { get; set; } = 0;
+
+    /// <summary>扭转的偏心度（对应站点的 Twist Eccentricity，范围 -1~1）。</summary>
+    [JsonProperty] public double TwistEccentricity { get; set; } = 0;
 
     /// <summary>播放随机行程时暂停视频播放器（避免音频与设备动作无关地乱跑）。</summary>
     [JsonProperty] public bool PausePlayerOnPlay { get; set; } = true;
@@ -185,22 +198,22 @@ public class AyvaRandom : PluginBase
     /// <summary>42 条内置行程的中文名（界面里显示这个，内部仍用英文键）。</summary>
     private static readonly Dictionary<string, string> ChineseNames = new()
     {
-        ["down-forward"] = "向下向前",
-        ["down-backward"] = "向下向后",
-        ["back-thrust-down"] = "后推向下",
-        ["back-thrust-down-swirl"] = "后推向下旋转",
-        ["thrust-forward"] = "向前推",
-        ["thrust-forward-swirl"] = "向前推旋转",
-        ["lean-forward-thrust-down"] = "身体前倾向下推",
-        ["lean-forward-thrust-down-swirl"] = "身体前倾-向下猛推-旋转",
+        ["down-forward"] = "下前插",
+        ["down-backward"] = "下后拉",
+        ["back-thrust-down"] = "后顶下压",
+        ["back-thrust-down-swirl"] = "后顶下压·旋",
+        ["thrust-forward"] = "向前顶",
+        ["thrust-forward-swirl"] = "向前顶·旋",
+        ["lean-forward-thrust-down"] = "前倾下压",
+        ["lean-forward-thrust-down-swirl"] = "前倾下压·旋",
         ["diagonal-down-back"] = "斜向下后",
         ["diagonal-down-forward"] = "斜向下前",
         ["orbit-tease"] = "环绕挑逗",
         ["left-right-tease"] = "左右挑逗",
-        ["forward-back-tease"] = "前进-后退-挑衅",
+        ["forward-back-tease"] = "前后挑逗",
         ["vortex-tease"] = "漩涡挑逗",
-        ["swirl-tease"] = "旋转挑逗",
-        ["forward-back-grind"] = "前进-后退-磨砺",
+        ["swirl-tease"] = "旋涡挑逗",
+        ["forward-back-grind"] = "前后研磨",
         ["orbit-grind"] = "环绕研磨",
         ["short-low-roll-forward"] = "短·低位翻滚·前",
         ["short-low-roll-backward"] = "短·低位翻滚·后",
@@ -208,21 +221,21 @@ public class AyvaRandom : PluginBase
         ["short-mid-roll-backward"] = "短·中位翻滚·后",
         ["short-high-roll-forward"] = "短·高位翻滚·前",
         ["short-high-roll-backward"] = "短·高位翻滚·后",
-        ["long-stroke-1"] = "长笔画-1",
-        ["long-stroke-2"] = "长笔画-2",
-        ["long-stroke-3"] = "长笔画-3",
-        ["long-stroke-4"] = "长笔画-4",
-        ["long-stroke-5"] = "长笔画-5",
-        ["grind-circular"] = "研磨圆盘",
-        ["grind-vortex"] = "研磨涡流",
-        ["grind-forward-back"] = "艰难前进后退",
-        ["grind-forward-back-phased"] = "前进后退阶段",
-        ["grind-forward-back-tilt"] = "向前-向后-倾斜",
-        ["grind-forward-tilt"] = "向前倾斜",
+        ["long-stroke-1"] = "长行程 1",
+        ["long-stroke-2"] = "长行程 2",
+        ["long-stroke-3"] = "长行程 3",
+        ["long-stroke-4"] = "长行程 4",
+        ["long-stroke-5"] = "长行程 5",
+        ["grind-circular"] = "圆周研磨",
+        ["grind-vortex"] = "漩涡研磨",
+        ["grind-forward-back"] = "前后研磨·同步",
+        ["grind-forward-back-phased"] = "前后研磨·错相",
+        ["grind-forward-back-tilt"] = "前后研磨·倾斜",
+        ["grind-forward-tilt"] = "前向研磨·倾斜",
         ["tease-orbit-right"] = "环绕挑逗·右",
         ["tease-orbit-left"] = "环绕挑逗·左",
         ["tease-left-right-rock"] = "左右摇摆挑逗",
-        ["tease-down-back"] = "后下方挑逗",
+        ["tease-down-back"] = "下后挑逗",
         ["tease-back-swirl-right"] = "后旋挑逗·右",
         ["tease-back-swirl-left"] = "后旋挑逗·左",
         ["tease-up-down-circle-right"] = "上下绕圈·右",
@@ -251,6 +264,7 @@ public class AyvaRandom : PluginBase
     private double _twistAngle;
     private double _bpm = 120;
     private double _targetBpm = 120;
+    private double _acceleration = 20;
     private double _segmentRemaining;
     private double _segmentTotal;
     private double _transitionRemaining;
@@ -547,7 +561,22 @@ public class AyvaRandom : PluginBase
     {
         var min = Math.Min(StrokeSecondsMinimum, StrokeSecondsMaximum);
         var max = Math.Max(StrokeSecondsMinimum, StrokeSecondsMaximum);
-        return Math.Max(1.0, min + (Random.Shared.NextDouble() * (max - min)));
+        return Math.Max(0.5, min + (Random.Shared.NextDouble() * (max - min)));
+    }
+
+    private double NextRandomTransitionSeconds()
+    {
+        var min = Math.Min(TransitionSecondsMinimum, TransitionSecondsMaximum);
+        var max = Math.Max(TransitionSecondsMinimum, TransitionSecondsMaximum);
+        return Math.Max(0, min + (Random.Shared.NextDouble() * (max - min)));
+    }
+
+    /// <summary>本次换段用的加速度（bpm/s），只在「持续变化」模式下用得上。</summary>
+    private double NextRandomAcceleration()
+    {
+        var min = Math.Min(AccelerationMinimum, AccelerationMaximum);
+        var max = Math.Max(AccelerationMinimum, AccelerationMaximum);
+        return Math.Max(0, min + (Random.Shared.NextDouble() * (max - min)));
     }
 
     /// <summary>开始下一段：随机挑一个行程，记下过渡起点（当前值），随机时长与 bpm。</summary>
@@ -566,15 +595,16 @@ public class AyvaRandom : PluginBase
 
         // 过渡起点 = 当前的实时值（没有就取各行程的中心）
         _transitionFrom = _values.Count > 0 ? new Dictionary<DeviceAxis, double>(_values) : null;
-        _transitionTotal = Math.Max(0, TransitionSeconds);
+        _transitionTotal = NextRandomTransitionSeconds();
         _transitionRemaining = _transitionTotal;
 
         _stroke = axes;
         _strokeName = name;
         if (initial)
             _angle = 0;
-        _bpm = initial || !ContinuousBpm ? NextRandomBpm() : _bpm;
+        _bpm = initial || BpmChangeOnTransition ? NextRandomBpm() : _bpm;
         _targetBpm = NextRandomBpm();
+        _acceleration = NextRandomAcceleration();
         _segmentRemaining = NextRandomSegmentSeconds();
         _segmentTotal = _segmentRemaining;
 
@@ -609,9 +639,13 @@ public class AyvaRandom : PluginBase
             if (!_playing || _stroke == null)
                 return;
 
-            // bpm：连续变化慢慢靠向目标；否则整段保持不变
-            if (ContinuousBpm)
-                _bpm += (_targetBpm - _bpm) * Math.Min(1, delta / 0.6);
+            // bpm：默认只在换段时改变（站点默认）；选「持续变化」时按加速度范围逐拍靠向目标
+            if (!BpmChangeOnTransition && _acceleration > 0)
+            {
+                var maxStep = _acceleration * delta;
+                var difference = _targetBpm - _bpm;
+                _bpm += Math.Clamp(difference, -maxStep, maxStep);
+            }
 
             // θ 连续推进：一个「行程」= π 弧度（向上或向下），公式本身以 2π 为周期，
             // 所以 θ 一直累加就是平滑的往复运动（回绕到 [0,2π) 不改变取值）。
@@ -644,14 +678,14 @@ public class AyvaRandom : PluginBase
                 next[axis] = Math.Clamp(value, 0, 1);
             }
 
-            // 可选：补一个慢速扭转（行程本身没有 R0 时）
+            // 可选：补一个扭转（行程本身没有 R0 时），范围/相位/偏心度都按站点的 Twist 参数来
             if (DefaultTwist)
             {
                 var twistAxis = DeviceAxis.Parse("R0");
                 if (twistAxis != null && !next.ContainsKey(twistAxis) && !_stroke.ContainsKey(twistAxis))
                 {
-                    _twistAngle += Math.Max(0.1, DefaultTwistBpm) * 2 * Math.PI / 60 * delta;
-                    next[twistAxis] = 0.5 - (0.5 * Math.Cos(_twistAngle));
+                    var twist = new StrokeAxisParameter(TwistRangeFrom, TwistRangeTo, TwistPhase, TwistEccentricity);
+                    next[twistAxis] = Math.Clamp(twist.Evaluate(_angle), 0, 1);
                 }
             }
 
@@ -737,16 +771,13 @@ public class AyvaRandom : PluginBase
     private long _lastTimelineUpdateTicks;
     private Button _playButton;
     private StackPanel _strokePoolPanel;
-    private NumericUpDown _bpmMinBox;
-    private NumericUpDown _bpmMaxBox;
-    private NumericUpDown _segmentMinBox;
-    private NumericUpDown _segmentMaxBox;
-    private NumericUpDown _transitionBox;
-    private CheckBox _continuousBpmBox;
     private CheckBox _pausePlayerBox;
     private CheckBox _defaultTwistBox;
     private bool _loadingUi;
     private long _hintExpiresTicks;
+
+    /// <summary>界面控件的回填动作（刷新时统一调用，省得为每个滑块留字段）。</summary>
+    private readonly List<Action> _refreshControls = [];
 
     private UIElement BuildView()
     {
@@ -1000,17 +1031,60 @@ public class AyvaRandom : PluginBase
     {
         var panel = new StackPanel { Margin = new Thickness(0, 6, 0, 0) };
 
-        panel.Children.Add(BuildRangeRow("bpm 范围：", out _bpmMinBox, out _bpmMaxBox, 30, 300, stringFormat: "{0:F0}", suffix: null));
-        panel.Children.Add(BuildRangeRow("每段时长：", out _segmentMinBox, out _segmentMaxBox, 2, 600, stringFormat: "{0:F0}", suffix: " 秒"));
-        panel.Children.Add(BuildRangeRow("过渡时长：", out _transitionBox, out _, 0, 30, stringFormat: "{0:F1}", suffix: " 秒", single: true));
+        // 改变 BPM：过渡时改变（站点默认）/ 持续变化
+        var modeRow = new DockPanel { LastChildFill = false, Margin = new Thickness(0, 0, 0, 6) };
+        var modeLabel = new TextBlock { Text = "改变 BPM：", Width = 92, FontSize = 14, VerticalAlignment = VerticalAlignment.Center };
+        ApplyBodyForeground(modeLabel);
+        DockPanel.SetDock(modeLabel, Dock.Left);
+        modeRow.Children.Add(modeLabel);
+
+        var modeBox = new ComboBox { Width = 140, VerticalAlignment = VerticalAlignment.Center };
+        modeBox.Items.Add("过渡时改变");
+        modeBox.Items.Add("持续变化");
+        modeBox.SelectionChanged += (_, _) =>
+        {
+            if (_loadingUi)
+                return;
+
+            BpmChangeOnTransition = modeBox.SelectedIndex == 0;
+            MarkSettingsDirty();
+            RefreshUi();
+        };
+        DockPanel.SetDock(modeBox, Dock.Left);
+        modeRow.Children.Add(modeBox);
+        _refreshControls.Add(() => modeBox.SelectedIndex = BpmChangeOnTransition ? 0 : 1);
+        panel.Children.Add(modeRow);
+
+        // BPM 范围（站点 0~200，默认 20~60）
+        panel.Children.Add(BuildSliderRangeRow("BPM 范围：", 0, 200, 1, "0",
+            () => BpmMinimum, value => BpmMinimum = value,
+            () => BpmMaximum, value => BpmMaximum = value));
+
+        // 加速度（bpm/s，仅「持续变化」时可用）
+        panel.Children.Add(BuildSliderRangeRow("加速度：", 0, 200, 1, "0",
+            () => AccelerationMinimum, value => AccelerationMinimum = value,
+            () => AccelerationMaximum, value => AccelerationMaximum = value,
+            () => !BpmChangeOnTransition));
+
+        // 模式（每段）持续时间（站点 0~30 秒，默认 5~10）
+        panel.Children.Add(BuildSliderRangeRow("每段时长：", 0, 30, 0.1, "0.0",
+            () => StrokeSecondsMinimum, value => StrokeSecondsMinimum = value,
+            () => StrokeSecondsMaximum, value => StrokeSecondsMaximum = value,
+            unit: " 秒"));
+
+        // 过渡持续时间（站点 0~30 秒，默认 2~5）
+        panel.Children.Add(BuildSliderRangeRow("过渡时长：", 0, 30, 0.1, "0.0",
+            () => TransitionSecondsMinimum, value => TransitionSecondsMinimum = value,
+            () => TransitionSecondsMaximum, value => TransitionSecondsMaximum = value,
+            unit: " 秒"));
 
         var switches = new WrapPanel { Margin = new Thickness(0, 4, 0, 0) };
 
-        _continuousBpmBox = new CheckBox { Content = "bpm 连续变化", FontSize = 14, Margin = new Thickness(0, 0, 14, 0), VerticalAlignment = VerticalAlignment.Center };
-        _continuousBpmBox.Checked += (_, _) => { if (!_loadingUi) { ContinuousBpm = true; MarkSettingsDirty(); } };
-        _continuousBpmBox.Unchecked += (_, _) => { if (!_loadingUi) { ContinuousBpm = false; MarkSettingsDirty(); } };
-        ApplyBodyForeground(_continuousBpmBox);
-        switches.Children.Add(_continuousBpmBox);
+        _defaultTwistBox = new CheckBox { Content = "默认扭转", FontSize = 14, Margin = new Thickness(0, 0, 14, 0), VerticalAlignment = VerticalAlignment.Center };
+        _defaultTwistBox.Checked += (_, _) => { if (!_loadingUi) { DefaultTwist = true; MarkSettingsDirty(); RefreshUi(); } };
+        _defaultTwistBox.Unchecked += (_, _) => { if (!_loadingUi) { DefaultTwist = false; MarkSettingsDirty(); RefreshUi(); } };
+        ApplyBodyForeground(_defaultTwistBox);
+        switches.Children.Add(_defaultTwistBox);
 
         _pausePlayerBox = new CheckBox { Content = "播放时暂停视频", FontSize = 14, Margin = new Thickness(0, 0, 14, 0), VerticalAlignment = VerticalAlignment.Center };
         _pausePlayerBox.Checked += (_, _) => { if (!_loadingUi) { PausePlayerOnPlay = true; MarkSettingsDirty(); } };
@@ -1018,84 +1092,162 @@ public class AyvaRandom : PluginBase
         ApplyBodyForeground(_pausePlayerBox);
         switches.Children.Add(_pausePlayerBox);
 
-        _defaultTwistBox = new CheckBox { Content = "补默认扭转（慢速 R0）", FontSize = 14, Margin = new Thickness(0, 0, 14, 0), VerticalAlignment = VerticalAlignment.Center };
-        _defaultTwistBox.Checked += (_, _) => { if (!_loadingUi) { DefaultTwist = true; MarkSettingsDirty(); } };
-        _defaultTwistBox.Unchecked += (_, _) => { if (!_loadingUi) { DefaultTwist = false; MarkSettingsDirty(); } };
-        ApplyBodyForeground(_defaultTwistBox);
-        switches.Children.Add(_defaultTwistBox);
-
         panel.Children.Add(switches);
+
+        // 扭转范围 / 相位 / 偏心度（对应站点的 Twist Range / Phase / Eccentricity）
+        panel.Children.Add(BuildSliderRangeRow("扭转范围：", 0, 1, 0.05, "0.00",
+            () => TwistRangeFrom, value => TwistRangeFrom = value,
+            () => TwistRangeTo, value => TwistRangeTo = value,
+            () => DefaultTwist));
+
+        panel.Children.Add(BuildSliderRow("扭曲阶段：", -4, 4, 0.1, "0.00",
+            () => TwistPhase, value => TwistPhase = value, () => DefaultTwist));
+
+        panel.Children.Add(BuildSliderRow("扭曲偏心：", -1, 1, 0.05, "0.00",
+            () => TwistEccentricity, value => TwistEccentricity = value, () => DefaultTwist));
+
         return panel;
     }
 
-    private UIElement BuildRangeRow(string label, out NumericUpDown first, out NumericUpDown second, double minimum, double maximum, string stringFormat, string suffix, bool single = false)
+    /// <summary>
+    /// 一行「范围滑块」：标签 + 上方当前值 + 两个滑块（最小 / 最大）。
+    /// 刷新界面时通过 _refreshControls 回填，不需要为每个控件各留一个字段。
+    /// </summary>
+    private UIElement BuildSliderRangeRow(string label, double minimum, double maximum, double step, string format,
+        Func<double> getMinimum, Action<double> setMinimum,
+        Func<double> getMaximum, Action<double> setMaximum,
+        Func<bool> isEnabled = null, string unit = "")
     {
-        var row = new DockPanel { LastChildFill = false, Margin = new Thickness(0, 0, 0, 4) };
+        var panel = new StackPanel { Margin = new Thickness(0, 0, 0, 6) };
 
-        var text = new TextBlock { Text = label, Width = 84, VerticalAlignment = VerticalAlignment.Center, FontSize = 14 };
-        ApplyBodyForeground(text);
-        DockPanel.SetDock(text, Dock.Left);
-        row.Children.Add(text);
+        var head = new DockPanel { LastChildFill = true };
+        var labelText = new TextBlock { Text = label, Width = 92, FontSize = 14, VerticalAlignment = VerticalAlignment.Center };
+        ApplyBodyForeground(labelText);
+        DockPanel.SetDock(labelText, Dock.Left);
+        head.Children.Add(labelText);
 
-        first = new NumericUpDown
+        var valueText = new TextBlock
         {
-            Width = 84,
+            FontSize = 13,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Center,
+            Opacity = 0.9
+        };
+        ApplyBodyForeground(valueText);
+        head.Children.Add(valueText);
+        panel.Children.Add(head);
+
+        var minSlider = MakeSlider(minimum, maximum, step);
+        var maxSlider = MakeSlider(minimum, maximum, step);
+
+        void UpdateValueText()
+            => valueText.Text = $"{getMinimum().ToString(format)}{unit} ~ {getMaximum().ToString(format)}{unit}";
+
+        minSlider.ValueChanged += (_, e) =>
+        {
+            if (_loadingUi)
+                return;
+
+            if (e.NewValue > maxSlider.Value)
+                maxSlider.Value = e.NewValue;
+
+            setMinimum(e.NewValue);
+            UpdateValueText();
+            MarkSettingsDirty();
+        };
+
+        maxSlider.ValueChanged += (_, e) =>
+        {
+            if (_loadingUi)
+                return;
+
+            if (e.NewValue < minSlider.Value)
+                minSlider.Value = e.NewValue;
+
+            setMaximum(e.NewValue);
+            UpdateValueText();
+            MarkSettingsDirty();
+        };
+
+        panel.Children.Add(minSlider);
+        panel.Children.Add(maxSlider);
+
+        _refreshControls.Add(() =>
+        {
+            minSlider.Value = getMinimum();
+            maxSlider.Value = getMaximum();
+
+            var enabled = isEnabled?.Invoke() ?? true;
+            minSlider.IsEnabled = enabled;
+            maxSlider.IsEnabled = enabled;
+            valueText.Opacity = enabled ? 0.9 : 0.4;
+
+            UpdateValueText();
+        });
+
+        return panel;
+    }
+
+    /// <summary>一行「单值滑块」。</summary>
+    private UIElement BuildSliderRow(string label, double minimum, double maximum, double step, string format,
+        Func<double> getValue, Action<double> setValue, Func<bool> isEnabled = null, string unit = "")
+    {
+        var panel = new StackPanel { Margin = new Thickness(0, 0, 0, 6) };
+
+        var head = new DockPanel { LastChildFill = true };
+        var labelText = new TextBlock { Text = label, Width = 92, FontSize = 14, VerticalAlignment = VerticalAlignment.Center };
+        ApplyBodyForeground(labelText);
+        DockPanel.SetDock(labelText, Dock.Left);
+        head.Children.Add(labelText);
+
+        var valueText = new TextBlock
+        {
+            FontSize = 13,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Center,
+            Opacity = 0.9
+        };
+        ApplyBodyForeground(valueText);
+        head.Children.Add(valueText);
+        panel.Children.Add(head);
+
+        var slider = MakeSlider(minimum, maximum, step);
+        slider.ValueChanged += (_, e) =>
+        {
+            if (_loadingUi)
+                return;
+
+            setValue(e.NewValue);
+            valueText.Text = $"{getValue().ToString(format)}{unit}";
+            MarkSettingsDirty();
+        };
+        panel.Children.Add(slider);
+
+        _refreshControls.Add(() =>
+        {
+            slider.Value = getValue();
+
+            var enabled = isEnabled?.Invoke() ?? true;
+            slider.IsEnabled = enabled;
+            valueText.Opacity = enabled ? 0.9 : 0.4;
+
+            valueText.Text = $"{getValue().ToString(format)}{unit}";
+        });
+
+        return panel;
+    }
+
+    private static Slider MakeSlider(double minimum, double maximum, double step)
+        => new()
+        {
             Minimum = minimum,
             Maximum = maximum,
-            Interval = single ? 0.5 : 5,
-            StringFormat = stringFormat,
-            TrackMouseWheelWhenMouseOver = true,
+            SmallChange = step,
+            LargeChange = Math.Max(step, (maximum - minimum) / 20),
+            TickFrequency = step,
+            IsSnapToTickEnabled = step > 0,
             VerticalAlignment = VerticalAlignment.Center
         };
-        first.ValueChanged += (_, _) => { if (!_loadingUi) OnRangeChanged(); };
-        DockPanel.SetDock(first, Dock.Left);
-        row.Children.Add(first);
-
-        second = null;
-        if (!single)
-        {
-            var tilde = new TextBlock { Text = "~", Margin = new Thickness(6, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center, FontSize = 14 };
-            ApplyBodyForeground(tilde);
-            DockPanel.SetDock(tilde, Dock.Left);
-            row.Children.Add(tilde);
-
-            second = new NumericUpDown
-            {
-                Width = 84,
-                Minimum = minimum,
-                Maximum = maximum,
-                Interval = 5,
-                StringFormat = stringFormat,
-                TrackMouseWheelWhenMouseOver = true,
-                VerticalAlignment = VerticalAlignment.Center
-            };
-            second.ValueChanged += (_, _) => { if (!_loadingUi) OnRangeChanged(); };
-            DockPanel.SetDock(second, Dock.Left);
-            row.Children.Add(second);
-        }
-
-        if (!string.IsNullOrEmpty(suffix))
-        {
-            var suffixText = new TextBlock { Text = suffix, Margin = new Thickness(6, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, FontSize = 14 };
-            ApplyBodyForeground(suffixText);
-            DockPanel.SetDock(suffixText, Dock.Left);
-            row.Children.Add(suffixText);
-        }
-
-        return row;
-    }
-
-    private void OnRangeChanged()
-    {
-        BpmMinimum = _bpmMinBox?.Value ?? BpmMinimum;
-        BpmMaximum = _bpmMaxBox?.Value ?? BpmMaximum;
-        StrokeSecondsMinimum = _segmentMinBox?.Value ?? StrokeSecondsMinimum;
-        StrokeSecondsMaximum = _segmentMaxBox?.Value ?? StrokeSecondsMaximum;
-        if (_transitionBox?.Value is { } transition)
-            TransitionSeconds = transition;
-
-        MarkSettingsDirty();
-    }
 
     private void SetAllStrokes(bool enabled)
     {
@@ -1203,14 +1355,21 @@ public class AyvaRandom : PluginBase
                     }
                 }
 
-                if (_bpmMinBox != null) _bpmMinBox.Value = BpmMinimum;
-                if (_bpmMaxBox != null) _bpmMaxBox.Value = BpmMaximum;
-                if (_segmentMinBox != null) _segmentMinBox.Value = StrokeSecondsMinimum;
-                if (_segmentMaxBox != null) _segmentMaxBox.Value = StrokeSecondsMaximum;
-                if (_transitionBox != null) _transitionBox.Value = TransitionSeconds;
-                if (_continuousBpmBox != null) _continuousBpmBox.IsChecked = ContinuousBpm;
                 if (_pausePlayerBox != null) _pausePlayerBox.IsChecked = PausePlayerOnPlay;
                 if (_defaultTwistBox != null) _defaultTwistBox.IsChecked = DefaultTwist;
+
+                // 所有滑块/下拉框通过注册的回填动作刷新（先更新开关，再刷新依赖它们的控件）
+                foreach (var refresh in _refreshControls)
+                {
+                    try
+                    {
+                        refresh();
+                    }
+                    catch (Exception e)
+                    {
+                        Log.Trace(e, "刷新控件失败");
+                    }
+                }
 
                 if (_playButton?.Content is PackIcon icon)
                     icon.Kind = IsPlaying ? PackIconKind.Stop : PackIconKind.Play;
