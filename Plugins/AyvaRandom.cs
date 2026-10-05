@@ -634,6 +634,7 @@ public class AyvaRandom : PluginBase
 
     private TextBlock _statusText;
     private TextBlock _hintText;
+    private PluginViewBase _view;
     private Button _playButton;
     private WrapPanel _strokePoolPanel;
     private NumericUpDown _bpmMinBox;
@@ -678,8 +679,18 @@ public class AyvaRandom : PluginBase
         root.Children.Add(_hintText);
 
         _ = StrokeLibrary;   // 提前载入，日志里能看到条数
+
+        // 插件的根视图必须是 PluginViewBase —— 宿主的插件编译器会检查这一条
+        // （不是的话会抛「插件视图必须继承 PluginViewBase」，整个插件编译失败、
+        //   界面里就会出现"标签在、内容空"）。
+        _view = new PluginViewBase
+        {
+            Content = root,
+            ToolBarContent = _statusText
+        };
+
         RefreshUi();
-        return root;
+        return _view;
     }
 
     private UIElement BuildTransport()
