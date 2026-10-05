@@ -21,6 +21,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using System.Windows.Media.Media3D;
 using MahApps.Metro.Controls;
@@ -387,7 +388,6 @@ public class AyvaRandom : PluginBase
                     FlushSettingsIfDirty();
                     HideExpiredHint();
                     UpdateStatusText();
-                    UpdateSimulator();
                 }
             }
             catch (OperationCanceledException)
@@ -507,7 +507,6 @@ public class AyvaRandom : PluginBase
         if (wasPlaying)
             Log.Info("AyvaRandom 已停止");
 
-        UpdateSimulator();
         RefreshUi();
     }
 
@@ -642,10 +641,6 @@ public class AyvaRandom : PluginBase
         _acceleration = NextRandomAcceleration();
         _segmentRemaining = NextRandomSegmentSeconds();
         _segmentTotal = _segmentRemaining;
-
-        // 给这一段生成波形（用和播放同一条公式，所以画出来就是接下来要走的形状）
-        // 模型会跟着走（波形轴已按用户要求去掉）
-        UpdateSimulator();
 
         if (!initial)
             Log.Debug("AyvaRandom 换段：{0}（bpm {1:0}，本段 {2:0.0}s，过渡 {3:0.0}s）", name, _bpm, _segmentRemaining, _transitionTotal);
@@ -844,7 +839,6 @@ public class AyvaRandom : PluginBase
 
         var root = new StackPanel { Margin = new Thickness(12, 8, 12, 12) };
         root.Children.Add(BuildTransport());
-        root.Children.Add(BuildSimulator());
         root.Children.Add(BuildStrokePool());
         root.Children.Add(BuildRanges());
 
@@ -1436,7 +1430,129 @@ public class AyvaRandom : PluginBase
     }
 
     /// <summary>
-    /// 一行「范围滑块」：标签 + 上方当前值 + 两个滑块（最小 / 最大）。
+    /// 一条轨道 + 两个把手的范围滑块（和网页里一样）：左边把手 = 最小值，右边 = 最大值。
+    /// WPF 没有现成控件，这里用 Canvas + 两个 Thumb 自己画。
+    /// </summary>
+    private UIElement BuildRangeSlider(double minimum, double maximum, double step,
+        Func<double> getMinimum, Action<double> setMinimum,
+        Func<double> getMaximum, Action<double> setMaximum,
+        Func<bool> isEnabled = null)
+    {
+        const double thumbSize = 16;
+        const double trackHeight = 4;
+        const double height = 26;
+
+        var accent = new SolidColorBrush(Color.FromRgb(0x5B, 0x8F, 0xD6));
+        var trackBrush = new SolidColorBrush(Color.FromArgb(0x66, 0x88, 0x88, 0x88));
+
+        var canvas = new Canvas { Height = height, HorizontalAlignment = HorizontalAlignment.Stretch };
+
+        var track = new Border
+        {
+            Height = trackHeight,
+            CornerRadius = new CornerRadius(trackHeight / 2),
+            Background = trackBrush
+        };
+        canvas.Children.Add(track);
+
+        var selection = new Border
+        {
+            Height = trackHeight,
+            CornerRadius = new CornerRadius(trackHeight / 2),
+            Background = accent
+        };
+        canvas.Children.Add(selection);
+
+        var minThumb = MakeThumb(thumbSize, accent);
+        var maxThumb = MakeThumb(thumbSize, accent);
+        canvas.Children.Add(minThumb);
+        canvas.Children.Add(maxThumb);
+
+        var span = Math.Max(1e-9, maximum - minimum);
+
+        double Fraction(double value) => Math.Clamp((value - minimum) / span, 0, 1);
+
+        double Snap(double value)
+        {
+            if (step > 0)
+                value = minimum + (Math.Round((value - minimum) / step) * step);
+
+            return Math.Clamp(value, minimum, maximum);
+        }
+
+        void Layout()
+        {
+            var width = Math.Max(1, canvas.ActualWidth);
+            var usable = Math.Max(1, width - thumbSize);
+
+            var minX = Fraction(getMinimum()) * usable;
+            var maxX = Fraction(getMaximum()) * usable;
+
+            track.Width = width;
+            Canvas.SetLeft(track, 0);
+            Canvas.SetTop(track, (height - trackHeight) / 2);
+
+            selection.Width = Math.Max(0, maxX - minX);
+            Canvas.SetLeft(selection, minX + (thumbSize / 2));
+            Canvas.SetTop(selection, (height - trackHeight) / 2);
+
+            Canvas.SetLeft(minThumb, minX);
+            Canvas.SetTop(minThumb, (height - thumbSize) / 2);
+            Canvas.SetLeft(maxThumb, maxX);
+            Canvas.SetTop(maxThumb, (height - thumbSize) / 2);
+
+            var enabled = isEnabled?.Invoke() ?? true;
+            canvas.Opacity = enabled ? 1 : 0.35;
+            minThumb.IsEnabled = enabled;
+            maxThumb.IsEnabled = enabled;
+        }
+
+        void Drag(Thumb thumb, bool isMinimum, double deltaX)
+        {
+            if (!(isEnabled?.Invoke() ?? true))
+                return;
+
+            var width = Math.Max(1, canvas.ActualWidth - thumbSize);
+            var change = deltaX / width * span;
+
+            if (isMinimum)
+                setMinimum(Snap(getMinimum() + change));
+            else
+                setMaximum(Snap(getMaximum() + change));
+
+            MarkSettingsDirty();
+            Layout();
+        }
+
+        minThumb.DragDelta += (_, e) => Drag(minThumb, true, e.HorizontalChange);
+        maxThumb.DragDelta += (_, e) => Drag(maxThumb, false, e.HorizontalChange);
+        canvas.SizeChanged += (_, _) => Layout();
+
+        _refreshControls.Add(Layout);
+        return canvas;
+    }
+
+    private static Thumb MakeThumb(double size, Brush fill)
+    {
+        var template = new ControlTemplate(typeof(Thumb));
+        var border = new FrameworkElementFactory(typeof(Border));
+        border.SetValue(Border.BackgroundProperty, fill);
+        border.SetValue(Border.CornerRadiusProperty, new CornerRadius(size / 2));
+        border.SetValue(FrameworkElement.WidthProperty, size);
+        border.SetValue(FrameworkElement.HeightProperty, size);
+        template.VisualTree = border;
+
+        return new Thumb
+        {
+            Width = size,
+            Height = size,
+            Template = template,
+            Cursor = System.Windows.Input.Cursors.Hand
+        };
+    }
+
+    /// <summary>
+    /// 一行「范围滑块」：标签 + 上方当前值 + 一条轨道两个把手。
     /// 刷新界面时通过 _refreshControls 回填，不需要为每个控件各留一个字段。
     /// </summary>
     private UIElement BuildSliderRangeRow(string label, double minimum, double maximum, double step, string format,
@@ -1444,7 +1560,7 @@ public class AyvaRandom : PluginBase
         Func<double> getMaximum, Action<double> setMaximum,
         Func<bool> isEnabled = null, string unit = "")
     {
-        var panel = new StackPanel { Margin = new Thickness(0, 0, 0, 6) };
+        var panel = new StackPanel { Margin = new Thickness(0, 0, 0, 4) };
 
         var head = new DockPanel { LastChildFill = true };
         var labelText = new TextBlock { Text = label, Width = 92, FontSize = 14, VerticalAlignment = VerticalAlignment.Center };
@@ -1463,53 +1579,9 @@ public class AyvaRandom : PluginBase
         head.Children.Add(valueText);
         panel.Children.Add(head);
 
-        var minSlider = MakeSlider(minimum, maximum, step);
-        var maxSlider = MakeSlider(minimum, maximum, step);
+        panel.Children.Add(BuildRangeSlider(minimum, maximum, step, getMinimum, setMinimum, getMaximum, setMaximum, isEnabled));
 
-        void UpdateValueText()
-            => valueText.Text = $"{getMinimum().ToString(format)}{unit} ~ {getMaximum().ToString(format)}{unit}";
-
-        minSlider.ValueChanged += (_, e) =>
-        {
-            if (_loadingUi)
-                return;
-
-            if (e.NewValue > maxSlider.Value)
-                maxSlider.Value = e.NewValue;
-
-            setMinimum(e.NewValue);
-            UpdateValueText();
-            MarkSettingsDirty();
-        };
-
-        maxSlider.ValueChanged += (_, e) =>
-        {
-            if (_loadingUi)
-                return;
-
-            if (e.NewValue < minSlider.Value)
-                minSlider.Value = e.NewValue;
-
-            setMaximum(e.NewValue);
-            UpdateValueText();
-            MarkSettingsDirty();
-        };
-
-        panel.Children.Add(minSlider);
-        panel.Children.Add(maxSlider);
-
-        _refreshControls.Add(() =>
-        {
-            minSlider.Value = getMinimum();
-            maxSlider.Value = getMaximum();
-
-            var enabled = isEnabled?.Invoke() ?? true;
-            minSlider.IsEnabled = enabled;
-            maxSlider.IsEnabled = enabled;
-            valueText.Opacity = enabled ? 0.9 : 0.4;
-
-            UpdateValueText();
-        });
+        _refreshControls.Add(() => valueText.Text = $"{getMinimum().ToString(format)}{unit} ~ {getMaximum().ToString(format)}{unit}");
 
         return panel;
     }
