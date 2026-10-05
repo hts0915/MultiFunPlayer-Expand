@@ -22,6 +22,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Media.Media3D;
 using MahApps.Metro.Controls;
 using MaterialDesignThemes.Wpf;
 using MultiFunPlayer.Common;
@@ -383,7 +384,7 @@ public class AyvaRandom : PluginBase
                     FlushSettingsIfDirty();
                     HideExpiredHint();
                     UpdateStatusText();
-                    RefreshTimeline();
+                    UpdateSimulator();
                 }
             }
             catch (OperationCanceledException)
@@ -502,7 +503,7 @@ public class AyvaRandom : PluginBase
         if (wasPlaying)
             Log.Info("AyvaRandom 已停止");
 
-        RefreshTimeline(force: true);
+        UpdateSimulator();
         RefreshUi();
     }
 
@@ -609,8 +610,8 @@ public class AyvaRandom : PluginBase
         _segmentTotal = _segmentRemaining;
 
         // 给这一段生成波形（用和播放同一条公式，所以画出来就是接下来要走的形状）
-        BuildSegmentPreview(axes, _segmentTotal, _bpm);
-        RefreshTimeline(force: true);
+        // 模型会跟着走（波形轴已按用户要求去掉）
+        UpdateSimulator();
 
         if (!initial)
             Log.Debug("AyvaRandom 换段：{0}（bpm {1:0}，本段 {2:0.0}s，过渡 {3:0.0}s）", name, _bpm, _segmentRemaining, _transitionTotal);
@@ -765,6 +766,16 @@ public class AyvaRandom : PluginBase
     private TextBlock _statusText;
     private TextBlock _hintText;
     private PluginViewBase _view;
+    private Viewport3D _simulator;
+    private Model3DGroup _simulatorModel;
+    private Transform3DGroup _swayTransform;
+    private Transform3DGroup _surgeTransform;
+    private Transform3DGroup _strokeTransform;
+    private Transform3DGroup _twistTransform;
+    private Transform3DGroup _rollTransform;
+    private Transform3DGroup _pitchTransform;
+    private double _simulatorYaw = 32;
+    private double _simulatorPitch = 16;
     private KeyframesHeatmap _timeline;
     private TextBlock _timelineTimeText;
     private IReadOnlyDictionary<DeviceAxis, KeyframeCollection> _segmentPreview;
@@ -795,7 +806,7 @@ public class AyvaRandom : PluginBase
 
         var root = new StackPanel { Margin = new Thickness(12, 8, 12, 12) };
         root.Children.Add(BuildTransport());
-        root.Children.Add(BuildTimeline());
+        root.Children.Add(BuildSimulator());
         root.Children.Add(BuildStrokePool());
         root.Children.Add(BuildRanges());
 
@@ -845,6 +856,250 @@ public class AyvaRandom : PluginBase
         // 这里绝不能再 add 一次 —— 同一个 UI 元素挂两个父级会让 WPF 抛
         // "在指定子级连接到新的父 Visual 之前必须断开与当前父 Visual 的连接" 并直接崩溃。
         return row;
+    }
+
+    /// <summary>
+    /// 实时 3D 机器模型（按用户要求替换掉原来的波形轴）：
+    /// 用 WPF 的 Viewport3D 搭一个同风格的 OSR 模型 —— 底座不动，
+    /// 上方托架按 L0/L1/L2 平移、按 R0/R1/R2 旋转，位置直接来自引擎的实时值。
+    /// </summary>
+    private UIElement BuildSimulator()
+    {
+        _simulatorModel = new Model3DGroup();
+
+        var bodyMaterial = new DiffuseMaterial(new SolidColorBrush(Color.FromRgb(0x5B, 0x74, 0xA8)));
+        var jointMaterial = new DiffuseMaterial(new SolidColorBrush(Color.FromRgb(0x2E, 0x33, 0x3B)));
+        var receiverMaterial = new DiffuseMaterial(new SolidColorBrush(Color.FromRgb(0x1A, 0x1C, 0x20)));
+        var steelMaterial = new DiffuseMaterial(new SolidColorBrush(Color.FromRgb(0x9A, 0xA3, 0xB0)));
+
+        // 变换链：底座 → 左右(L2) → 前后(L1) → 上下(L0) → 扭转(R0) → 侧倾(R1) → 俯仰(R2)
+        _swayTransform = new Transform3DGroup();
+        _surgeTransform = new Transform3DGroup();
+        _strokeTransform = new Transform3DGroup();
+        _twistTransform = new Transform3DGroup();
+        _rollTransform = new Transform3DGroup();
+        _pitchTransform = new Transform3DGroup();
+
+        _swayTransform.Children.Add(new TranslateTransform3D());
+        _surgeTransform.Children.Add(new TranslateTransform3D());
+        _strokeTransform.Children.Add(new TranslateTransform3D());
+        _twistTransform.Children.Add(new RotateTransform3D(new AxisAngleRotation3D(new Vector3D(0, 1, 0), 0)));
+        _rollTransform.Children.Add(new RotateTransform3D(new AxisAngleRotation3D(new Vector3D(1, 0, 0), 0)));
+        _pitchTransform.Children.Add(new RotateTransform3D(new AxisAngleRotation3D(new Vector3D(0, 0, 1), 0)));
+
+        // 底座（不动）
+        _simulatorModel.Children.Add(MakeBox(120, 14, 96, bodyMaterial, new TranslateTransform3D(0, -42, 0)));
+        _simulatorModel.Children.Add(MakeBox(96, 10, 76, jointMaterial, new TranslateTransform3D(0, -31, 0)));
+
+        foreach (var x in new[] { -34.0, 34.0 })
+            _simulatorModel.Children.Add(MakeBox(9, 62, 9, bodyMaterial, new TranslateTransform3D(x, -6, -8)));
+
+        // 会随各轴运动的托架 + 接收器
+        var carriage = new Model3DGroup();
+        carriage.Children.Add(MakeBox(88, 10, 64, bodyMaterial));
+        carriage.Children.Add(MakeBox(20, 46, 20, jointMaterial, new TranslateTransform3D(-30, 26, 0)));
+        carriage.Children.Add(MakeBox(20, 46, 20, jointMaterial, new TranslateTransform3D(30, 26, 0)));
+        carriage.Children.Add(MakeBox(74, 12, 16, steelMaterial, new TranslateTransform3D(0, 52, 0)));
+        carriage.Children.Add(MakeCylinder(30, 12, 28, steelMaterial, new TranslateTransform3D(0, 62, 0)));
+        carriage.Children.Add(MakeCylinder(26, 74, 28, receiverMaterial, new TranslateTransform3D(0, 100, 0)));
+        carriage.Transform = _swayTransform;
+        _simulatorModel.Children.Add(carriage);
+
+        _swayTransform.Children.Add(_surgeTransform);
+        _surgeTransform.Children.Add(_strokeTransform);
+        _strokeTransform.Children.Add(_twistTransform);
+        _twistTransform.Children.Add(_rollTransform);
+        _rollTransform.Children.Add(_pitchTransform);
+
+        _simulatorModel.Children.Add(new DirectionalLight(Colors.White, new Vector3D(-1, -1.4, -1)));
+        _simulatorModel.Children.Add(new DirectionalLight(Color.FromRgb(0x66, 0x66, 0x66), new Vector3D(1, -0.6, 1)));
+
+        _simulator = new Viewport3D
+        {
+            Height = 200,
+            ClipToBounds = true,
+            Children = { new ModelVisual3D { Content = _simulatorModel } }
+        };
+
+        // 按住拖动可以旋转视角
+        var dragging = false;
+        var last = new Point();
+        _simulator.MouseLeftButtonDown += (_, e) =>
+        {
+            dragging = true;
+            last = e.GetPosition(_simulator);
+            _simulator.CaptureMouse();
+        };
+        _simulator.MouseLeftButtonUp += (_, _) =>
+        {
+            dragging = false;
+            _simulator.ReleaseMouseCapture();
+        };
+        _simulator.MouseMove += (_, e) =>
+        {
+            if (!dragging)
+                return;
+
+            var now = e.GetPosition(_simulator);
+            _simulatorYaw += (now.X - last.X) * 0.6;
+            _simulatorPitch = Math.Clamp(_simulatorPitch + ((now.Y - last.Y) * 0.4), -80, 80);
+            last = now;
+            UpdateSimulatorCamera();
+        };
+
+        var panel = new StackPanel { Margin = new Thickness(0, 2, 0, 6) };
+        var hint = new TextBlock
+        {
+            Text = "实时模拟（按住拖动可旋转视角）",
+            FontSize = 12,
+            Opacity = 0.8,
+            Margin = new Thickness(0, 0, 0, 2)
+        };
+        ApplyBodyForeground(hint);
+        panel.Children.Add(hint);
+        panel.Children.Add(_simulator);
+
+        UpdateSimulatorCamera();
+        return panel;
+    }
+
+    private void UpdateSimulatorCamera()
+    {
+        if (_simulator == null)
+            return;
+
+        var yaw = _simulatorYaw * Math.PI / 180;
+        var pitch = _simulatorPitch * Math.PI / 180;
+        var distance = 400.0;
+        var target = new Point3D(0, 10, 0);
+
+        var eye = new Point3D(
+            target.X + (distance * Math.Cos(pitch) * Math.Sin(yaw)),
+            target.Y + (distance * Math.Sin(pitch)),
+            target.Z + (distance * Math.Cos(pitch) * Math.Cos(yaw)));
+
+        _simulator.Camera = new PerspectiveCamera(
+            eye,
+            new Vector3D(target.X - eye.X, target.Y - eye.Y, target.Z - eye.Z),
+            new Vector3D(0, 1, 0),
+            45);
+    }
+
+    /// <summary>用引擎的实时值驱动模型（调用频率由调用方限流）。</summary>
+    private void UpdateSimulator()
+    {
+        if (_simulator == null)
+            return;
+
+        double l0 = 0.5, l1 = 0.5, l2 = 0.5, r0 = 0.5, r1 = 0.5, r2 = 0.5;
+        lock (_engineLock)
+        {
+            if (_values.Count > 0)
+            {
+                double Read(string name)
+                {
+                    var axis = DeviceAxis.Parse(name);
+                    return axis != null && _values.TryGetValue(axis, out var value) ? value : 0.5;
+                }
+
+                l0 = Read("L0");
+                l1 = Read("L1");
+                l2 = Read("L2");
+                r0 = Read("R0");
+                r1 = Read("R1");
+                r2 = Read("R2");
+            }
+        }
+
+        Execute.OnUIThread(() =>
+        {
+            if (_strokeTransform?.Children[0] is TranslateTransform3D stroke)
+                stroke.OffsetY = (l0 - 0.5) * 120;
+
+            if (_surgeTransform?.Children[0] is TranslateTransform3D surge)
+                surge.OffsetZ = (l1 - 0.5) * 90;
+
+            if (_swayTransform?.Children[0] is TranslateTransform3D sway)
+                sway.OffsetX = (l2 - 0.5) * 90;
+
+            if (_twistTransform?.Children[0] is RotateTransform3D twist && twist.Rotation is AxisAngleRotation3D twistAxis)
+                twistAxis.Angle = (r0 - 0.5) * 360;
+
+            if (_rollTransform?.Children[0] is RotateTransform3D roll && roll.Rotation is AxisAngleRotation3D rollAxis)
+                rollAxis.Angle = (r1 - 0.5) * 90;
+
+            if (_pitchTransform?.Children[0] is RotateTransform3D pitch && pitch.Rotation is AxisAngleRotation3D pitchAxis)
+                pitchAxis.Angle = (r2 - 0.5) * 90;
+        });
+    }
+
+    /// <summary>造一个长方体。</summary>
+    private static GeometryModel3D MakeBox(double width, double height, double depth, Material material, Transform3D transform = null)
+    {
+        var x = width / 2;
+        var y = height / 2;
+        var z = depth / 2;
+
+        var mesh = new MeshGeometry3D();
+        Point3D[] corners =
+        [
+            new(-x, -y, -z), new(x, -y, -z), new(x, y, -z), new(-x, y, -z),
+            new(-x, -y, z), new(x, -y, z), new(x, y, z), new(-x, y, z),
+        ];
+
+        foreach (var corner in corners)
+            mesh.Positions.Add(corner);
+
+        int[] faces =
+        [
+            0, 2, 1, 0, 3, 2,
+            4, 5, 6, 4, 6, 7,
+            0, 1, 5, 0, 5, 4,
+            3, 7, 6, 3, 6, 2,
+            0, 4, 7, 0, 7, 3,
+            1, 2, 6, 1, 6, 5,
+        ];
+
+        foreach (var index in faces)
+            mesh.TriangleIndices.Add(index);
+
+        return new GeometryModel3D(mesh, material) { Transform = transform };
+    }
+
+    /// <summary>造一个沿 Y 轴的圆柱。</summary>
+    private static GeometryModel3D MakeCylinder(double radius, double height, int segments, Material material, Transform3D transform = null)
+    {
+        var mesh = new MeshGeometry3D();
+        var half = height / 2;
+
+        for (var i = 0; i < segments; i++)
+        {
+            var angle = 2 * Math.PI * i / segments;
+            mesh.Positions.Add(new Point3D(radius * Math.Cos(angle), -half, radius * Math.Sin(angle)));
+            mesh.Positions.Add(new Point3D(radius * Math.Cos(angle), half, radius * Math.Sin(angle)));
+        }
+
+        for (var i = 0; i < segments; i++)
+        {
+            var next = (i + 1) % segments;
+            var a = i * 2;
+            var b = (i * 2) + 1;
+            var c = next * 2;
+            var d = (next * 2) + 1;
+
+            mesh.TriangleIndices.Add(a); mesh.TriangleIndices.Add(d); mesh.TriangleIndices.Add(b);
+            mesh.TriangleIndices.Add(a); mesh.TriangleIndices.Add(c); mesh.TriangleIndices.Add(d);
+
+            var bottom = mesh.Positions.Count;
+            mesh.Positions.Add(new Point3D(0, -half, 0));
+            mesh.TriangleIndices.Add(a); mesh.TriangleIndices.Add(bottom); mesh.TriangleIndices.Add(c);
+
+            var top = mesh.Positions.Count;
+            mesh.Positions.Add(new Point3D(0, half, 0));
+            mesh.TriangleIndices.Add(b); mesh.TriangleIndices.Add(d); mesh.TriangleIndices.Add(top);
+        }
+
+        return new GeometryModel3D(mesh, material) { Transform = transform };
     }
 
     /// <summary>
