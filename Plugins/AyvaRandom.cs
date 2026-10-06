@@ -713,11 +713,17 @@ public class AyvaRandom : PluginBase
                 next[axis] = Math.Clamp(value, 0, 1);
             }
 
-            // 可选：补一个扭转（行程本身没有 R0 时），范围/相位/偏心度都按站点的 Twist 参数来
+            // 可选：补一个扭转（行程本身"没用扭转"时），范围/相位/偏心度都按站点的 Twist 参数来。
+            // 注意：内置库里每条行程都写了 R0，但大多是"静止的"（from == to），
+            // 那种情况也算没用扭转 ⇒ 必须补上，否则「默认扭转」看起来不生效。
             if (DefaultTwist)
             {
                 var twistAxis = DeviceAxis.Parse("R0");
-                if (twistAxis != null && !next.ContainsKey(twistAxis) && !_stroke.ContainsKey(twistAxis))
+                var hasMovingTwist = twistAxis != null
+                                  && _stroke.TryGetValue(twistAxis, out var existing)
+                                  && Math.Abs(existing.From - existing.To) > 1e-6;
+
+                if (twistAxis != null && !hasMovingTwist)
                 {
                     var twist = new StrokeAxisParameter(TwistRangeFrom, TwistRangeTo, TwistPhase, TwistEccentricity);
                     next[twistAxis] = Math.Clamp(twist.Evaluate(_angle), 0, 1);
@@ -1435,128 +1441,70 @@ public class AyvaRandom : PluginBase
     }
 
     /// <summary>
-    /// 一条轨道 + 两个把手的范围滑块（和网页里一样）：左边把手 = 最小值，右边 = 最大值。
-    /// WPF 没有现成控件，这里用 Canvas + 两个 Thumb 自己画。
+    /// 一条范围条：直接用 MFP 自带的 MahApps RangeSlider 样式
+    /// （MaterialDesignCompactRangeSlider，和界面其它滑块完全同色），
+    /// 它本身就是"一条轨道 + 两个把手"，并且保证 下限 ≤ 上限。
     /// </summary>
     private UIElement BuildRangeSlider(double minimum, double maximum, double step,
         Func<double> getMinimum, Action<double> setMinimum,
         Func<double> getMaximum, Action<double> setMaximum,
         Func<bool> isEnabled = null, Action onChanged = null)
     {
-        const double thumbSize = 16;
-        const double trackHeight = 4;
-        const double height = 26;
-
-        var accent = new SolidColorBrush(Color.FromRgb(0x5B, 0x8F, 0xD6));
-        var trackBrush = new SolidColorBrush(Color.FromArgb(0x66, 0x88, 0x88, 0x88));
-
-        var canvas = new Canvas { Height = height, HorizontalAlignment = HorizontalAlignment.Stretch };
-
-        var track = new Border
+        var slider = new MahApps.Metro.Controls.RangeSlider
         {
-            Height = trackHeight,
-            CornerRadius = new CornerRadius(trackHeight / 2),
-            Background = trackBrush
+            Minimum = minimum,
+            Maximum = maximum,
+            MinRange = Math.Max(0, step),
+            SmallChange = step,
+            LargeChange = Math.Max(step, (maximum - minimum) / 20),
+            TickFrequency = step,
+            IsSnapToTickEnabled = step > 0,
+            LowerValue = getMinimum(),
+            UpperValue = getMaximum(),
+            Orientation = Orientation.Horizontal,
+            VerticalAlignment = VerticalAlignment.Center,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Margin = new Thickness(0, 0, 0, 2)
         };
-        canvas.Children.Add(track);
+        slider.SetResourceReference(FrameworkElement.StyleProperty, "MaterialDesignCompactRangeSlider");
 
-        var selection = new Border
+        slider.LowerValueChanged += (_, _) =>
         {
-            Height = trackHeight,
-            CornerRadius = new CornerRadius(trackHeight / 2),
-            Background = accent
-        };
-        canvas.Children.Add(selection);
-
-        var minThumb = MakeThumb(thumbSize, accent);
-        var maxThumb = MakeThumb(thumbSize, accent);
-        canvas.Children.Add(minThumb);
-        canvas.Children.Add(maxThumb);
-
-        var span = Math.Max(1e-9, maximum - minimum);
-
-        double Fraction(double value) => Math.Clamp((value - minimum) / span, 0, 1);
-
-        double Snap(double value)
-        {
-            if (step > 0)
-                value = minimum + (Math.Round((value - minimum) / step) * step);
-
-            return Math.Clamp(value, minimum, maximum);
-        }
-
-        void Layout()
-        {
-            var width = Math.Max(1, canvas.ActualWidth);
-            var usable = Math.Max(1, width - thumbSize);
-
-            var minX = Fraction(getMinimum()) * usable;
-            var maxX = Fraction(getMaximum()) * usable;
-
-            track.Width = width;
-            Canvas.SetLeft(track, 0);
-            Canvas.SetTop(track, (height - trackHeight) / 2);
-
-            selection.Width = Math.Max(0, maxX - minX);
-            Canvas.SetLeft(selection, minX + (thumbSize / 2));
-            Canvas.SetTop(selection, (height - trackHeight) / 2);
-
-            Canvas.SetLeft(minThumb, minX);
-            Canvas.SetTop(minThumb, (height - thumbSize) / 2);
-            Canvas.SetLeft(maxThumb, maxX);
-            Canvas.SetTop(maxThumb, (height - thumbSize) / 2);
-
-            var enabled = isEnabled?.Invoke() ?? true;
-            canvas.Opacity = enabled ? 1 : 0.35;
-            minThumb.IsEnabled = enabled;
-            maxThumb.IsEnabled = enabled;
-        }
-
-        void Drag(Thumb thumb, bool isMinimum, double deltaX)
-        {
-            if (!(isEnabled?.Invoke() ?? true))
+            if (_loadingUi)
                 return;
 
-            var width = Math.Max(1, canvas.ActualWidth - thumbSize);
-            var change = deltaX / width * span;
-
-            if (isMinimum)
-                setMinimum(Snap(getMinimum() + change));
-            else
-                setMaximum(Snap(getMaximum() + change));
-
+            setMinimum(slider.LowerValue);
             MarkSettingsDirty();
-            Layout();
-
-            // 拖动时立刻刷新数值显示（原来只在 RefreshUi 时刷新，所以拖了数字不动）
             onChanged?.Invoke();
-        }
-
-        minThumb.DragDelta += (_, e) => Drag(minThumb, true, e.HorizontalChange);
-        maxThumb.DragDelta += (_, e) => Drag(maxThumb, false, e.HorizontalChange);
-        canvas.SizeChanged += (_, _) => Layout();
-
-        _refreshControls.Add(Layout);
-        return canvas;
-    }
-
-    private static Thumb MakeThumb(double size, Brush fill)
-    {
-        var template = new ControlTemplate(typeof(Thumb));
-        var border = new FrameworkElementFactory(typeof(Border));
-        border.SetValue(Border.BackgroundProperty, fill);
-        border.SetValue(Border.CornerRadiusProperty, new CornerRadius(size / 2));
-        border.SetValue(FrameworkElement.WidthProperty, size);
-        border.SetValue(FrameworkElement.HeightProperty, size);
-        template.VisualTree = border;
-
-        return new Thumb
-        {
-            Width = size,
-            Height = size,
-            Template = template,
-            Cursor = System.Windows.Input.Cursors.Hand
         };
+
+        slider.UpperValueChanged += (_, _) =>
+        {
+            if (_loadingUi)
+                return;
+
+            setMaximum(slider.UpperValue);
+            MarkSettingsDirty();
+            onChanged?.Invoke();
+        };
+
+        _refreshControls.Add(() =>
+        {
+            _loadingUi = true;
+            try
+            {
+                slider.LowerValue = getMinimum();
+                slider.UpperValue = getMaximum();
+            }
+            finally
+            {
+                _loadingUi = false;
+            }
+
+            slider.IsEnabled = isEnabled?.Invoke() ?? true;
+        });
+
+        return slider;
     }
 
     /// <summary>
