@@ -274,6 +274,12 @@ public class AyvaRandom : PluginBase
     /// <summary>下一段强制播放的行程（点列表里的名字时用；用完就清空）。</summary>
     private string _nextStrokeOverride;
 
+    /// <summary>
+    /// 用户点名字选中的那一条：会**一直循环播放**它，直到用户主动打断
+    /// （再点 ▶、点「下一段」、点「重新开始」、或点另一条名字）。
+    /// </summary>
+    private string _lockedStroke;
+
     /// <summary>本插件自己造成的播放状态变化，在这之前忽略（避免把自己暂停/恢复当成"用户开始播放视频"）。</summary>
     private long _suppressPlayerStartTicks;
     private double _segmentRemaining;
@@ -455,11 +461,14 @@ public class AyvaRandom : PluginBase
 
         // 没勾任何行程时别"默默播全部"，直接提示（原来空列表被当成全部，导致「全不选」看起来没反应）；
         // 但点名字直接播放时不算（那是明确的单条选择）
-        if (Pool().Count == 0 && _nextStrokeOverride == null)
+        if (Pool().Count == 0 && _nextStrokeOverride == null && _lockedStroke == null)
         {
             SetHint("⚠ 没有勾选任何行程 —— 先在上面勾几条（或点「全选」）再播放。");
             return;
         }
+
+        // ▶ = 随机模式（解除单条循环；点名字时会在这之后再重新锁定）
+        _lockedStroke = null;
 
         // 可选：暂停视频播放器（和预设插件一样，避免两边同时抢设备）
         _pausedPlayer = false;
@@ -548,8 +557,13 @@ public class AyvaRandom : PluginBase
         if (!IsPlaying)
             return;
 
+        // 「下一段」= 解除单条循环，回到随机
+        _lockedStroke = null;
+
         lock (_engineLock)
             StartNextSegment(initial: false);
+
+        RefreshUi();
     }
 
     /// <summary>
@@ -566,19 +580,22 @@ public class AyvaRandom : PluginBase
             _nextStrokeOverride = name;
             StartCore();
             _nextStrokeOverride = null;
+            _lockedStroke = name;   // 点选的那条会一直循环，直到主动打断
+            RefreshUi();
             return;
         }
 
         lock (_engineLock)
         {
-            if (_strokeName == name)
-                return;   // 已经在放这一条
+            if (_strokeName == name && _lockedStroke == name)
+                return;   // 已经在单条循环这一条
 
             _nextStrokeOverride = name;
             StartNextSegment(initial: false);
             _nextStrokeOverride = null;
         }
 
+        _lockedStroke = name;
         RefreshUi();
     }
 
@@ -655,13 +672,14 @@ public class AyvaRandom : PluginBase
     private void StartNextSegment(bool initial)
     {
         var pool = Pool();
-        if (pool.Count == 0 && _nextStrokeOverride == null)
+        var forced = _nextStrokeOverride ?? _lockedStroke;
+        if (pool.Count == 0 && forced == null)
         {
             _playing = false;
             return;
         }
 
-        var name = _nextStrokeOverride ?? PickRandomStroke(pool);
+        var name = forced ?? PickRandomStroke(pool);
         if (!StrokeLibrary.TryGetValue(name, out var axes))
             return;
 
@@ -1745,10 +1763,9 @@ public class AyvaRandom : PluginBase
                         // 名字本身可以点：点一下立刻播放这一条（像网页里那样）
                         var nameButton = new Button
                         {
-                            Content = DisplayNameOf(name),
-                            ToolTip = $"{name}\n点一下立即播放这一条",
+                            Content = MakeButtonText(DisplayNameOf(name)),
+                            ToolTip = $"{name}\n点一下立即播放这一条（会一直循环，直到你主动打断）",
                             FontSize = 13,
-                            FontWeight = FontWeights.Normal,
                             HorizontalAlignment = HorizontalAlignment.Left,
                             HorizontalContentAlignment = HorizontalAlignment.Left,
                             VerticalAlignment = VerticalAlignment.Center,
@@ -1823,7 +1840,10 @@ public class AyvaRandom : PluginBase
         Execute.OnUIThread(() =>
         {
             foreach (var (name, button) in _strokeButtons)
-                button.Content = (name == current ? "▶ " : string.Empty) + DisplayNameOf(name);
+            {
+                if (button.Content is TextBlock text)
+                    text.Text = (name == current ? "▶ " : string.Empty) + DisplayNameOf(name);
+            }
         });
     }
 
@@ -1839,6 +1859,13 @@ public class AyvaRandom : PluginBase
         }
 
         var transition = _transitionRemaining > 0 ? $"　过渡中 {_transitionRemaining:0.0}s" : string.Empty;
+
+        if (!string.IsNullOrEmpty(_lockedStroke))
+        {
+            _statusText.Text = $"🔁 单条循环：{DisplayNameOf(_lockedStroke)}　bpm {CurrentBpm:0}　本段剩余 {SegmentRemaining:0.0}s{transition}";
+            return;
+        }
+
         _statusText.Text = $"▶ {DisplayNameOf(CurrentStrokeName)}　bpm {CurrentBpm:0}　本段剩余 {SegmentRemaining:0.0}s{transition}";
     }
 
@@ -1910,16 +1937,19 @@ public class AyvaRandom : PluginBase
         return button;
     }
 
+    /// <summary>按钮里的文字统一用常规字重（MaterialDesign 的按钮样式默认半粗体，得设在内容上才有效）。</summary>
+    private static TextBlock MakeButtonText(string text)
+        => new() { Text = text, FontWeight = FontWeights.Normal };
+
     private static Button MakeTextButton(string content, RoutedEventHandler onClick)
     {
         var button = new Button
         {
-            Content = content,
+            Content = MakeButtonText(content),
             Height = 26,
             Padding = new Thickness(10, 0, 10, 0),
             Margin = new Thickness(0, 0, 6, 0),
-            VerticalAlignment = VerticalAlignment.Center,
-            FontWeight = FontWeights.Normal   // 和面板里其它文字统一（不带加粗）
+            VerticalAlignment = VerticalAlignment.Center
         };
 
         button.Click += onClick;
