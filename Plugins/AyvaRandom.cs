@@ -614,9 +614,11 @@ public class AyvaRandom : PluginBase
 
             var bpmMin = Math.Max(2, Math.Min(BpmMinimum, BpmMaximum));
             var bpmMax = Math.Max(bpmMin, Math.Max(BpmMinimum, BpmMaximum));
+
+            // 只把当前 bpm 与目标夹进新范围，**不重抽** ——
+            // 否则每次动一下滑块都会换一次速度（用户明确不想要这个行为）
             _bpm = Math.Clamp(_bpm, bpmMin, bpmMax);
-            _targetBpm = NextRandomBpm();
-            _acceleration = NextRandomAcceleration();
+            _targetBpm = Math.Clamp(_targetBpm, bpmMin, bpmMax);
 
             var segmentMin = Math.Max(0.5, Math.Min(StrokeSecondsMinimum, StrokeSecondsMaximum));
             var segmentMax = Math.Max(segmentMin, Math.Max(StrokeSecondsMinimum, StrokeSecondsMaximum));
@@ -760,12 +762,24 @@ public class AyvaRandom : PluginBase
             if (!_playing || _stroke == null)
                 return;
 
-            // bpm：默认只在换段时改变（站点默认）；选「持续变化」时按加速度范围逐拍靠向目标
+            // bpm：
+            //   transition 模式 —— bpm 每段抽一次，只在换段（过渡）时改变（站点默认）
+            //   continuous 模式 —— bpm 在范围内**持续游走**，变化速率受「加速度」限制
+            //                      （ayvajs 在每个行程切片都会问一次 bpm，站点就是这么做的）
             if (!BpmChangeOnTransition && _acceleration > 0)
             {
                 var maxStep = _acceleration * delta;
                 var difference = _targetBpm - _bpm;
-                _bpm += Math.Clamp(difference, -maxStep, maxStep);
+
+                if (Math.Abs(difference) <= maxStep)
+                {
+                    _bpm = _targetBpm;
+                    _targetBpm = NextRandomBpm();   // 到达后立刻再抽一个新目标 ⇒ 持续变化
+                }
+                else
+                {
+                    _bpm += Math.Sign(difference) * maxStep;
+                }
             }
 
             // θ 连续推进：一个「行程」= π 弧度（向上或向下），公式本身以 2π 为周期，
