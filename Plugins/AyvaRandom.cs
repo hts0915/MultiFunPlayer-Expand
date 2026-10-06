@@ -268,8 +268,14 @@ public class AyvaRandom : PluginBase
     private double _targetBpm = 120;
     private double _acceleration = 20;
 
+    /// <summary>本插件自己暂停/恢复播放器时，在这段时间内忽略播放状态变化（毫秒）。</summary>
+    private const int PlayerChangeSuppressMilliseconds = 2500;
+
     /// <summary>下一段强制播放的行程（点列表里的名字时用；用完就清空）。</summary>
     private string _nextStrokeOverride;
+
+    /// <summary>本插件自己造成的播放状态变化，在这之前忽略（避免把自己暂停/恢复当成"用户开始播放视频"）。</summary>
+    private long _suppressPlayerStartTicks;
     private double _segmentRemaining;
     private double _segmentTotal;
     private double _transitionRemaining;
@@ -359,6 +365,31 @@ public class AyvaRandom : PluginBase
         }
     }
 
+    /// <summary>
+    /// 和「脚本预设」一样的优先级逻辑：视频开始播放时，把控制权交回视频脚本（停掉随机播放）。
+    /// </summary>
+    protected override void HandleMessage(MediaPlayingChangedMessage message)
+    {
+        if (!message.IsPlaying)
+            return;
+
+        if (Environment.TickCount64 < Interlocked.Read(ref _suppressPlayerStartTicks))
+        {
+            Log.Debug("忽略这次播放状态变化（{0} 毫秒内视作本插件自己造成的）", PlayerChangeSuppressMilliseconds);
+            return;
+        }
+
+        Enqueue(() =>
+        {
+            if (!IsPlaying)
+                return;
+
+            Log.Info("检测到视频开始播放，停止随机播放（控制权交回视频脚本）");
+            SetHint("检测到视频开始播放，随机播放已停止（控制权已交回视频脚本）");
+            StopCore(false);
+        });
+    }
+
     private void Enqueue(Action command)
     {
         try
@@ -438,6 +469,7 @@ public class AyvaRandom : PluginBase
             {
                 if (ReadProperty<bool>("Media::PlayPause"))
                 {
+                    Interlocked.Exchange(ref _suppressPlayerStartTicks, Environment.TickCount64 + PlayerChangeSuppressMilliseconds);
                     PublishMessage(new MediaPlayPauseMessage(false));
                     _pausedPlayer = true;
                 }
@@ -494,6 +526,7 @@ public class AyvaRandom : PluginBase
         {
             try
             {
+                Interlocked.Exchange(ref _suppressPlayerStartTicks, Environment.TickCount64 + PlayerChangeSuppressMilliseconds);
                 PublishMessage(new MediaPlayPauseMessage(true));
             }
             catch (Exception e)
@@ -1715,6 +1748,7 @@ public class AyvaRandom : PluginBase
                             Content = DisplayNameOf(name),
                             ToolTip = $"{name}\n点一下立即播放这一条",
                             FontSize = 13,
+                            FontWeight = FontWeights.Normal,
                             HorizontalAlignment = HorizontalAlignment.Left,
                             HorizontalContentAlignment = HorizontalAlignment.Left,
                             VerticalAlignment = VerticalAlignment.Center,
@@ -1884,7 +1918,8 @@ public class AyvaRandom : PluginBase
             Height = 26,
             Padding = new Thickness(10, 0, 10, 0),
             Margin = new Thickness(0, 0, 6, 0),
-            VerticalAlignment = VerticalAlignment.Center
+            VerticalAlignment = VerticalAlignment.Center,
+            FontWeight = FontWeights.Normal   // 和面板里其它文字统一（不带加粗）
         };
 
         button.Click += onClick;

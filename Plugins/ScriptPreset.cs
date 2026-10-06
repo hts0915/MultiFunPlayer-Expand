@@ -1635,6 +1635,7 @@ public class ScriptPreset : PluginBase
         {
             Content = content,
             FontSize = 14,
+            FontWeight = FontWeights.Normal,   // 与 Ayva 面板统一：不加粗
             Padding = new Thickness(10, 3, 10, 3),
             Margin = new Thickness(0, 0, 6, 4)
         };
