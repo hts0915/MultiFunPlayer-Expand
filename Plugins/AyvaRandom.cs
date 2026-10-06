@@ -51,6 +51,8 @@ public class AyvaRandom : PluginBase
         "AyvaRandom::Toggle",
         "AyvaRandom::Next",
         "AyvaRandom::Stop",
+        "AyvaRandom::Home",
+        "AyvaRandom::FreePlay",
         "AyvaRandom::Save",
     ];
 
@@ -316,6 +318,8 @@ public class AyvaRandom : PluginBase
         RegisterAction("AyvaRandom::Toggle", () => Enqueue(TogglePlay));
         RegisterAction("AyvaRandom::Next", () => Enqueue(NextStroke));
         RegisterAction("AyvaRandom::Stop", () => Enqueue(() => StopCore(true)));
+        RegisterAction("AyvaRandom::Home", () => Enqueue(HomeDevice));
+        RegisterAction("AyvaRandom::FreePlay", () => Enqueue(FreePlay));
         RegisterAction("AyvaRandom::Save", SaveSettingsNow);
 
         CancellationToken.Register(UnregisterAllActions);
@@ -557,6 +561,88 @@ public class AyvaRandom : PluginBase
             Log.Info("AyvaRandom 已停止");
 
         RefreshUi();
+    }
+
+    /// <summary>
+    /// 随机播放（网站的 Free Play）：在勾选的行程里随机播。
+    /// 如果当前正锁着某一条（点名字选的），会先解除锁定、回到随机。
+    /// </summary>
+    private void FreePlay()
+    {
+        _lockedStroke = null;
+        _nextStrokeOverride = null;
+
+        if (!IsPlaying)
+        {
+            StartCore();
+            return;
+        }
+
+        lock (_engineLock)
+            StartNextSegment(initial: false);
+
+        RefreshUi();
+    }
+
+    /// <summary>
+    /// 归位（网站的 Home Device）：先停止脚本，再按各轴的「归位目标值」把设备平滑送回原位，
+    /// 最后交还控制权（不再压着轴，让 AutoHome 之类的设置继续按用户配置工作）。
+    /// </summary>
+    private void HomeDevice()
+    {
+        StopCore(false);
+
+        var controller = OverrideController;
+        if (controller == null)
+            return;
+
+        var targets = new Dictionary<DeviceAxis, double>();
+        var starts = new Dictionary<DeviceAxis, double>();
+
+        foreach (var axis in DeviceAxis.All)
+        {
+            var target = 0.5;
+            var current = 0.5;
+
+            try
+            {
+                target = Math.Clamp(ReadProperty<DeviceAxis, double>("Axis::AutoHomeTargetValue", axis), 0, 1);
+            }
+            catch (Exception e)
+            {
+                Log.Trace(e, "读取归位目标值失败 [{0}]", axis);
+            }
+
+            try
+            {
+                current = Math.Clamp(ReadProperty<DeviceAxis, double>("Axis::Value", axis), 0, 1);
+            }
+            catch (Exception e)
+            {
+                Log.Trace(e, "读取当前值失败 [{0}]", axis);
+            }
+
+            targets[axis] = target;
+            starts[axis] = current;
+        }
+
+        // 平滑送回（约 1 秒，50 步 × 20ms），避免设备突然跳变
+        const int steps = 50;
+        for (var step = 1; step <= steps; step++)
+        {
+            var progress = (double)step / steps;
+            var values = new Dictionary<DeviceAxis, double>();
+
+            foreach (var (axis, target) in targets)
+                values[axis] = starts[axis] + ((target - starts[axis]) * progress);
+
+            controller.SetOverrideLiveValues(values);
+            Thread.Sleep(20);
+        }
+
+        controller.SetOverrideLiveValues(null);
+        Log.Info("AyvaRandom 已归位");
+        SetHint("已停止并归位");
     }
 
     private void NextStroke()
@@ -991,21 +1077,23 @@ public class AyvaRandom : PluginBase
     {
         var row = new DockPanel { LastChildFill = false, Margin = new Thickness(0, 0, 0, 8) };
 
-        _playButton = MakeIconButton(PackIconKind.Play, "开始随机播放", Brushes.Green, (_, _) => Enqueue(TogglePlay));
-        DockPanel.SetDock(_playButton, Dock.Left);
-        row.Children.Add(_playButton);
+        // 三个按钮与网站一致：归位（停止并回到原位）/ 随机播放 / 停止
+        var homeButton = MakeTextButton("归位", (_, _) => Enqueue(HomeDevice));
+        homeButton.ToolTip = "停止脚本，并把设备平滑送回各轴的「归位目标值」（和网站的 Home Device 一样）";
+        DockPanel.SetDock(homeButton, Dock.Left);
+        row.Children.Add(homeButton);
 
-        var nextButton = MakeTextButton("下一段", (_, _) => Enqueue(NextStroke));
-        DockPanel.SetDock(nextButton, Dock.Left);
-        row.Children.Add(nextButton);
+        var freePlayButton = MakeTextButton("随机播放", (_, _) => Enqueue(FreePlay));
+        freePlayButton.ToolTip = "在勾选的行程里随机播放（和网站的 Free Play 一样）";
+        DockPanel.SetDock(freePlayButton, Dock.Left);
+        row.Children.Add(freePlayButton);
 
-        var restartButton = MakeTextButton("重新开始", (_, _) => Enqueue(() => { StopCore(false); StartCore(); }));
-        DockPanel.SetDock(restartButton, Dock.Left);
-        row.Children.Add(restartButton);
+        var stopButton = MakeTextButton("停止", (_, _) => Enqueue(() => StopCore(true)));
+        stopButton.ToolTip = "停止脚本（设备停在当前位置；和网站的 Stop 一样）";
+        DockPanel.SetDock(stopButton, Dock.Left);
+        row.Children.Add(stopButton);
 
-        // 注意：_statusText 只放在 PluginViewBase.ToolBarContent 里（见 BuildView），
-        // 这里绝不能再 add 一次 —— 同一个 UI 元素挂两个父级会让 WPF 抛
-        // "在指定子级连接到新的父 Visual 之前必须断开与当前父 Visual 的连接" 并直接崩溃。
+        row.Children.Add(_statusText);
         return row;
     }
 
