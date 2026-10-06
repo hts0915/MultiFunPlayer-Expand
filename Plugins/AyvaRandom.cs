@@ -317,7 +317,7 @@ public class AyvaRandom : PluginBase
 
         RegisterAction("AyvaRandom::Toggle", () => Enqueue(TogglePlay));
         RegisterAction("AyvaRandom::Next", () => Enqueue(NextStroke));
-        RegisterAction("AyvaRandom::Stop", () => Enqueue(() => StopCore(true)));
+        RegisterAction("AyvaRandom::Stop", () => Enqueue(() => StopCore(true, hold: true)));
         RegisterAction("AyvaRandom::Home", () => Enqueue(HomeDevice));
         RegisterAction("AyvaRandom::FreePlay", () => Enqueue(FreePlay));
         RegisterAction("AyvaRandom::Save", SaveSettingsNow);
@@ -456,7 +456,7 @@ public class AyvaRandom : PluginBase
     private void TogglePlay()
     {
         if (IsPlaying)
-            StopCore(true);
+            StopCore(true, hold: true);
         else
             StartCore();
     }
@@ -518,9 +518,15 @@ public class AyvaRandom : PluginBase
         RefreshUi();
     }
 
-    private void StopCore(bool resumePlayer)
+    /// <param name="resumePlayer">是否按之前记录恢复视频播放。</param>
+    /// <param name="hold">
+    /// true = 停止后**继续压住各轴**（保持当前值不动），避免交还控制权的瞬间设备跳变；
+    /// false = 交还控制权（例如"视频开始播放"时要把控制权还给视频脚本）。
+    /// </param>
+    private void StopCore(bool resumePlayer, bool hold = false)
     {
         var wasPlaying = IsPlaying;
+        Dictionary<DeviceAxis, double> held = null;
 
         lock (_engineLock)
         {
@@ -531,11 +537,17 @@ public class AyvaRandom : PluginBase
             _transitionRemaining = 0;
             _transitionTotal = 0;
             _segmentTotal = 0;
+            _lockedStroke = null;
+            _nextStrokeOverride = null;
+
+            if (hold && _values.Count > 0)
+                held = new Dictionary<DeviceAxis, double>(_values);
         }
 
         try
         {
-            OverrideController?.SetOverrideLiveValues(null);
+            // 「停止」保持不动（不交还，避免跳变）；其它情况交还控制权
+            OverrideController?.SetOverrideLiveValues(held);
         }
         catch (Exception e)
         {
@@ -590,29 +602,19 @@ public class AyvaRandom : PluginBase
     /// </summary>
     private void HomeDevice()
     {
-        StopCore(false);
+        // 先停下（保持住当前值，避免这一瞬间跳变），再平滑送到"所有轴 = 0"，并**继续压住**，
+        // 这样就不会被视频脚本按它自己的进度接走（用户明确要求：归位后就停在 0）。
+        StopCore(false, hold: true);
 
         var controller = OverrideController;
         if (controller == null)
             return;
 
-        var targets = new Dictionary<DeviceAxis, double>();
         var starts = new Dictionary<DeviceAxis, double>();
 
         foreach (var axis in DeviceAxis.All)
         {
-            var target = 0.5;
             var current = 0.5;
-
-            try
-            {
-                target = Math.Clamp(ReadProperty<DeviceAxis, double>("Axis::AutoHomeTargetValue", axis), 0, 1);
-            }
-            catch (Exception e)
-            {
-                Log.Trace(e, "读取归位目标值失败 [{0}]", axis);
-            }
-
             try
             {
                 current = Math.Clamp(ReadProperty<DeviceAxis, double>("Axis::Value", axis), 0, 1);
@@ -622,27 +624,35 @@ public class AyvaRandom : PluginBase
                 Log.Trace(e, "读取当前值失败 [{0}]", axis);
             }
 
-            targets[axis] = target;
             starts[axis] = current;
         }
 
-        // 平滑送回（约 1 秒，50 步 × 20ms），避免设备突然跳变
+        // 平滑送回 0（约 1 秒，50 步 × 20ms）
         const int steps = 50;
         for (var step = 1; step <= steps; step++)
         {
             var progress = (double)step / steps;
             var values = new Dictionary<DeviceAxis, double>();
 
-            foreach (var (axis, target) in targets)
-                values[axis] = starts[axis] + ((target - starts[axis]) * progress);
+            foreach (var (axis, start) in starts)
+                values[axis] = start * (1 - progress);   // 目标 = 0
 
             controller.SetOverrideLiveValues(values);
             Thread.Sleep(20);
         }
 
-        controller.SetOverrideLiveValues(null);
-        Log.Info("AyvaRandom 已归位");
-        SetHint("已停止并归位");
+        // 最后固定停在 0（继续压住，不交还）
+        var zero = new Dictionary<DeviceAxis, double>();
+        foreach (var axis in DeviceAxis.All)
+            zero[axis] = 0;
+
+        controller.SetOverrideLiveValues(zero);
+
+        lock (_engineLock)
+            _values = new Dictionary<DeviceAxis, double>(zero);
+
+        Log.Info("AyvaRandom 已归位（所有轴 = 0，并保持不动）");
+        SetHint("已停止并归位到 0");
     }
 
     private void NextStroke()
@@ -1088,8 +1098,8 @@ public class AyvaRandom : PluginBase
         DockPanel.SetDock(freePlayButton, Dock.Left);
         row.Children.Add(freePlayButton);
 
-        var stopButton = MakeTextButton("停止", (_, _) => Enqueue(() => StopCore(true)));
-        stopButton.ToolTip = "停止脚本（设备停在当前位置；和网站的 Stop 一样）";
+        var stopButton = MakeTextButton("停止", (_, _) => Enqueue(() => StopCore(true, hold: true)));
+        stopButton.ToolTip = "停止脚本，并保持设备停在当前位置（不会跳变；和网站的 Stop 一样）";
         DockPanel.SetDock(stopButton, Dock.Left);
         row.Children.Add(stopButton);
 
