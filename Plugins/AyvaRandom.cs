@@ -599,6 +599,41 @@ public class AyvaRandom : PluginBase
         RefreshUi();
     }
 
+    /// <summary>
+    /// 设置一改就立刻作用到**正在播放的这一段**（原来只在换段时才读，所以要等好几秒才生效）：
+    /// bpm 夹进新范围并重抽目标（持续变化模式下会平滑过去）、剩余时长/过渡时长也夹进新范围。
+    /// </summary>
+    private void ApplySettingsLive()
+    {
+        MarkSettingsDirty();
+
+        lock (_engineLock)
+        {
+            if (!_playing || _stroke == null)
+                return;
+
+            var bpmMin = Math.Max(2, Math.Min(BpmMinimum, BpmMaximum));
+            var bpmMax = Math.Max(bpmMin, Math.Max(BpmMinimum, BpmMaximum));
+            _bpm = Math.Clamp(_bpm, bpmMin, bpmMax);
+            _targetBpm = NextRandomBpm();
+            _acceleration = NextRandomAcceleration();
+
+            var segmentMin = Math.Max(0.5, Math.Min(StrokeSecondsMinimum, StrokeSecondsMaximum));
+            var segmentMax = Math.Max(segmentMin, Math.Max(StrokeSecondsMinimum, StrokeSecondsMaximum));
+            _segmentRemaining = Math.Clamp(_segmentRemaining, segmentMin, segmentMax);
+            _segmentTotal = Math.Max(_segmentTotal, _segmentRemaining);
+
+            if (_transitionRemaining > 0)
+            {
+                var transitionMax = Math.Max(0, Math.Max(TransitionSecondsMinimum, TransitionSecondsMaximum));
+                _transitionRemaining = Math.Min(_transitionRemaining, transitionMax);
+                _transitionTotal = Math.Max(_transitionTotal, _transitionRemaining);
+            }
+        }
+
+        UpdateStatusText();
+    }
+
     /// <summary>可选的行程池（「全选」= 全部；否则用勾选的那些；可能为空）。</summary>
     private List<string> Pool()
     {
@@ -1429,7 +1464,7 @@ public class AyvaRandom : PluginBase
                 return;
 
             BpmChangeOnTransition = modeBox.SelectedIndex == 0;
-            MarkSettingsDirty();
+            ApplySettingsLive();
             RefreshUi();
         };
         DockPanel.SetDock(modeBox, Dock.Left);
@@ -1463,8 +1498,8 @@ public class AyvaRandom : PluginBase
         var switches = new WrapPanel { Margin = new Thickness(0, 4, 0, 0) };
 
         _defaultTwistBox = new CheckBox { Content = "默认扭转", FontSize = 14, Margin = new Thickness(0, 0, 14, 0), VerticalAlignment = VerticalAlignment.Center };
-        _defaultTwistBox.Checked += (_, _) => { if (!_loadingUi) { DefaultTwist = true; MarkSettingsDirty(); RefreshUi(); } };
-        _defaultTwistBox.Unchecked += (_, _) => { if (!_loadingUi) { DefaultTwist = false; MarkSettingsDirty(); RefreshUi(); } };
+        _defaultTwistBox.Checked += (_, _) => { if (!_loadingUi) { DefaultTwist = true; ApplySettingsLive(); RefreshUi(); } };
+        _defaultTwistBox.Unchecked += (_, _) => { if (!_loadingUi) { DefaultTwist = false; ApplySettingsLive(); RefreshUi(); } };
         ApplyBodyForeground(_defaultTwistBox);
         switches.Children.Add(_defaultTwistBox);
 
@@ -1525,7 +1560,7 @@ public class AyvaRandom : PluginBase
                 return;
 
             setMinimum(slider.LowerValue);
-            MarkSettingsDirty();
+            ApplySettingsLive();
             onChanged?.Invoke();
         };
 
@@ -1535,7 +1570,7 @@ public class AyvaRandom : PluginBase
                 return;
 
             setMaximum(slider.UpperValue);
-            MarkSettingsDirty();
+            ApplySettingsLive();
             onChanged?.Invoke();
         };
 
@@ -1629,7 +1664,7 @@ public class AyvaRandom : PluginBase
 
             setValue(e.NewValue);
             valueText.Text = $"{getValue().ToString(format)}{unit}";
-            MarkSettingsDirty();
+            ApplySettingsLive();
         };
         panel.Children.Add(slider);
 
