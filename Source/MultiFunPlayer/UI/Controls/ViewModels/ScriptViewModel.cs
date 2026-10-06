@@ -424,6 +424,13 @@ internal sealed class ScriptViewModel : Screen, IDeviceAxisValueProvider, IScrip
                 {
                     if (!double.IsFinite(context.Value) || !settings.AutoHomeEnabled)
                         return false;
+
+                    // 「实时值」模式（插件实时驱动，例如 Ayva 随机的归位/停止）下不许自动归位抢：
+                    // 否则插件刚把设备送到 0，5 秒后归位又把它拉回 AutoHomeTargetValue（比如 0.5），
+                    // 看起来就是"先到最低点、再回到零点"。
+                    if (IsOverrideActive && _overrideLiveValues != null)
+                        return false;
+
                     if (!settings.AutoHomeInsideScript && context.InsideScript && IsPlaying)
                         return false;
                     if (context.IsScriptDirty || context.IsMotionProviderDirty)
