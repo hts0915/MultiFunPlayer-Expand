@@ -611,34 +611,45 @@ public class AyvaRandom : PluginBase
             return;
 
         var starts = new Dictionary<DeviceAxis, double>();
+        Dictionary<DeviceAxis, double> lastKnown;
+        lock (_engineLock)
+            lastKnown = new Dictionary<DeviceAxis, double>(_values);
 
         foreach (var axis in DeviceAxis.All)
         {
-            var current = 0.5;
+            // 兜底用插件自己记录的最后值，而不是硬编码 0.5 —— 起点读错会让归位路径不对
+            var current = lastKnown.TryGetValue(axis, out var known) ? known : 0.5;
+
             try
             {
                 current = Math.Clamp(ReadProperty<DeviceAxis, double>("Axis::Value", axis), 0, 1);
             }
             catch (Exception e)
             {
-                Log.Trace(e, "读取当前值失败 [{0}]", axis);
+                Log.Trace(e, "读取当前值失败 [{0}]，改用插件记录的 {1:0.00}", axis, current);
             }
 
             starts[axis] = current;
         }
 
-        // 平滑送回 0（约 1 秒，50 步 × 20ms）
-        const int steps = 50;
+        // 从现在的位置**直接**缓慢归零：余弦缓动（起步慢、收尾也慢），共 3 秒
+        const int stepMilliseconds = 50;
+        const int durationMilliseconds = 3000;
+        var steps = durationMilliseconds / stepMilliseconds;
+
+        Log.Info("归位：起点 {0}", string.Join("、", starts.Select(pair => $"{pair.Key}={pair.Value:0.00}")));
+
         for (var step = 1; step <= steps; step++)
         {
             var progress = (double)step / steps;
+            var eased = 0.5 - (0.5 * Math.Cos(Math.PI * progress));   // 余弦缓动
             var values = new Dictionary<DeviceAxis, double>();
 
             foreach (var (axis, start) in starts)
-                values[axis] = start * (1 - progress);   // 目标 = 0
+                values[axis] = start * (1 - eased);   // 目标 = 0
 
             controller.SetOverrideLiveValues(values);
-            Thread.Sleep(20);
+            Thread.Sleep(stepMilliseconds);
         }
 
         // 最后固定停在 0（继续压住，不交还）
