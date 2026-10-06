@@ -271,6 +271,13 @@ public class AyvaRandom : PluginBase
     /// <summary>本插件自己暂停/恢复播放器时，在这段时间内忽略播放状态变化（毫秒）。</summary>
     private const int PlayerChangeSuppressMilliseconds = 2500;
 
+    /// <summary>continuous 模式下累积的时间，用来"每秒按加速度走一步"。</summary>
+    private double _bpmStepAccumulator;
+
+    private double BpmMinimumClamped => Math.Max(2, Math.Min(BpmMinimum, BpmMaximum));
+
+    private double BpmMaximumClamped => Math.Max(BpmMinimumClamped, Math.Max(BpmMinimum, BpmMaximum));
+
     /// <summary>下一段强制播放的行程（点列表里的名字时用；用完就清空）。</summary>
     private string _nextStrokeOverride;
 
@@ -499,7 +506,7 @@ public class AyvaRandom : PluginBase
             _twistAngle = 0;
             _lastStepTicks = Stopwatch.GetTimestamp();
             _bpm = NextRandomBpm();
-            _targetBpm = NextRandomBpm();
+            _bpmStepAccumulator = 0;
             StartNextSegment(initial: true);
         }
 
@@ -615,10 +622,9 @@ public class AyvaRandom : PluginBase
             var bpmMin = Math.Max(2, Math.Min(BpmMinimum, BpmMaximum));
             var bpmMax = Math.Max(bpmMin, Math.Max(BpmMinimum, BpmMaximum));
 
-            // 只把当前 bpm 与目标夹进新范围，**不重抽** ——
+            // 只把当前 bpm 夹进新范围，**不重抽** ——
             // 否则每次动一下滑块都会换一次速度（用户明确不想要这个行为）
             _bpm = Math.Clamp(_bpm, bpmMin, bpmMax);
-            _targetBpm = Math.Clamp(_targetBpm, bpmMin, bpmMax);
 
             var segmentMin = Math.Max(0.5, Math.Min(StrokeSecondsMinimum, StrokeSecondsMaximum));
             var segmentMax = Math.Max(segmentMin, Math.Max(StrokeSecondsMinimum, StrokeSecondsMaximum));
@@ -729,9 +735,11 @@ public class AyvaRandom : PluginBase
         _strokeName = name;
         if (initial)
             _angle = 0;
-        _bpm = initial || BpmChangeOnTransition ? NextRandomBpm() : _bpm;
-        _targetBpm = NextRandomBpm();
-        _acceleration = NextRandomAcceleration();
+
+        // transition 模式（或刚开始）才抽新的 bpm；continuous 模式让它一直游走下去
+        if (initial || BpmChangeOnTransition)
+            _bpm = NextRandomBpm();
+        _bpmStepAccumulator = 0;
         _segmentRemaining = NextRandomSegmentSeconds();
         _segmentTotal = _segmentRemaining;
 
@@ -764,21 +772,21 @@ public class AyvaRandom : PluginBase
 
             // bpm：
             //   transition 模式 —— bpm 每段抽一次，只在换段（过渡）时改变（站点默认）
-            //   continuous 模式 —— bpm 在范围内**持续游走**，变化速率受「加速度」限制
-            //                      （ayvajs 在每个行程切片都会问一次 bpm，站点就是这么做的）
-            if (!BpmChangeOnTransition && _acceleration > 0)
+            //   continuous 模式 —— 与站点源码一致：**每秒按「加速度」随机走一步、方向随机**，
+            //                     步长在加速度范围内随机取（不是朝某个目标移动），并夹在 bpm 范围内
+            if (!BpmChangeOnTransition)
             {
-                var maxStep = _acceleration * delta;
-                var difference = _targetBpm - _bpm;
+                _bpmStepAccumulator += delta;
+                while (_bpmStepAccumulator >= 1.0)
+                {
+                    _bpmStepAccumulator -= 1.0;
 
-                if (Math.Abs(difference) <= maxStep)
-                {
-                    _bpm = _targetBpm;
-                    _targetBpm = NextRandomBpm();   // 到达后立刻再抽一个新目标 ⇒ 持续变化
-                }
-                else
-                {
-                    _bpm += Math.Sign(difference) * maxStep;
+                    var step = NextRandomAcceleration();   // 本站点：Math.random() 取一个加速度值
+                    if (step <= 0)
+                        continue;
+
+                    var direction = Random.Shared.NextDouble() < 0.5 ? -1 : 1;
+                    _bpm = Math.Clamp(_bpm + (direction * step), BpmMinimumClamped, BpmMaximumClamped);
                 }
             }
 
