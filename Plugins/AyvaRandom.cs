@@ -51,7 +51,6 @@ public class AyvaRandom : PluginBase
         "AyvaRandom::Toggle",
         "AyvaRandom::Next",
         "AyvaRandom::Stop",
-        "AyvaRandom::Home",
         "AyvaRandom::FreePlay",
         "AyvaRandom::Save",
     ];
@@ -317,8 +316,7 @@ public class AyvaRandom : PluginBase
 
         RegisterAction("AyvaRandom::Toggle", () => Enqueue(TogglePlay));
         RegisterAction("AyvaRandom::Next", () => Enqueue(NextStroke));
-        RegisterAction("AyvaRandom::Stop", () => Enqueue(() => StopCore(true)));
-        RegisterAction("AyvaRandom::Home", () => Enqueue(HomeDevice));
+        RegisterAction("AyvaRandom::Stop", () => Enqueue(() => StopCore(true, hold: true)));
         RegisterAction("AyvaRandom::FreePlay", () => Enqueue(FreePlay));
         RegisterAction("AyvaRandom::Save", SaveSettingsNow);
 
@@ -456,7 +454,7 @@ public class AyvaRandom : PluginBase
     private void TogglePlay()
     {
         if (IsPlaying)
-            StopCore(true);
+            StopCore(true, hold: true);
         else
             StartCore();
     }
@@ -518,9 +516,15 @@ public class AyvaRandom : PluginBase
         RefreshUi();
     }
 
-    private void StopCore(bool resumePlayer)
+    /// <param name="resumePlayer">是否恢复之前记录的视频播放。</param>
+    /// <param name="hold">
+    /// true = 停止后继续压住各轴（保持当前位置，不跳变、也不会被交还后取到的值带走）；
+    /// false = 交还控制权（例如"视频开始播放"时要把控制权还给视频脚本）。
+    /// </param>
+    private void StopCore(bool resumePlayer, bool hold = false)
     {
         var wasPlaying = IsPlaying;
+        Dictionary<DeviceAxis, double> held = null;
 
         lock (_engineLock)
         {
@@ -531,11 +535,15 @@ public class AyvaRandom : PluginBase
             _transitionRemaining = 0;
             _transitionTotal = 0;
             _segmentTotal = 0;
+
+            if (hold && _values.Count > 0)
+                held = new Dictionary<DeviceAxis, double>(_values);
         }
 
         try
         {
-            OverrideController?.SetOverrideLiveValues(null);
+            // 「停止」= 就地保持（传当前值，不传 null，避免交还瞬间跳变）
+            OverrideController?.SetOverrideLiveValues(held);
         }
         catch (Exception e)
         {
@@ -1077,19 +1085,14 @@ public class AyvaRandom : PluginBase
     {
         var row = new DockPanel { LastChildFill = false, Margin = new Thickness(0, 0, 0, 8) };
 
-        // 三个按钮与网站一致：归位（停止并回到原位）/ 随机播放 / 停止
-        var homeButton = MakeTextButton("归位", (_, _) => Enqueue(HomeDevice));
-        homeButton.ToolTip = "停止脚本，并把设备平滑送回各轴的「归位目标值」（和网站的 Home Device 一样）";
-        DockPanel.SetDock(homeButton, Dock.Left);
-        row.Children.Add(homeButton);
-
+        // 两个按钮与网站一致：随机播放（Free Play）/ 停止（Stop）
         var freePlayButton = MakeTextButton("随机播放", (_, _) => Enqueue(FreePlay));
         freePlayButton.ToolTip = "在勾选的行程里随机播放（和网站的 Free Play 一样）";
         DockPanel.SetDock(freePlayButton, Dock.Left);
         row.Children.Add(freePlayButton);
 
-        var stopButton = MakeTextButton("停止", (_, _) => Enqueue(() => StopCore(true)));
-        stopButton.ToolTip = "停止脚本（设备停在当前位置；和网站的 Stop 一样）";
+        var stopButton = MakeTextButton("停止", (_, _) => Enqueue(() => StopCore(true, hold: true)));
+        stopButton.ToolTip = "停止脚本，并就地保持（设备停在当前位置，不跳变）";
         DockPanel.SetDock(stopButton, Dock.Left);
         row.Children.Add(stopButton);
 
