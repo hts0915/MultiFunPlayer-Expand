@@ -588,6 +588,11 @@ public class AyvaRandom : PluginBase
     {
         var min = Math.Min(BpmMinimum, BpmMaximum);
         var max = Math.Max(BpmMinimum, BpmMaximum);
+
+        // 下限保护：bpm 太小时设备几乎不动（范围被拉到 0 就会看起来"没反应"）
+        min = Math.Max(min, 2);
+        max = Math.Max(max, min);
+
         return min + (Random.Shared.NextDouble() * (max - min));
     }
 

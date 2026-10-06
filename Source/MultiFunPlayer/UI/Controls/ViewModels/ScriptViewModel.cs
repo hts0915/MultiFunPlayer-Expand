@@ -834,13 +834,36 @@ internal sealed class ScriptViewModel : Screen, IDeviceAxisValueProvider, IScrip
         return MediaPosition - GlobalOffset - AxisSettings[axis].Offset;
     }
 
+    /// <summary>
+    /// 实时值模式下给每个轴准备的"常量脚本"缓存。
+    /// 轴管线是靠关键帧算值的，实时值模式下没有关键帧就会被当作"该轴没有脚本"而完全不更新，
+    /// 所以这里为实时值造一个两点（起点/终点同值）的关键帧集合，值一变就重建。
+    /// </summary>
+    private readonly Dictionary<DeviceAxis, (double Value, KeyframeCollection Keyframes)> _overrideLiveKeyframes = [];
+
     /// <summary>当前该轴实际生效的关键帧：覆盖模式用覆盖脚本，否则用媒体源加载的脚本。</summary>
     private KeyframeCollection GetActiveKeyframes(DeviceAxis axis)
     {
-        if (IsOverrideActive && _overrideLiveValues == null)
+        if (IsOverrideActive && _overrideLiveValues != null)
+        {
+            if (!_overrideLiveValues.TryGetValue(axis, out var liveValue))
+                return null;
+
+            var clamped = Math.Clamp(liveValue, 0, 1);
+            if (_overrideLiveKeyframes.TryGetValue(axis, out var cached) && Math.Abs(cached.Value - clamped) < 1e-6)
+                return cached.Keyframes;
+
+            var keyframes = new KeyframeCollection(2);
+            keyframes.Add(0, clamped);
+            keyframes.Add(1e6, clamped);
+            _overrideLiveKeyframes[axis] = (clamped, keyframes);
+            return keyframes;
+        }
+
+        if (IsOverrideActive)
             return _overrideScripts.TryGetValue(axis, out var overrideScript) ? overrideScript?.Keyframes : null;
 
-        return AxisKeyframes.TryGetValue(axis, out var keyframes) ? keyframes : null;
+        return AxisKeyframes.TryGetValue(axis, out var axisKeyframes) ? axisKeyframes : null;
     }
     public double GetValue(DeviceAxis axis) => MathUtils.Clamp01(AxisStates[axis].Value);
 
@@ -1127,6 +1150,7 @@ internal sealed class ScriptViewModel : Screen, IDeviceAxisValueProvider, IScrip
         {
             var wasLive = _overrideLiveValues != null;
             _overrideLiveValues = null;
+            _overrideLiveKeyframes.Clear();
             if (wasLive && _overrideScripts.Count == 0)
                 StopOverride();
 
@@ -1157,6 +1181,7 @@ internal sealed class ScriptViewModel : Screen, IDeviceAxisValueProvider, IScrip
         _overridePosition = 0;
         _overridePaused = false;
         _overrideLiveValues = null;
+        _overrideLiveKeyframes.Clear();
 
         SetSyncBypass(true);
         InvalidateAxisState(null);
