@@ -81,6 +81,7 @@ internal sealed class PluginViewModel : Conductor<PluginContainer>.Collection.On
 
                 // 按插件自报的 Order 重排（否则顺序 = 目录扫描顺序，"谁先被扫到谁排第一"）
                 SortItems();
+                ApplyDefaultActiveItem();
 
                 Logger.Info("插件标签页：显示 {0} 个（{1}）", Items.Count,
                     string.Join("、", Items.Select(x => x.DisplayName)));
@@ -174,7 +175,32 @@ internal sealed class PluginViewModel : Conductor<PluginContainer>.Collection.On
         }
         else if (e.PropertyName == nameof(PluginContainer.DisplayName))
         {
+            // 插件是懒编译的：实例（以及它自报的 Order）要等插件真正编译出来才读得到。
+            // 所以插件实例就绪时再排一次序，否则初始排序只能退化成按显示名排（那样 Ayva 又跑到前面）。
+            SortItems();
+            ApplyDefaultActiveItem();
             OnPropertyChanged(nameof(Items));
         }
+    }
+
+    private bool _defaultActiveItemApplied;
+
+    /// <summary>
+    /// 把默认选中的标签页设为排序后的第一个（只做一次）。
+    /// 必须等所有插件都编译出实例（Order 已知）再定，否则会先选中"临时第一名"。
+    /// </summary>
+    private void ApplyDefaultActiveItem()
+    {
+        if (_defaultActiveItemApplied || Items.Count == 0)
+            return;
+
+        if (Items.Any(x => x.Order == int.MaxValue))
+            return;
+
+        _defaultActiveItemApplied = true;
+
+        var first = Items[0];
+        if (ActiveItem != first)
+            ActiveItem = first;
     }
 }
