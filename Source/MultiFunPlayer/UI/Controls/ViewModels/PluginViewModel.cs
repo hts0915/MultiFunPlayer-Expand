@@ -108,6 +108,8 @@ internal sealed class PluginViewModel : Conductor<PluginContainer>.Collection.On
                           .ThenBy(x => x.DisplayName, StringComparer.OrdinalIgnoreCase)
                           .ToList();
 
+        Logger.Info("插件标签排序：{0}", string.Join("、", sorted.Select(x => $"{x.DisplayName}({x.Order})")));
+
         for (var i = 0; i < sorted.Count; i++)
         {
             var item = sorted[i];

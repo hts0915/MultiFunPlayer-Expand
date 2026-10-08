@@ -36,8 +36,19 @@ internal sealed class PluginContainer : PropertyChangedBase, IChildDelegate, ISc
     /// </summary>
     public string DisplayName => ViewModel?.DisplayName ?? Path.GetFileNameWithoutExtension(File.Name);
 
-    /// <summary>插件标签页排序权重（插件还没编译出来时排到最后）。</summary>
-    public int Order => ViewModel?.Order ?? int.MaxValue;
+    /// <summary>
+    /// 插件标签页排序权重。
+    /// 插件是懒编译的 —— 初始列标签时实例还不存在、读不到插件自报的 Order，
+    /// 所以这里按文件名给一个默认值（编译出来之后以插件自报的 Order 为准）。
+    /// </summary>
+    public int Order => ViewModel?.Order ?? KnownOrder(Path.GetFileNameWithoutExtension(File.Name));
+
+    private static int KnownOrder(string fileName) => fileName switch
+    {
+        // 「脚本预设」排在最前，用户不希望一打开就先看到 Ayva 随机
+        "ScriptPreset" => 0,
+        _ => 100,
+    };
 
     public bool CanCompile => State is not PluginState.Compiling;
 
