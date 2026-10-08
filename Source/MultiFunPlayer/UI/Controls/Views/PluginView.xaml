@@ -15,7 +15,7 @@
                    material:ShadowAssist.ShadowDepth="Depth1"
                    Visibility="{Binding Items.Count, Converter={StaticResource NotZeroToVisibilityConverter}}">
         <StackPanel>
-            <controls:NonReloadingTabControl ItemsSource="{Binding Items}" SelectedItem="{Binding ActiveItem}">
+            <controls:NonReloadingTabControl ItemsSource="{Binding SortedItems}" SelectedItem="{Binding ActiveItem}">
                 <TabControl.ItemTemplate>
                     <DataTemplate>
                         <StackPanel MinWidth="75"

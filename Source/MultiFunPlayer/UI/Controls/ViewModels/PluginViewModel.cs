@@ -2,6 +2,7 @@ using MultiFunPlayer.Common;
 using MultiFunPlayer.Plugin;
 using PropertyChanged;
 using Stylet;
+using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -90,6 +91,14 @@ internal sealed class PluginViewModel : Conductor<PluginContainer>.Collection.On
     }
 
     /// <summary>
+    /// 标签页实际显示的顺序。
+    /// 注意：插件容器**必须留在宿主的 Items 里** —— 它是 Stylet 的 Conductor 集合，
+    /// 从 Items 里移除会触发 CloseItem/Dispose（插件被销毁、标签退回文件名），
+    /// 所以排序只作用于这个投影集合，绝不动 Items。
+    /// </summary>
+    public ObservableCollection<PluginContainer> SortedItems { get; } = [];
+
+    /// <summary>
     /// 按插件自报的 Order 排序标签页（Order 相同则按显示名）。
     /// 插件是按目录扫描顺序加载的，不排序的话"谁先被扫到谁在最前面"。
     /// </summary>
@@ -102,13 +111,18 @@ internal sealed class PluginViewModel : Conductor<PluginContainer>.Collection.On
         for (var i = 0; i < sorted.Count; i++)
         {
             var item = sorted[i];
-            var current = Items.IndexOf(item);
-            if (current == -1 || current == i)
+            var current = SortedItems.IndexOf(item);
+            if (current == i)
                 continue;
 
-            Items.Remove(item);
-            Items.Insert(i, item);
+            if (current == -1)
+                SortedItems.Insert(i, item);
+            else
+                SortedItems.Move(current, i);
         }
+
+        while (SortedItems.Count > sorted.Count)
+            SortedItems.RemoveAt(SortedItems.Count - 1);
     }
 
     private void AddItem(PluginContainer item, int index)
@@ -129,6 +143,8 @@ internal sealed class PluginViewModel : Conductor<PluginContainer>.Collection.On
         else
             Items.Insert(index++, item);
 
+        SortItems();
+
         if (ActiveItem == null)
             ActivateItem(item);
     }
@@ -138,6 +154,8 @@ internal sealed class PluginViewModel : Conductor<PluginContainer>.Collection.On
         item.PropertyChanged -= OnContainerPropertyChanged;
         if (Items.Contains(item))
             RemoveItemUnchecked(item);
+
+        SortItems();
     }
 
     private void RemoveItemUnchecked(PluginContainer item)
@@ -199,7 +217,7 @@ internal sealed class PluginViewModel : Conductor<PluginContainer>.Collection.On
 
         _defaultActiveItemApplied = true;
 
-        var first = Items[0];
+        var first = SortedItems.Count > 0 ? SortedItems[0] : Items[0];
         if (ActiveItem != first)
             ActiveItem = first;
     }
