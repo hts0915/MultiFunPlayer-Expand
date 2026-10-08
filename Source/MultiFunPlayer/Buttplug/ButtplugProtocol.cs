@@ -75,22 +75,20 @@ internal static class ButtplugProtocol
 
         var messages = new JObject();
 
-        // LinearCmd：标准形态是对象，兼容形态是执行器数组
-        if (compat)
-        {
+        // ⚠️ LinearCmd / RotateCmd / ScalarCmd 在官方客户端里**都必须是"执行器数组"**：
+        //    MessageAttributes.update() 会对每一项执行 `forEach((x, i) => x.Index = i)`
+        //    （见 buttplug 包里的 dist/main/src/core/Messages.js）
+        // 之前按 v3 文档把 LinearCmd 写成 {"StepCount":[...]}，会让官方客户端抛
+        //    TypeError: _c.forEach is not a function
+        // 客户端随后丢弃这条 DeviceList 并一直等 ⇒ 网页表现为"连上了却一直转圈"。
+        if (linear.Count > 0)
             messages["LinearCmd"] = new JArray(linear.Select(a => Feature(a, "Position")));
-        }
-        else if (linear.Count > 0)
-        {
-            messages["LinearCmd"] = new JObject
-            {
-                ["StepCount"] = new JArray(Enumerable.Repeat(100, linear.Count)),
-            };
-        }
 
-        // 这两个在规范里本来就是执行器数组；兼容形态只是多带 ActuatorType / FeatureDescriptor
-        messages["RotateCmd"] = new JArray(rotate.Select(a => Feature(a, "Rotate")));
-        messages["ScalarCmd"] = new JArray(scalar.Select(a => Feature(a, "Vibrate")));
+        if (rotate.Count > 0)
+            messages["RotateCmd"] = new JArray(rotate.Select(a => Feature(a, "Rotate")));
+
+        if (scalar.Count > 0)
+            messages["ScalarCmd"] = new JArray(scalar.Select(a => Feature(a, "Vibrate")));
 
         if (messageVersion < 3 && scalar.Count > 0)
         {
