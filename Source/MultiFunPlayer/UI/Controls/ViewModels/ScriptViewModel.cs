@@ -2144,6 +2144,17 @@ internal sealed class ScriptViewModel : Screen, IDeviceAxisValueProvider, IScrip
             s => s.WithLabel("运动提供器").WithItemsSource(motionProviderNames),
             (axis, motionProviderName) => UpdateSettings(axis, s => s.SelectedMotionProvider = motionProviderNames.Contains(motionProviderName) ? motionProviderName : null));
 
+        // 一键开关：当前不是它 ⇒ 切到它；已经是它 ⇒ 关闭（设为「无」）。
+        // 方便绑一个键来"触发/取消"某个轴的某个运动生成器（例如 R0 + Pattern）。
+        s.RegisterAction<DeviceAxis, string>("Axis::MotionProvider::Toggle",
+            s => s.WithLabel("目标轴").WithItemsSource(DeviceAxis.All),
+            s => s.WithLabel("运动提供器").WithItemsSource(motionProviderNames),
+            (axis, motionProviderName) => UpdateSettings(axis, s =>
+            {
+                var name = motionProviderNames.Contains(motionProviderName) ? motionProviderName : null;
+                s.SelectedMotionProvider = s.SelectedMotionProvider == name ? null : name;
+            }));
+
         MotionProviderManager.RegisterActions(s);
         #endregion
 
