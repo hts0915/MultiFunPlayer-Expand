@@ -1,4 +1,4 @@
-﻿using MultiFunPlayer.Common;
+using MultiFunPlayer.Common;
 using MultiFunPlayer.Input;
 using MultiFunPlayer.Property;
 using MultiFunPlayer.Shortcut;
@@ -46,6 +46,12 @@ public abstract class PluginBase : Screen
     #region Shortcut
     [DoNotNotify] protected IReadOnlyObservableConcurrentCollection<string> AvailableActions
         => ShortcutManager.AvailableActions;
+
+    /// <summary>
+    /// 插件标签页的排序权重（越小越靠前，默认 100）。
+    /// 插件是按目录扫描顺序加载的，宿主会按这个值重排，避免"谁先被扫到谁排第一"。
+    /// </summary>
+    public virtual int Order => 100;
 
     protected void InvokeAction(string actionName, bool invokeDirectly = false)
         => ShortcutActionRunner.Invoke(actionName, invokeDirectly);

@@ -79,9 +79,34 @@ internal sealed class PluginViewModel : Conductor<PluginContainer>.Collection.On
                 foreach(var item in _source)
                     AddItem(item, -1);
 
+                // 按插件自报的 Order 重排（否则顺序 = 目录扫描顺序，"谁先被扫到谁排第一"）
+                SortItems();
+
                 Logger.Info("插件标签页：显示 {0} 个（{1}）", Items.Count,
                     string.Join("、", Items.Select(x => x.DisplayName)));
                 break;
+        }
+    }
+
+    /// <summary>
+    /// 按插件自报的 Order 排序标签页（Order 相同则按显示名）。
+    /// 插件是按目录扫描顺序加载的，不排序的话"谁先被扫到谁在最前面"。
+    /// </summary>
+    private void SortItems()
+    {
+        var sorted = Items.OrderBy(x => x.Order)
+                          .ThenBy(x => x.DisplayName, StringComparer.OrdinalIgnoreCase)
+                          .ToList();
+
+        for (var i = 0; i < sorted.Count; i++)
+        {
+            var item = sorted[i];
+            var current = Items.IndexOf(item);
+            if (current == -1 || current == i)
+                continue;
+
+            Items.Remove(item);
+            Items.Insert(i, item);
         }
     }
 

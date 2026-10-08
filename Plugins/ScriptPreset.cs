@@ -48,6 +48,9 @@ public class ScriptPreset : PluginBase
 {
     private static readonly NLog.Logger Log = NLog.LogManager.GetCurrentClassLogger();
 
+    /// <summary>标签页排序：脚本预设排在最前（Ayva 随机排后面）。</summary>
+    public override int Order => 0;
+
     /// <summary>工作线程的空转间隔。</summary>
     private const int MonitorIntervalMilliseconds = 50;
 

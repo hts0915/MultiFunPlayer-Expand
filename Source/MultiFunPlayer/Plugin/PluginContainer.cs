@@ -36,6 +36,9 @@ internal sealed class PluginContainer : PropertyChangedBase, IChildDelegate, ISc
     /// </summary>
     public string DisplayName => ViewModel?.DisplayName ?? Path.GetFileNameWithoutExtension(File.Name);
 
+    /// <summary>插件标签页排序权重（插件还没编译出来时排到最后）。</summary>
+    public int Order => ViewModel?.Order ?? int.MaxValue;
+
     public bool CanCompile => State is not PluginState.Compiling;
 
     public PluginContainer(FileInfo pluginFile)

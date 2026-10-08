@@ -41,6 +41,9 @@ public class AyvaRandom : PluginBase
 {
     private static readonly NLog.Logger Log = NLog.LogManager.GetCurrentClassLogger();
 
+    /// <summary>标签页排序：排在「脚本预设」之后（用户不希望一打开就看到 Ayva 随机）。</summary>
+    public override int Order => 50;
+
     /// <summary>工作线程空转间隔（毫秒）—— 动作按 50Hz 生成，所以用 20ms。</summary>
     private const int MonitorIntervalMilliseconds = 20;
 
