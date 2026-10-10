@@ -1,10 +1,11 @@
 // ==UserScript==
 // @name         faptap 自动连接设备（Intiface / MultiFunPlayer）
 // @namespace    multifunplayer-expand
-// @version      1.0.0
+// @version      1.1.0
 // @description  打开 faptap.net 后，若设备尚未连接则自动点击一次「连接」按钮；已连接则什么都不做。只在本站生效。
 // @author       MultiFunPlayer-Expand
 // @match        https://faptap.net/*
+// @match        https://*.faptap.net/*
 // @run-at       document-idle
 // @grant        none
 // @noframes
@@ -148,22 +149,46 @@
         setTimeout(attempt, CFG.verifyDelayMs);   // 复查：可能"点了没反应"
     }
 
-    // 等待面板出现（轮询，不用固定等待）
+    // 等待面板出现：轮询 + DOM 变化监听（面板是浮动弹窗，可能"要用时才挂进 DOM"）
     const startedAt = Date.now();
-    const waitTimer = setInterval(() => {
-        if (stopped) { clearInterval(waitTimer); return; }
+    let hintCount = 0;
 
-        if (findPanel()) {
-            clearInterval(waitTimer);
-            log('设备面板已出现，开始检查连接状态');
-            attempt();
-            return;
+    function onPanelFound() {
+        if (stopped) return;
+        log('设备面板已出现，开始检查连接状态');
+        attempt();
+    }
+
+    function checkPanel() {
+        if (stopped) return true;
+        if (!findPanel()) return false;
+        onPanelFound();
+        return true;
+    }
+
+    // ① DOM 变化监听：面板"随时"被挂进来都能立刻发现（比单纯轮询更及时）
+    const observer = new MutationObserver(() => { if (checkPanel()) observer.disconnect(); });
+    observer.observe(document.documentElement, { childList: true, subtree: true });
+
+    // ② 轮询兜底 + 每隔一段时间给出明确提示（方便诊断）
+    const waitTimer = setInterval(() => {
+        if (stopped) { clearInterval(waitTimer); observer.disconnect(); return; }
+
+        if (checkPanel()) { clearInterval(waitTimer); observer.disconnect(); return; }
+
+        const waited = Math.round((Date.now() - startedAt) / 1000);
+        if (waited >= (hintCount + 1) * 5) {
+            hintCount++;
+            log(`仍在等待设备面板（已 ${waited} 秒）…` +
+                (hintCount === 1 ? ' 若你平时要先点某个按钮才会出现设备面板，请把那个按钮的 HTML 发我，我加上"先打开面板"这一步。' : ''));
         }
 
         if (Date.now() - startedAt > CFG.findTimeoutMs) {
             clearInterval(waitTimer);
+            observer.disconnect();
             stopped = true;
             warn(`等了 ${Math.round(CFG.findTimeoutMs / 1000)} 秒仍未找到设备面板（选择器：${CFG.panelSelector}）⇒ 安静地不做任何事 ✗`);
+            warn('提示：这个面板是浮动弹窗，可能必须先打开"设备/玩具"菜单才会出现在 DOM 里。');
         }
     }, CFG.pollIntervalMs);
 
