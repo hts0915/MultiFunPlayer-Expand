@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         faptap 自动连接设备（Intiface / MultiFunPlayer）
 // @namespace    multifunplayer-expand
-// @version      2.1.0
+// @version      2.3.0
 // @description  打开 faptap.net 后自动完成「打开设备面板 → 选 Intiface → 点连接」三步；已连接则什么都不做。只在本站生效。
 // @author       MultiFunPlayer-Expand
 // @match        https://faptap.net/*
@@ -51,6 +51,8 @@
         intifaceLogoSvgSelector: 'svg path[d^="M71.3 106.2"]',
         // ③ 面板里的连接按钮
         connectButtonSelector: 'button.bg-blue-500.w-full',
+        // 面板容器本身（用户 Copy selector 的第一段）—— 用来判断"面板是否还开着"
+        panelSelector: 'div.rounded-md.fixed.bg-zinc-700',
 
         connectRe: /^\s*(connect|连接|連接|接続|verbind\w*|подключ\w*)\s*$/i,
         connectedRe: /connected|已连接|已連接|接続済|verbunden|подключено/i,
@@ -69,6 +71,7 @@
         clicks: { entry: 0, intiface: 0, connect: 0 },   // 每步点击上限，防止"反复开关面板"
         connectedOnce: false,       // 本次页面里是否成功连上过（用于识别"关了面板就掉线"）
         closeTried: 0,
+        closing: false,             // 收起面板流程进行中（期间 tick 必须让路）
         done: false,
         stopped: false,
     };
@@ -101,6 +104,11 @@
     function findConnectButton() {
         const btn = document.querySelector(CFG.connectButtonSelector);
         return btn || null;
+    }
+
+    /** 面板是否还开着。注意不能用"连接按钮"判断：连上之后它会变成 Disconnect */
+    function isPanelOpen() {
+        return !!document.querySelector(CFG.panelSelector);
     }
 
     function hasDisconnectButton() {
@@ -157,48 +165,58 @@
 
     let verifyTimer = null;
 
-    /** 连接成功后把设备面板收起来（先按 Esc，无效再点一次入口按钮；全程只做有限次） */
+    /** 连接成功后把设备面板收起来。
+     *  ① Esc（无害）
+     *  ② 在 <body> 上派发合成 pointerdown/mousedown/click —— 等价于"点了面板外面的空白处"，
+     *     但 target 是 body 本身、不是任何按钮 ⇒ 绝无误触别的控件的可能
+     *  ③ 仍不行就换成在 <html> 上派发（兼容只监听 documentElement 的实现）
+     *  全程最多 3 步，之后收手。
+     */
     function tryClosePanel() {
-        if (state.closeTried >= 2) {
+        if (state.closeTried >= 3) {
             log('收起面板的尝试已用完，脚本收手（面板还开着也不影响使用）');
+            state.closing = false;
             state.done = true;
             cleanup();
             return;
         }
 
         state.closeTried++;
-        log(`收起设备面板（第 ${state.closeTried} 次）：先按 Esc`);
+        const step = state.closeTried;
+        state.closing = true;
 
-        // Esc 是无害操作：没人处理就等于什么都没发生
-        for (const target of [document, window]) {
-            try {
-                target.dispatchEvent(new KeyboardEvent('keydown', {
-                    key: 'Escape', code: 'Escape', keyCode: 27, which: 27, bubbles: true,
-                }));
-            } catch { /* 忽略 */ }
+        if (step === 1) {
+            log('收起设备面板（第 1 步）：按 Esc');
+            for (const target of [document, window]) {
+                try {
+                    target.dispatchEvent(new KeyboardEvent('keydown', {
+                        key: 'Escape', code: 'Escape', keyCode: 27, which: 27, bubbles: true,
+                    }));
+                } catch { /* 忽略 */ }
+            }
+        } else {
+            const host = step === 2 ? document.body : document.documentElement;
+            log(`收起设备面板（第 ${step} 步）：在 <${host.tagName.toLowerCase()}> 上派发"点空白处"事件`);
+            for (const [type, Ctor] of [['pointerdown', 'PointerEvent'], ['mousedown', 'MouseEvent'], ['click', 'MouseEvent']]) {
+                try {
+                    const EventCtor = window[Ctor] || MouseEvent;
+                    host.dispatchEvent(new EventCtor(type, { bubbles: true, cancelable: true, composed: true }));
+                } catch { /* 忽略 */ }
+            }
         }
 
         setTimeout(() => {
             if (state.done || state.stopped) return;
 
-            if (!findConnectButton()) {
-                log('✓ 面板已收起');
+            if (!isPanelOpen()) {
+                log(`✓ 面板已收起（第 ${step} 步生效）`);
+                state.closing = false;
                 state.done = true;
                 cleanup();
                 return;
             }
 
-            if (state.closeTried === 1) {
-                const entry = findEntryButton();
-                if (entry) act('entry', entry, '收起设备面板（再点一次入口按钮）');
-            }
-
-            setTimeout(() => {
-                if (state.done || state.stopped) return;
-                log('收起流程结束（面板可能还开着，不影响使用）');
-                state.done = true;
-                cleanup();
-            }, CFG.closeVerifyMs);
+            tryClosePanel();   // 还有下一步可用
         }, CFG.closeVerifyMs);
     }
 
@@ -207,6 +225,10 @@
 
         // 达成目标
         if (isConnected()) {
+            // ⚠️ 收起面板流程进行中时，这里必须让路：
+            // 否则下一轮 tick 会立刻判定"已完成"并 cleanup，把收起的后续步骤全部掐断
+            if (state.closing) return;
+
             if (!state.connectedOnce) {
                 state.connectedOnce = true;
                 log('✓ 设备已连接');
@@ -327,7 +349,7 @@
         return;   // 直接结束，不注册任何观察器/定时器
     }
 
-    log(`脚本已加载 v2.1.0（${CFG.dryRun ? '试运行模式：只打印不点击' : '正式模式'}，本次页面第 ${loadCount} 次运行）`);
+    log(`脚本已加载 v2.3.0（${CFG.dryRun ? '试运行模式：只打印不点击' : '正式模式'}，本次页面第 ${loadCount} 次运行）`);
 
     const observer = new MutationObserver(() => tick());
     observer.observe(document.documentElement, { childList: true, subtree: true });

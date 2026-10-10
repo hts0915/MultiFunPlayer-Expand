@@ -163,15 +163,18 @@ await test("诱饵：带图标的蓝色「刷新」按钮 ⇒ 不点",
   },
   (s) => s.every(x => ["entry", "intiface", "connect"].includes(x)));
 
-// ⑨ 连接成功后自动收起面板（Esc 有效）⇒ 收手，不再点击
-await test("连接后自动收起面板（Esc 生效）⇒ 收手",
+// ⑨ 连接成功后自动收起面板（模拟真实站点：Esc 无效，只有"点面板外面"才收起）⇒ 收手
+await test("连接后用「点空白处」收起面板 ⇒ 收手且无误触",
   async () => {
     const dom = new JSDOM(`<!doctype html><html><body>${entry()}</body></html>`, {
       url: "https://faptap.net/", runScripts: "outside-only", pretendToBeVisual: true,
     });
     const { window } = dom;
     const doc = window.document;
-    window.__FAPTAP_AUTOCONNECT__ = { dryRun: false, debug: false, pollIntervalMs: 5, stepCooldownMs: 10, verifyDelayMs: 20, closeVerifyMs: 40, findTimeoutMs: 600 };
+    const logs = [];
+    window.console.log = (...a) => logs.push(a.join(" "));
+    window.console.warn = (...a) => logs.push("WARN " + a.join(" "));
+    window.__FAPTAP_AUTOCONNECT__ = { dryRun: false, debug: true, pollIntervalMs: 5, stepCooldownMs: 10, verifyDelayMs: 20, closeVerifyMs: 40, findTimeoutMs: 600 };
     const clicks = [];
     let connected = false;
     doc.addEventListener("click", (e) => {
@@ -193,13 +196,25 @@ await test("连接后自动收起面板（Esc 生效）⇒ 收手",
         doc.querySelector("div.fixed")?.remove();   // 再点一次 = 收起面板（保持已连接）
       }
     });
-    // Esc 也能收起面板（保持已连接）
-    doc.addEventListener("keydown", (e) => { if (e.key === "Escape") doc.querySelector("div.fixed")?.remove(); });
+    // Esc 无效（模拟该站点：只用"点外面"来收起），点 body/html 空白处才收起
+    let opened = false;
+    doc.querySelector("button.bg-blue-500:not(.w-full)").addEventListener("click", () => {
+      if (!opened) { opened = true; doc.body.insertAdjacentHTML("beforeend", panelShell(intifaceItem())); }
+    });
+    const outsideClick = (e) => {
+      if (e.target !== doc.body && e.target !== doc.documentElement) return;   // 只有"点空白处"才收起
+      doc.querySelector("div.fixed")?.remove();
+    };
+    for (const t of ["pointerdown", "mousedown", "click"]) doc.addEventListener(t, outsideClick, true);
     window.eval(SCRIPT);
-    await sleep(400);
-    return { clicks, panelOpen: !!doc.querySelector("div.fixed"), stillConnected: connected };
+    await sleep(500);
+    return { clicks, panelOpen: !!doc.querySelector("div.fixed"), stillConnected: connected, logs };
   },
-  (r) => r.clicks.filter(c => c === "connect").length === 1 && r.panelOpen === false && r.stillConnected === true);
+  (r) => {
+    if (!(r.clicks.filter(c => c === "connect").length === 1 && r.panelOpen === false && r.stillConnected === true))
+      console.log("     调试日志:\n" + r.logs.map(l => "       " + l).join("\n"));
+    return r.clicks.filter(c => c === "connect").length === 1 && r.panelOpen === false && r.stillConnected === true;
+  });
 
 // ⑩ ⭐ 关键安全用例：收起面板会把连接一起弄断 ⇒ 脚本必须停手，绝不能死循环
 await test("收起面板导致掉线 ⇒ 脚本停手（不死循环）",
