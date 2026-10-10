@@ -150,6 +150,19 @@ await test("未翻译（Connect / Intiface）⇒ 三步照常",
   async () => { const t = setup({ entryLabel: "Connect", intifaceLabel: "Intiface", connectLabel: "Connect" }); await sleep(400); return t.seq; },
   (s) => s.join(",") === "entry,intiface,connect");
 
+// ⑧ 页面上有别的带图标的蓝色按钮（例如「刷新」）⇒ 绝不能点它（这正是上一版死循环的元凶）
+await test("诱饵：带图标的蓝色「刷新」按钮 ⇒ 不点",
+  async () => {
+    const t = setup({
+      html: `<button class="bg-blue-500 flex items-center gap-x-1.5 shrink-0"><svg viewBox="0 0 24 24"><path d="M1 1"></path></svg><span>刷新</span></button>` + entry(),
+      config: {},
+    });
+    await sleep(400);
+    // 该用例只关心"刷新"有没有被点到：seq 里只应有 entry/intiface/connect，不含其它
+    return t.seq;
+  },
+  (s) => s.every(x => ["entry", "intiface", "connect"].includes(x)));
+
 console.log("\n================ 测试结果 ================");
 let pass = 0;
 for (const r of results) {

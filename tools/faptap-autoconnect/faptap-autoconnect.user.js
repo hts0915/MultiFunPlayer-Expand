@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         faptap 自动连接设备（Intiface / MultiFunPlayer）
 // @namespace    multifunplayer-expand
-// @version      2.0.0
+// @version      2.1.0
 // @description  打开 faptap.net 后自动完成「打开设备面板 → 选 Intiface → 点连接」三步；已连接则什么都不做。只在本站生效。
 // @author       MultiFunPlayer-Expand
 // @match        https://faptap.net/*
@@ -40,6 +40,8 @@
         verifyDelayMs: 2500,        // 点完连接后多久复查
         findTimeoutMs: 90000,       // 整体等待上限（网络慢也不怕）
         maxRounds: 3,               // 整流程最多尝试几轮
+        maxPageLoads: 3,            // 同一标签页最多自动运行几次（防止点击导致页面重载死循环）
+        reloadSessionWindowMs: 60000,   // 距上次运行超过这么久，视为新的浏览会话，计数重新开始
 
         // ① 打开面板的入口按钮：蓝色主色、带 svg 图标、且不是满宽（满宽那个是面板里的连接按钮）
         entryButtonSelector: 'button.bg-blue-500:not(.w-full)',
@@ -74,9 +76,15 @@
 
     function findEntryButton() {
         const buttons = [...document.querySelectorAll(CFG.entryButtonSelector)];
-        // 优先"带图标且文字像连接"的；退化为第一个带图标的
-        return buttons.find(b => b.querySelector('svg') && (CFG.connectRe.test(text(b)) || !text(b)))
-            || buttons.find(b => b.querySelector('svg'))
+
+        // ⚠️ 必须严格：只认"文字像连接"的按钮。
+        // 之前有一条"随便找个带 svg 的蓝色按钮"的兜底，结果点到了站点别的按钮
+        // （例如"刷新"），导致页面反复重载、脚本反复重启 ⇒ 死循环。这里去掉兜底。
+        const looksLikeConnect = (b) => CFG.connectRe.test(text(b))
+            || (b.querySelector('span') && CFG.connectRe.test(b.querySelector('span').textContent || ''));
+
+        return buttons.find(b => b.querySelector('svg') && looksLikeConnect(b))
+            || buttons.find(looksLikeConnect)
             || null;
     }
 
@@ -152,6 +160,7 @@
         if (isConnected()) {
             log('✓ 设备已连接，脚本收手（不再点击）');
             state.done = true;
+            try { sessionStorage.removeItem(LOAD_KEY); } catch { /* 忽略 */ }   // 清掉重载计数
             cleanup();
             return;
         }
@@ -213,9 +222,43 @@
         if (verifyTimer) clearTimeout(verifyTimer);
     }
 
+    // ======== 防"重载死循环" ========
+    // 万一某次点击导致页面重载，脚本会重新启动、计数清零，就会无限重载。
+    // 这里把"页面加载次数"记在 sessionStorage 里，超过上限就彻底停手。
+    const LOAD_KEY = '__faptap_autoconnect_loads';
+    function countLoadAndCheck() {
+        try {
+            const now = Date.now();
+            let count = 0;
+            const raw = sessionStorage.getItem(LOAD_KEY);
+            if (raw) {
+                try {
+                    const o = JSON.parse(raw);
+                    count = o.count || 0;
+                    // 距上次运行很久（默认 60 秒）⇒ 当作新的浏览会话，重新计数
+                    if (!o.ts || now - o.ts > CFG.reloadSessionWindowMs) count = 0;
+                } catch { count = parseInt(raw, 10) || 0; }
+            }
+
+            count++;
+            sessionStorage.setItem(LOAD_KEY, JSON.stringify({ count, ts: now }));
+            return count;
+        } catch {
+            return 1;   // 读不到存储就当第一次，不做限制
+        }
+    }
+    const loadCount = countLoadAndCheck();
+
     // ======== 启动 ========
     const startedAt = Date.now();
-    log(`脚本已加载 v2.0.0（${CFG.dryRun ? '试运行模式：只打印不点击' : '正式模式'}）`);
+
+    if (loadCount > CFG.maxPageLoads) {
+        warn(`本标签页里脚本已启动 ${loadCount - 1} 次（超过上限 ${CFG.maxPageLoads}）⇒ 怀疑点击导致页面反复重载，已彻底停手 ✗`);
+        warn('请把控制台里前面的 [faptap自动连接] 日志发我，我据此修正按钮识别。');
+        return;   // 直接结束，不注册任何观察器/定时器
+    }
+
+    log(`脚本已加载 v2.1.0（${CFG.dryRun ? '试运行模式：只打印不点击' : '正式模式'}，本次页面第 ${loadCount} 次运行）`);
 
     const observer = new MutationObserver(() => tick());
     observer.observe(document.documentElement, { childList: true, subtree: true });
