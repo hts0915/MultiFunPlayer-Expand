@@ -138,7 +138,10 @@ await test("满宽按钮文字是「保存」⇒ 不点",
     });
     const seq = [];
     dom.window.__FAPTAP_AUTOCONNECT__ = { dryRun: false, debug: false, pollIntervalMs: 5, findTimeoutMs: 200 };
-    dom.window.document.addEventListener("click", () => seq.push("any"), true);
+    // 只统计"真的被点到按钮"的次数；脚本派发到 body 的"点空白处"合成事件不算
+    dom.window.document.addEventListener("click", (e) => {
+      if (e.target?.closest?.("button")) seq.push("button");
+    }, true);
     dom.window.eval(SCRIPT);
     await sleep(300);
     return seq;
@@ -284,6 +287,40 @@ await test("站点按坐标判断且要 pointerup ⇒ 仍能收起",
     return { clicks, panelOpen: !!doc.querySelector("div.fixed") };
   },
   (r) => r.clicks === 3 && r.panelOpen === false);
+
+// ⑫ 无感：连接过程中面板被"隐形"，收工后必须恢复可见（免得手动开面板时看不见）
+await test("面板在连接过程中隐形、收工后恢复可见",
+  async () => {
+    const dom = new JSDOM(`<!doctype html><html><body>${entry()}</body></html>`, {
+      url: "https://faptap.net/", runScripts: "outside-only", pretendToBeVisual: true,
+    });
+    const { window } = dom;
+    const doc = window.document;
+    window.__FAPTAP_AUTOCONNECT__ = { dryRun: false, debug: false, pollIntervalMs: 5, stepCooldownMs: 10, verifyDelayMs: 20, closeVerifyMs: 40, findTimeoutMs: 700 };
+    let hiddenWhilePanelExists = null;
+
+    doc.addEventListener("click", (e) => {
+      const b = e.target?.closest?.("button");
+      const item = e.target?.closest?.("div.cursor-pointer");
+      if (b?.classList.contains("w-full")) { b.insertAdjacentHTML("afterend", disconnect()); b.remove(); }
+      else if (item) doc.querySelector("div.fixed")?.insertAdjacentHTML("beforeend", connectButton());
+    }, true);
+
+    doc.querySelector("button.bg-blue-500:not(.w-full)").addEventListener("click", () => {
+      if (doc.querySelector("div.fixed")) return;
+      doc.body.insertAdjacentHTML("beforeend", panelShell(intifaceItem()));
+      // 面板刚出现的瞬间：检查"隐形样式"是否已经在（应该已经在，因为脚本先注入再点入口）
+      hiddenWhilePanelExists = !!doc.getElementById("__faptap_hide_panel");
+    });
+    doc.addEventListener("pointerup", (e) => {
+      if (e.clientX > 0 && e.clientY > 0) doc.querySelector("div.fixed")?.remove();
+    }, true);
+
+    window.eval(SCRIPT);
+    await sleep(500);
+    return { hiddenWhilePanelExists, styleAfterDone: !!doc.getElementById("__faptap_hide_panel"), panelOpen: !!doc.querySelector("div.fixed") };
+  },
+  (r) => r.hiddenWhilePanelExists === true && r.styleAfterDone === false && r.panelOpen === false);
 
 console.log("\n================ 测试结果 ================");
 let pass = 0;

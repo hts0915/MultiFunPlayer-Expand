@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         faptap 自动连接设备（Intiface / MultiFunPlayer）
 // @namespace    multifunplayer-expand
-// @version      2.4.0
+// @version      2.5.0
 // @description  打开 faptap.net 后自动完成「打开设备面板 → 选 Intiface → 点连接」三步；已连接则什么都不做。只在本站生效。
 // @author       MultiFunPlayer-Expand
 // @match        https://faptap.net/*
@@ -43,7 +43,9 @@
         maxPageLoads: 3,            // 同一标签页最多自动运行几次（防止点击导致页面重载死循环）
         reloadSessionWindowMs: 60000,   // 距上次运行超过这么久，视为新的浏览会话，计数重新开始
         closePanelAfterConnect: true,   // 连接成功后顺手把设备面板收起来（无感连接）
-        closeVerifyMs: 1200,            // 收起面板每一步的确认等待
+        hidePanelDuringConnect: true,   // 连接过程中把面板隐形（opacity:0，不改布局、不影响点击）
+        tryEscFirst: false,             // 实测该站点不响应 Esc ⇒ 默认跳过，省掉一次等待
+        closeVerifyMs: 300,             // 收起面板每一步的确认等待（同步收起，300ms 足够）
 
         // ① 打开面板的入口按钮：蓝色主色、带 svg 图标、且不是满宽（满宽那个是面板里的连接按钮）
         entryButtonSelector: 'button.bg-blue-500:not(.w-full)',
@@ -165,6 +167,25 @@
 
     let verifyTimer = null;
 
+    /** 让设备面板"隐形"（opacity:0 只影响视觉：不改变布局，也不影响 .click() 点它）。
+     *  在点入口之前就注入 ⇒ 面板从出现那一刻起就是隐形的，连闪一下都没有。 */
+    const HIDE_STYLE_ID = '__faptap_hide_panel';
+    function hidePanelStyle(on) {
+        if (!CFG.hidePanelDuringConnect) return;
+        try {
+            const existing = document.getElementById(HIDE_STYLE_ID);
+            if (on) {
+                if (existing) return;
+                const style = document.createElement('style');
+                style.id = HIDE_STYLE_ID;
+                style.textContent = `${CFG.panelSelector}{opacity:0 !important;}`;
+                (document.head || document.documentElement).appendChild(style);
+            } else if (existing) {
+                existing.remove();
+            }
+        } catch { /* 忽略 */ }
+    }
+
     /** 选一个"面板矩形之外"的坐标（优先面板右侧 —— 和用户平时的操作习惯一致）。
      *  只用来填事件的 clientX/clientY，事件本身仍派发在 body 上，因此不会误触任何控件。 */
     function pickOutsidePoint() {
@@ -193,7 +214,8 @@
      *  全程最多 3 步，之后收手。
      */
     function tryClosePanel() {
-        if (state.closeTried >= 3) {
+        const maxAttempts = CFG.tryEscFirst ? 3 : 2;   // 跳过 Esc 时只剩 body / html 两种手段
+        if (state.closeTried >= maxAttempts) {
             log('收起面板的尝试已用完，脚本收手（面板还开着也不影响使用）');
             state.closing = false;
             state.done = true;
@@ -202,7 +224,8 @@
         }
 
         state.closeTried++;
-        const step = state.closeTried;
+        // tryEscFirst=false 时，第 1 次尝试直接用"点面板外面"（该站点实测要这样才能收起）
+        const step = CFG.tryEscFirst ? state.closeTried : state.closeTried + 1;
         state.closing = true;
 
         if (step === 1) {
@@ -301,7 +324,11 @@
             if (item) { act('intiface', item, '选择 Intiface'); return; }
 
             const entry = findEntryButton();
-            if (entry) { act('entry', entry, '打开设备面板'); return; }
+            if (entry) {
+                hidePanelStyle(true);   // 先让面板隐形，再点入口 ⇒ 面板从出现起就看不见（无感）
+                act('entry', entry, '打开设备面板');
+                return;
+            }
 
             return;   // 都在等（面板未渲染），交给观察器
         }
@@ -339,6 +366,7 @@
         clearInterval(timer);
         observer.disconnect();
         if (verifyTimer) clearTimeout(verifyTimer);
+        hidePanelStyle(false);   // 收工后一定把"隐形"样式摘掉，免得你手动开面板时看不见
     }
 
     // ======== 防"重载死循环" ========
@@ -377,7 +405,7 @@
         return;   // 直接结束，不注册任何观察器/定时器
     }
 
-    log(`脚本已加载 v2.4.0（${CFG.dryRun ? '试运行模式：只打印不点击' : '正式模式'}，本次页面第 ${loadCount} 次运行）`);
+    log(`脚本已加载 v2.5.0（${CFG.dryRun ? '试运行模式：只打印不点击' : '正式模式'}，本次页面第 ${loadCount} 次运行）`);
 
     const observer = new MutationObserver(() => tick());
     observer.observe(document.documentElement, { childList: true, subtree: true });
