@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         faptap 自动连接设备（Intiface / MultiFunPlayer）
 // @namespace    multifunplayer-expand
-// @version      1.1.0
-// @description  打开 faptap.net 后，若设备尚未连接则自动点击一次「连接」按钮；已连接则什么都不做。只在本站生效。
+// @version      2.0.0
+// @description  打开 faptap.net 后自动完成「打开设备面板 → 选 Intiface → 点连接」三步；已连接则什么都不做。只在本站生效。
 // @author       MultiFunPlayer-Expand
 // @match        https://faptap.net/*
 // @match        https://*.faptap.net/*
@@ -12,22 +12,20 @@
 // ==/UserScript==
 
 /*
- * 设计说明（为什么这么写）
- * ---------------------------------------------------------------------------
- * 1) 不按按钮文字匹配：
- *    用户开着网页翻译时，DOM 里的文字是「连接」而不是「Connect」，
- *    按文字匹配会失效。这里改为按结构匹配（设备面板里的蓝色主按钮）。
- * 2) 不靠"等固定秒数"判断网站是否加载完：
- *    改为轮询等待元素出现（默认最多等 60 秒），网络慢也不怕。
- * 3) 点完要复查：
- *    元素先渲染、事件后绑定的情况很常见，点一次可能白点。
- *    因此点完等 3 秒复查，仍未连接才再点，最多 3 次。
- * 4) 幂等 + 安全失败：
- *    已连接绝不点击；找不到按钮就安静放弃（只写控制台日志），绝不乱点。
- * 5) 只在 faptap.net 生效（@match），无网络请求、无权限（@grant none）。
- * ---------------------------------------------------------------------------
- * 第一次使用请保持 DRY_RUN = true（只打印"我将会点击…"，不真点），
- * 在 F12 控制台确认找对了元素之后，再改成 false。
+ * 真实操作流程（用户实测，必须按顺序三步）：
+ *   ① 点页面上那个带图标的蓝色「连接」按钮   → 才会出现设备面板（浮动弹窗）
+ *   ② 在设备列表里点「Intiface」那一项        → 面板里才会出现连接按钮
+ *   ③ 点面板里的蓝色「连接」按钮              → 真正连接设备
+ *
+ * 关键设计（都是踩过的坑）：
+ * - 不按文字匹配：用户开着网页翻译，DOM 里是「连接」「内脸」等中文，
+ *   官网原文是 Connect / Intiface。这里改为按【结构 + Intiface 的 logo 路径】匹配。
+ * - 面板是"要用时才挂进 DOM"的浮动弹窗 ⇒ 用 MutationObserver + 轮询等待，随时出现随时继续。
+ * - 每一步都幂等 + 冷却，避免重复点击；已连接绝不点击。
+ * - 安全失败：找不到入口/选项就安静放弃，只写控制台日志，绝不乱点。
+ *
+ * 第一次使用可直接用（默认 dryRun: false 会自动完成任务）；
+ * 若想先观察，把 dryRun 改成 true 就只打印每一步"我将会点击…"而不真点。
  */
 
 (() => {
@@ -35,171 +33,204 @@
 
     // ======== 配置 ========
     const DEFAULTS = {
-        dryRun: true,              // true = 只打印，不真点（第一次请保持 true）
-        debug: true,               // 控制台日志
-        pollIntervalMs: 500,       // 轮询间隔
-        findTimeoutMs: 60000,      // 等按钮出现的上限（网络慢也没关系）
-        verifyDelayMs: 3000,       // 点完多久复查
-        maxClicks: 3,              // 每次页面加载最多点几次
-        panelSelector: 'div.rounded-md.fixed.bg-zinc-700',   // 设备面板（浮动层）
-        primarySelector: 'button.bg-blue-500',                // 面板里的主按钮
+        dryRun: false,              // false = 真正自动连接；想排查时改成 true 只打印不点击
+        debug: true,                // 控制台日志
+        pollIntervalMs: 400,        // 检查间隔
+        stepCooldownMs: 1200,       // 同一步骤的最小间隔（防重复点击）
+        verifyDelayMs: 2500,        // 点完连接后多久复查
+        findTimeoutMs: 90000,       // 整体等待上限（网络慢也不怕）
+        maxRounds: 3,               // 整流程最多尝试几轮
+
+        // ① 打开面板的入口按钮：蓝色主色、带 svg 图标、且不是满宽（满宽那个是面板里的连接按钮）
+        entryButtonSelector: 'button.bg-blue-500:not(.w-full)',
+        // ② Intiface 列表项：靠它独一无二的 logo 路径识别（文字会被翻译，不可靠）
+        intifaceLogoSvgSelector: 'svg path[d^="M71.3 106.2"]',
+        // ③ 面板里的连接按钮
+        connectButtonSelector: 'button.bg-blue-500.w-full',
+
         connectRe: /^\s*(connect|连接|連接|接続|verbind\w*|подключ\w*)\s*$/i,
         connectedRe: /connected|已连接|已連接|接続済|verbunden|подключено/i,
         disconnectRe: /disconnect|断开|切断|接続解除|desconect|отключ\w*/i,
     };
 
-    // 允许测试注入配置（浏览器里没人会设置这个）
     const CFG = Object.assign({}, DEFAULTS, (typeof globalThis !== 'undefined' && globalThis.__FAPTAP_AUTOCONNECT__) || {});
 
     const TAG = '[faptap自动连接]';
-    const log = (...args) => { if (CFG.debug) console.log(TAG, ...args); };
-    const warn = (...args) => console.warn(TAG, ...args);
+    const log = (...a) => { if (CFG.debug) console.log(TAG, ...a); };
+    const warn = (...a) => console.warn(TAG, ...a);
 
-    let clicks = 0;
-    let stopped = false;
-    let lastClickAt = 0;
+    const state = {
+        rounds: 0,
+        lastStepAt: { entry: 0, intiface: 0, connect: 0 },
+        clicks: { entry: 0, intiface: 0, connect: 0 },   // 每步点击上限，防止"反复开关面板"
+        done: false,
+        stopped: false,
+    };
+
+    const STEP_LIMITS = { entry: 2, intiface: 3, connect: 3 };
 
     // ======== 元素查找 ========
-    const findPanel = () => document.querySelector(CFG.panelSelector);
+    const text = (el) => (el?.textContent || '').trim();
 
-    function findPrimaryButton() {
-        const panel = findPanel();
-        if (!panel) return null;
-
-        // 面板里的蓝色主按钮；找不到就退化为"面板里唯一的满宽按钮"
-        const byClass = panel.querySelector(CFG.primarySelector);
-        if (byClass) return byClass;
-
-        return [...panel.querySelectorAll('button')].find(b => b.classList.contains('w-full')) || null;
+    function findEntryButton() {
+        const buttons = [...document.querySelectorAll(CFG.entryButtonSelector)];
+        // 优先"带图标且文字像连接"的；退化为第一个带图标的
+        return buttons.find(b => b.querySelector('svg') && (CFG.connectRe.test(text(b)) || !text(b)))
+            || buttons.find(b => b.querySelector('svg'))
+            || null;
     }
 
-    /** 面板里是否已经出现"断开"类按钮（= 已连接） */
+    function findIntifaceItem() {
+        const logo = document.querySelector(CFG.intifaceLogoSvgSelector);
+        if (!logo) return null;
+        return logo.closest('div.cursor-pointer') || logo.closest('button, li, [role="button"]') || logo.parentElement;
+    }
+
+    function findConnectButton() {
+        const btn = document.querySelector(CFG.connectButtonSelector);
+        return btn || null;
+    }
+
     function hasDisconnectButton() {
-        const panel = findPanel();
-        if (!panel) return false;
-        return [...panel.querySelectorAll('button')]
-            .some(b => CFG.disconnectRe.test(b.textContent || ''));
+        return [...document.querySelectorAll('button')].some(b => CFG.disconnectRe.test(text(b)));
     }
 
-    /**
-     * 是否已连接。
-     * 注意 connectRe 必须"整串匹配"：'Connected' 里也含 'connect'，
-     * 用 /connect/i 会把它误判成"未连接"从而反复点击（这是测试抓出来的真 bug）。
-     */
+    /** 已连接判定：① 出现"断开"按钮；② 面板连接按钮文字已不是"连接" */
     function isConnected() {
         if (hasDisconnectButton()) return true;
-
-        const primary = findPrimaryButton();
-        if (!primary) return false;
-
-        const text = (primary.textContent || '').trim();
-        if (!text) return false;
-
-        return CFG.connectedRe.test(text) || !CFG.connectRe.test(text);
+        const btn = findConnectButton();
+        if (!btn) return false;
+        const t = text(btn);
+        if (!t) return false;
+        return CFG.connectedRe.test(t) || !CFG.connectRe.test(t);
     }
 
-    // ======== 主流程 ========
-    function attempt() {
-        if (stopped) return;
-
-        if (isConnected()) {
-            log('检测到设备已连接，脚本不做任何事 ✓');
-            stopped = true;
-            return;
-        }
-
-        const button = findPrimaryButton();
-        if (!button) return;   // 还没渲染出来，交给轮询继续等
-
-        // 安全阀：只有主按钮文字确实是"连接"类才点。
-        // 面板选择器可能被站点的其它弹窗复用，靠这一条避免点错；
-        // 若翻译成了我没有覆盖的语言 ⇒ 安全失败（不点），只提示你把这个文字发我。
-        const label = (button.textContent || '').trim();
-        if (!CFG.connectRe.test(label)) {
-            warn(`主按钮文字「${label || "(空)"}」不像"连接"，为安全起见不点 ✗。若确认它就是连接按钮，请把这段文字发我，我加进识别列表。`);
-            stopped = true;
-            return;
-        }
-
-        if (clicks >= CFG.maxClicks) {
-            warn(`已尝试 ${clicks} 次仍未连接，放弃（不打扰你）✗。若按钮找错了，请把控制台这段发我。`);
-            stopped = true;
-            return;
-        }
-
+    // ======== 执行 ========
+    function coolDownPassed(step) {
         const now = Date.now();
-        if (now - lastClickAt < CFG.pollIntervalMs) return;
-
-        clicks++;
-        lastClickAt = now;
-
-        if (CFG.dryRun) {
-            log(`[试运行] 我将会点击这个按钮：「${label}」`, button);
-        } else {
-            log(`点击连接按钮（第 ${clicks} 次）：「${label}」`);
-            try {
-                button.click();
-            } catch (e) {
-                warn('点击失败：', e);
-                stopped = true;
-                return;
-            }
-        }
-
-        setTimeout(attempt, CFG.verifyDelayMs);   // 复查：可能"点了没反应"
-    }
-
-    // 等待面板出现：轮询 + DOM 变化监听（面板是浮动弹窗，可能"要用时才挂进 DOM"）
-    const startedAt = Date.now();
-    let hintCount = 0;
-
-    function onPanelFound() {
-        if (stopped) return;
-        log('设备面板已出现，开始检查连接状态');
-        attempt();
-    }
-
-    function checkPanel() {
-        if (stopped) return true;
-        if (!findPanel()) return false;
-        onPanelFound();
+        if (now - state.lastStepAt[step] < CFG.stepCooldownMs) return false;
+        state.lastStepAt[step] = now;
         return true;
     }
 
-    // ① DOM 变化监听：面板"随时"被挂进来都能立刻发现（比单纯轮询更及时）
-    const observer = new MutationObserver(() => { if (checkPanel()) observer.disconnect(); });
+    function act(step, element, description) {
+        if (!coolDownPassed(step)) return false;
+
+        if (state.clicks[step] >= STEP_LIMITS[step]) {
+            if (!state.limitWarned?.[step]) {
+                state.limitWarned = state.limitWarned || {};
+                state.limitWarned[step] = true;
+                warn(`「${description}」已点击 ${state.clicks[step]} 次仍无进展 ⇒ 停止这一步（避免反复开关面板）✗`);
+            }
+            return false;
+        }
+
+        const label = text(element) || '(无文字)';
+
+        if (CFG.dryRun) {
+            log(`[试运行] ${description}：「${label}」`, element);
+            return false;   // 试运行不推进状态，方便反复观察
+        }
+
+        state.clicks[step]++;
+        log(`${description}：「${label}」（第 ${state.clicks[step]} 次）`);
+        try {
+            element.click();
+        } catch (e) {
+            warn(`点击 ${description} 失败：`, e);
+            state.stopped = true;
+        }
+        return true;
+    }
+
+    let verifyTimer = null;
+
+    function tick() {
+        if (state.done || state.stopped) return;
+
+        // 达成目标
+        if (isConnected()) {
+            log('✓ 设备已连接，脚本收手（不再点击）');
+            state.done = true;
+            cleanup();
+            return;
+        }
+
+        // 超时保护
+        if (Date.now() - startedAt > CFG.findTimeoutMs) {
+            warn(`等了 ${Math.round(CFG.findTimeoutMs / 1000)} 秒仍未连接成功 ⇒ 放弃（不打扰你）✗`);
+            warn(`诊断：入口按钮=${findEntryButton() ? '已找到' : '未找到'}、Intiface 项=${findIntifaceItem() ? '已找到' : '未找到'}、面板连接按钮=${findConnectButton() ? '已找到' : '未找到'}`);
+            state.stopped = true;
+            cleanup();
+            return;
+        }
+
+        // ① 还没有面板连接按钮：
+        //    先看设备列表项是否已出现（说明面板已打开）⇒ 选 Intiface；
+        //    都没有才去点入口（入口按钮一直在页面上，不能无条件先点它，否则会反复开关面板）
+        if (!findConnectButton()) {
+            const item = findIntifaceItem();
+            if (item) { act('intiface', item, '选择 Intiface'); return; }
+
+            const entry = findEntryButton();
+            if (entry) { act('entry', entry, '打开设备面板'); return; }
+
+            return;   // 都在等（面板未渲染），交给观察器
+        }
+
+        // ② 面板里已有连接按钮但还没连上 ⇒ 点它（若列表项还在，先选它更保险）
+        const item = findIntifaceItem();
+        const connect = findConnectButton();
+
+        if (connect && CFG.connectRe.test(text(connect))) {
+            const clicked = act('connect', connect, '点击连接');
+            if (clicked) {
+                if (verifyTimer) clearTimeout(verifyTimer);
+                verifyTimer = setTimeout(() => {
+                    if (state.done || state.stopped) return;
+                    if (isConnected()) return;      // 下一轮 tick 会判定完成
+                    state.rounds++;
+                    if (state.rounds >= CFG.maxRounds) {
+                        warn(`已尝试 ${state.rounds} 轮仍未连接成功 ⇒ 放弃 ✗（若按钮找错了，请把控制台这几行发我）`);
+                        state.stopped = true;
+                        cleanup();
+                        return;
+                    }
+                    log(`未连上，准备第 ${state.rounds + 1} 轮…`);
+                    tick();
+                }, CFG.verifyDelayMs);
+            }
+            return;
+        }
+
+        // ③ 连接按钮文字不是"连接"（可能已连接、或是别的弹窗）⇒ 交给 isConnected 判定，这里不动手
+        if (item && !connect) act('intiface', item, '选择 Intiface');
+    }
+
+    function cleanup() {
+        clearInterval(timer);
+        observer.disconnect();
+        if (verifyTimer) clearTimeout(verifyTimer);
+    }
+
+    // ======== 启动 ========
+    const startedAt = Date.now();
+    log(`脚本已加载 v2.0.0（${CFG.dryRun ? '试运行模式：只打印不点击' : '正式模式'}）`);
+
+    const observer = new MutationObserver(() => tick());
     observer.observe(document.documentElement, { childList: true, subtree: true });
 
-    // ② 轮询兜底 + 每隔一段时间给出明确提示（方便诊断）
-    const waitTimer = setInterval(() => {
-        if (stopped) { clearInterval(waitTimer); observer.disconnect(); return; }
+    const timer = setInterval(tick, CFG.pollIntervalMs);
+    tick();
 
-        if (checkPanel()) { clearInterval(waitTimer); observer.disconnect(); return; }
-
-        const waited = Math.round((Date.now() - startedAt) / 1000);
-        if (waited >= (hintCount + 1) * 5) {
-            hintCount++;
-            log(`仍在等待设备面板（已 ${waited} 秒）…` +
-                (hintCount === 1 ? ' 若你平时要先点某个按钮才会出现设备面板，请把那个按钮的 HTML 发我，我加上"先打开面板"这一步。' : ''));
-        }
-
-        if (Date.now() - startedAt > CFG.findTimeoutMs) {
-            clearInterval(waitTimer);
-            observer.disconnect();
-            stopped = true;
-            warn(`等了 ${Math.round(CFG.findTimeoutMs / 1000)} 秒仍未找到设备面板（选择器：${CFG.panelSelector}）⇒ 安静地不做任何事 ✗`);
-            warn('提示：这个面板是浮动弹窗，可能必须先打开"设备/玩具"菜单才会出现在 DOM 里。');
-        }
-    }, CFG.pollIntervalMs);
-
-    // SPA 内部跳转：地址变了就再看一次（已连接时不会重复点）
+    // SPA 内部跳转：地址变了再检查一次（已连接则不会重复点）
     let lastHref = location.href;
     const onNav = () => {
         if (location.href === lastHref) return;
         lastHref = location.href;
-        if (stopped) return;
-        log('地址变化，重新检查一次');
-        attempt();
+        if (state.done || state.stopped) return;
+        log('地址变化，重新检查');
+        tick();
     };
     for (const fn of ['pushState', 'replaceState']) {
         const original = history[fn];
@@ -208,6 +239,4 @@
         }
     }
     addEventListener('popstate', onNav);
-
-    log('脚本已加载（' + (CFG.dryRun ? '试运行模式：只打印不点击' : '正式模式') + '）');
 })();
