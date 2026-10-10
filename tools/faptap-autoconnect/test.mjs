@@ -252,6 +252,39 @@ await test("收起面板导致掉线 ⇒ 脚本停手（不死循环）",
   },
   (r) => r.first === r.after && r.first <= 3);   // 首次 3 下之后绝不再点
 
+// ⑪ 站点"按坐标判断"且要求 pointerup 成对 ⇒ v2.4 带坐标的成套事件必须能收起它
+await test("站点按坐标判断且要 pointerup ⇒ 仍能收起",
+  async () => {
+    const dom = new JSDOM(`<!doctype html><html><body>${entry()}</body></html>`, {
+      url: "https://faptap.net/", runScripts: "outside-only", pretendToBeVisual: true,
+    });
+    const { window } = dom;
+    const doc = window.document;
+    window.__FAPTAP_AUTOCONNECT__ = { dryRun: false, debug: false, pollIntervalMs: 5, stepCooldownMs: 10, verifyDelayMs: 20, closeVerifyMs: 40, findTimeoutMs: 700 };
+    let clicks = 0;
+    let opened = false;
+    doc.addEventListener("click", (e) => {
+      const b = e.target?.closest?.("button");
+      const item = e.target?.closest?.("div.cursor-pointer");
+      if (!b && !item) return;
+      clicks++;
+      if (b?.classList.contains("w-full")) { b.insertAdjacentHTML("afterend", disconnect()); b.remove(); }
+      else if (item) doc.querySelector("div.fixed")?.insertAdjacentHTML("beforeend", connectButton());
+    }, true);
+    doc.querySelector("button.bg-blue-500:not(.w-full)").addEventListener("click", () => {
+      if (!opened) { opened = true; doc.body.insertAdjacentHTML("beforeend", panelShell(intifaceItem())); }
+    });
+    // 只认"带坐标的 pointerup"，而且要求坐标在面板外面（模拟按坐标判断的实现）
+    doc.addEventListener("pointerup", (e) => {
+      if (!(e.clientX > 0 && e.clientY > 0)) return;
+      doc.querySelector("div.fixed")?.remove();
+    }, true);
+    window.eval(SCRIPT);
+    await sleep(500);
+    return { clicks, panelOpen: !!doc.querySelector("div.fixed") };
+  },
+  (r) => r.clicks === 3 && r.panelOpen === false);
+
 console.log("\n================ 测试结果 ================");
 let pass = 0;
 for (const r of results) {

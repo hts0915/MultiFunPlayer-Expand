@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         faptap 自动连接设备（Intiface / MultiFunPlayer）
 // @namespace    multifunplayer-expand
-// @version      2.3.0
+// @version      2.4.0
 // @description  打开 faptap.net 后自动完成「打开设备面板 → 选 Intiface → 点连接」三步；已连接则什么都不做。只在本站生效。
 // @author       MultiFunPlayer-Expand
 // @match        https://faptap.net/*
@@ -165,11 +165,31 @@
 
     let verifyTimer = null;
 
+    /** 选一个"面板矩形之外"的坐标（优先面板右侧 —— 和用户平时的操作习惯一致）。
+     *  只用来填事件的 clientX/clientY，事件本身仍派发在 body 上，因此不会误触任何控件。 */
+    function pickOutsidePoint() {
+        const w = window.innerWidth || document.documentElement.clientWidth || 1000;
+        const h = window.innerHeight || document.documentElement.clientHeight || 800;
+        const panel = document.querySelector(CFG.panelSelector);
+
+        if (!panel) return { x: Math.round(w - 20), y: Math.round(h / 2) };
+
+        try {
+            const r = panel.getBoundingClientRect();
+            if (r.right + 40 < w) return { x: Math.round((r.right + w) / 2), y: Math.round(h / 2) };  // 面板右侧
+            if (r.left > 40) return { x: Math.round(r.left / 2), y: Math.round(h / 2) };              // 面板左侧
+        } catch { /* 忽略 */ }
+
+        return { x: Math.round(w - 20), y: Math.round(h - 20) };   // 兜底：右下角
+    }
+
     /** 连接成功后把设备面板收起来。
      *  ① Esc（无害）
-     *  ② 在 <body> 上派发合成 pointerdown/mousedown/click —— 等价于"点了面板外面的空白处"，
-     *     但 target 是 body 本身、不是任何按钮 ⇒ 绝无误触别的控件的可能
-     *  ③ 仍不行就换成在 <html> 上派发（兼容只监听 documentElement 的实现）
+     *  ② 在 <body> 上派发一整套指针事件（pointerdown → mousedown → pointerup → mouseup → click），
+     *     坐标取在"面板矩形之外、优先右侧"，等价于"点了面板右边外面的空白处"：
+     *     · 事件目标是 body 本身，不是任何按钮 ⇒ 绝无误触别的控件的可能
+     *     · 带坐标 + 成对 down/up ⇒ 兼容"按坐标判断"或"要求按下抬起成对"的实现
+     *  ③ 仍不行就换成在 <html> 上派发
      *  全程最多 3 步，之后收手。
      */
     function tryClosePanel() {
@@ -196,11 +216,19 @@
             }
         } else {
             const host = step === 2 ? document.body : document.documentElement;
-            log(`收起设备面板（第 ${step} 步）：在 <${host.tagName.toLowerCase()}> 上派发"点空白处"事件`);
-            for (const [type, Ctor] of [['pointerdown', 'PointerEvent'], ['mousedown', 'MouseEvent'], ['click', 'MouseEvent']]) {
+            const point = pickOutsidePoint();
+            log(`收起设备面板（第 ${step} 步）：在 <${host.tagName.toLowerCase()}> 上派发"点空白处"事件（坐标 ${point.x},${point.y}）`);
+
+            for (const type of ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click']) {
                 try {
-                    const EventCtor = window[Ctor] || MouseEvent;
-                    host.dispatchEvent(new EventCtor(type, { bubbles: true, cancelable: true, composed: true }));
+                    const isPointer = type.startsWith('pointer');
+                    const EventCtor = (isPointer && window.PointerEvent) || window.MouseEvent || MouseEvent;
+                    host.dispatchEvent(new EventCtor(type, {
+                        bubbles: true, cancelable: true, composed: true,
+                        clientX: point.x, clientY: point.y,
+                        screenX: point.x, screenY: point.y,
+                        button: 0, buttons: type.endsWith('up') || type === 'click' ? 0 : 1,
+                    }));
                 } catch { /* 忽略 */ }
             }
         }
@@ -349,7 +377,7 @@
         return;   // 直接结束，不注册任何观察器/定时器
     }
 
-    log(`脚本已加载 v2.3.0（${CFG.dryRun ? '试运行模式：只打印不点击' : '正式模式'}，本次页面第 ${loadCount} 次运行）`);
+    log(`脚本已加载 v2.4.0（${CFG.dryRun ? '试运行模式：只打印不点击' : '正式模式'}，本次页面第 ${loadCount} 次运行）`);
 
     const observer = new MutationObserver(() => tick());
     observer.observe(document.documentElement, { childList: true, subtree: true });
