@@ -163,6 +163,80 @@ await test("诱饵：带图标的蓝色「刷新」按钮 ⇒ 不点",
   },
   (s) => s.every(x => ["entry", "intiface", "connect"].includes(x)));
 
+// ⑨ 连接成功后自动收起面板（Esc 有效）⇒ 收手，不再点击
+await test("连接后自动收起面板（Esc 生效）⇒ 收手",
+  async () => {
+    const dom = new JSDOM(`<!doctype html><html><body>${entry()}</body></html>`, {
+      url: "https://faptap.net/", runScripts: "outside-only", pretendToBeVisual: true,
+    });
+    const { window } = dom;
+    const doc = window.document;
+    window.__FAPTAP_AUTOCONNECT__ = { dryRun: false, debug: false, pollIntervalMs: 5, stepCooldownMs: 10, verifyDelayMs: 20, closeVerifyMs: 40, findTimeoutMs: 600 };
+    const clicks = [];
+    let connected = false;
+    doc.addEventListener("click", (e) => {
+      const b = e.target?.closest?.("button");
+      const item = e.target?.closest?.("div.cursor-pointer");
+      if (b?.classList.contains("w-full")) {
+        clicks.push("connect");
+        connected = true;                            // 真站点：连上后这个组件内部状态就是已连接
+        b.insertAdjacentHTML("afterend", disconnect());
+        b.remove();
+      } else if (b) clicks.push("entry");
+      else if (item) { clicks.push("intiface"); doc.querySelector("div.fixed")?.insertAdjacentHTML("beforeend", connectButton()); }
+    }, true);
+    // 入口按钮：点一下插入面板
+    doc.querySelector("button.bg-blue-500:not(.w-full)").addEventListener("click", () => {
+      if (!doc.querySelector("div.cursor-pointer")) {
+        doc.body.insertAdjacentHTML("beforeend", panelShell(intifaceItem()));
+      } else {
+        doc.querySelector("div.fixed")?.remove();   // 再点一次 = 收起面板（保持已连接）
+      }
+    });
+    // Esc 也能收起面板（保持已连接）
+    doc.addEventListener("keydown", (e) => { if (e.key === "Escape") doc.querySelector("div.fixed")?.remove(); });
+    window.eval(SCRIPT);
+    await sleep(400);
+    return { clicks, panelOpen: !!doc.querySelector("div.fixed"), stillConnected: connected };
+  },
+  (r) => r.clicks.filter(c => c === "connect").length === 1 && r.panelOpen === false && r.stillConnected === true);
+
+// ⑩ ⭐ 关键安全用例：收起面板会把连接一起弄断 ⇒ 脚本必须停手，绝不能死循环
+await test("收起面板导致掉线 ⇒ 脚本停手（不死循环）",
+  async () => {
+    const dom = new JSDOM(`<!doctype html><html><body>${entry()}</body></html>`, {
+      url: "https://faptap.net/", runScripts: "outside-only", pretendToBeVisual: true,
+    });
+    const { window } = dom;
+    const doc = window.document;
+    window.__FAPTAP_AUTOCONNECT__ = { dryRun: false, debug: false, pollIntervalMs: 5, stepCooldownMs: 10, verifyDelayMs: 20, closeVerifyMs: 40, findTimeoutMs: 900 };
+    let clicks = 0;
+    doc.addEventListener("click", (e) => {
+      const b = e.target?.closest?.("button");
+      const item = e.target?.closest?.("div.cursor-pointer");
+      if (!b && !item) return;
+      clicks++;
+      if (b?.classList.contains("w-full")) { b.insertAdjacentHTML("afterend", disconnect()); b.remove(); }
+      else if (item) doc.querySelector("div.fixed")?.insertAdjacentHTML("beforeend", connectButton());
+    }, true);
+    doc.querySelector("button.bg-blue-500:not(.w-full)").addEventListener("click", () => {
+      if (!doc.querySelector("div.cursor-pointer")) doc.body.insertAdjacentHTML("beforeend", panelShell(intifaceItem()));
+      else doc.querySelector("div.fixed")?.remove();
+    });
+    // 关键：收起面板 ⇒ 连接也一起没了（模拟最坏情况）
+    doc.addEventListener("keydown", (e) => { if (e.key === "Escape") doc.querySelector("div.fixed")?.remove(); });
+    doc.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape") return;
+      doc.querySelectorAll("button.bg-red-500").forEach(b => b.remove());   // Disconnect 消失 = 掉线
+    });
+    window.eval(SCRIPT);
+    await sleep(500);
+    const first = clicks;
+    await sleep(400);
+    return { first, after: clicks };
+  },
+  (r) => r.first === r.after && r.first <= 3);   // 首次 3 下之后绝不再点
+
 console.log("\n================ 测试结果 ================");
 let pass = 0;
 for (const r of results) {

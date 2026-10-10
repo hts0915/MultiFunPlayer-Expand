@@ -42,6 +42,8 @@
         maxRounds: 3,               // 整流程最多尝试几轮
         maxPageLoads: 3,            // 同一标签页最多自动运行几次（防止点击导致页面重载死循环）
         reloadSessionWindowMs: 60000,   // 距上次运行超过这么久，视为新的浏览会话，计数重新开始
+        closePanelAfterConnect: true,   // 连接成功后顺手把设备面板收起来（无感连接）
+        closeVerifyMs: 1200,            // 收起面板每一步的确认等待
 
         // ① 打开面板的入口按钮：蓝色主色、带 svg 图标、且不是满宽（满宽那个是面板里的连接按钮）
         entryButtonSelector: 'button.bg-blue-500:not(.w-full)',
@@ -65,6 +67,8 @@
         rounds: 0,
         lastStepAt: { entry: 0, intiface: 0, connect: 0 },
         clicks: { entry: 0, intiface: 0, connect: 0 },   // 每步点击上限，防止"反复开关面板"
+        connectedOnce: false,       // 本次页面里是否成功连上过（用于识别"关了面板就掉线"）
+        closeTried: 0,
         done: false,
         stopped: false,
     };
@@ -153,14 +157,79 @@
 
     let verifyTimer = null;
 
+    /** 连接成功后把设备面板收起来（先按 Esc，无效再点一次入口按钮；全程只做有限次） */
+    function tryClosePanel() {
+        if (state.closeTried >= 2) {
+            log('收起面板的尝试已用完，脚本收手（面板还开着也不影响使用）');
+            state.done = true;
+            cleanup();
+            return;
+        }
+
+        state.closeTried++;
+        log(`收起设备面板（第 ${state.closeTried} 次）：先按 Esc`);
+
+        // Esc 是无害操作：没人处理就等于什么都没发生
+        for (const target of [document, window]) {
+            try {
+                target.dispatchEvent(new KeyboardEvent('keydown', {
+                    key: 'Escape', code: 'Escape', keyCode: 27, which: 27, bubbles: true,
+                }));
+            } catch { /* 忽略 */ }
+        }
+
+        setTimeout(() => {
+            if (state.done || state.stopped) return;
+
+            if (!findConnectButton()) {
+                log('✓ 面板已收起');
+                state.done = true;
+                cleanup();
+                return;
+            }
+
+            if (state.closeTried === 1) {
+                const entry = findEntryButton();
+                if (entry) act('entry', entry, '收起设备面板（再点一次入口按钮）');
+            }
+
+            setTimeout(() => {
+                if (state.done || state.stopped) return;
+                log('收起流程结束（面板可能还开着，不影响使用）');
+                state.done = true;
+                cleanup();
+            }, CFG.closeVerifyMs);
+        }, CFG.closeVerifyMs);
+    }
+
     function tick() {
         if (state.done || state.stopped) return;
 
         // 达成目标
         if (isConnected()) {
+            if (!state.connectedOnce) {
+                state.connectedOnce = true;
+                log('✓ 设备已连接');
+                try { sessionStorage.removeItem(LOAD_KEY); } catch { /* 忽略 */ }   // 清掉重载计数
+
+                if (CFG.closePanelAfterConnect) {
+                    tryClosePanel();   // 收起面板后再收手
+                    return;
+                }
+            }
+
             log('✓ 设备已连接，脚本收手（不再点击）');
             state.done = true;
-            try { sessionStorage.removeItem(LOAD_KEY); } catch { /* 忽略 */ }   // 清掉重载计数
+            cleanup();
+            return;
+        }
+
+        // 曾经连上过、现在又检测到断开 ⇒ 很可能是"收起面板把连接也关掉了"
+        // ⇒ 立刻停手，绝不再连（否则会陷入 连上→收起→断开→再连 的死循环）
+        if (state.connectedOnce) {
+            warn('连接曾成功，但现在检测到已断开 ⇒ 停止（可能是"收起面板"顺带断开了连接）✗');
+            warn('请把这段日志发我；也可以把脚本里的 closePanelAfterConnect 改成 false，脚本就只管连接、不动面板。');
+            state.stopped = true;
             cleanup();
             return;
         }
