@@ -55,30 +55,21 @@ internal static class ButtplugProtocol
 
     /// <summary>
     /// ServerInfo 回复。
-    /// ⚠️ 兼容形态只能给"老版形态"（= Buttplug v1 的字段集）：有些老版客户端
-    /// （例如 Lustbound / Companion Demo）在 RequestServerInfo 里自称 MessageVersion 3，
-    /// 但它的 ServerInfo 模型既**没有** MajorVersion / MinorVersion（多给会抛
-    /// "Could not find member 'MajorVersion'"），又**必须**有 MaxPingTime
-    /// （少给会抛 "Required property 'MaxPingTime' not found"）。
-    /// 两种情况都会让它当场断开，表现为"Intiface 能玩、连我们就玩不了"。
+    /// ⚠️ 字段集**照抄 Intiface Central（参考实现）的实测输出**：
+    ///     {"ServerInfo":{"Id":1,"MessageVersion":3,"MaxPingTime":0,"ServerName":"Intiface Server"}}
+    /// 即：**不发** MajorVersion / MinorVersion。
+    /// 之前"按 v3 文档写全"反而害人：老客户端（Lustbound / Companion Demo）会因为多出的
+    /// MajorVersion 抛 "Could not find member 'MajorVersion'"，少发 MaxPingTime 又会抛
+    /// "Required property 'MaxPingTime' not found"，两次都当场断开连接。
+    /// 实测 Intiface 就是这个形态，而官方 JS 客户端也正常工作 ⇒ 以参考实现为准最安全。
     /// </summary>
-    public static JObject ServerInfo(uint id, string serverName, int messageVersion, bool compat) => Message("ServerInfo", compat
-        ? new JObject
-        {
-            ["Id"] = id,
-            ["ServerName"] = serverName,
-            ["MessageVersion"] = messageVersion,
-            ["MaxPingTime"] = 0,
-        }
-        : new JObject
-        {
-            ["Id"] = id,
-            ["ServerName"] = serverName,
-            ["MajorVersion"] = MajorVersion,
-            ["MinorVersion"] = MinorVersion,
-            ["MessageVersion"] = messageVersion,
-            ["MaxPingTime"] = 0,
-        });
+    public static JObject ServerInfo(uint id, string serverName, int messageVersion, bool compat) => Message("ServerInfo", new JObject
+    {
+        ["Id"] = id,
+        ["ServerName"] = serverName,
+        ["MessageVersion"] = messageVersion,
+        ["MaxPingTime"] = 0,
+    });
 
     /// <summary>扫描结束（Intiface 在设备枚举完后会发这条；少发它有些客户端会一直等）。</summary>
     public static JObject ScanningFinished() => Message("ScanningFinished", new JObject { ["Id"] = 0 });
