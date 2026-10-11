@@ -55,11 +55,12 @@ internal static class ButtplugProtocol
 
     /// <summary>
     /// ServerInfo 回复。
-    /// ⚠️ 兼容形态只能给"最小形态"：有些老版 Buttplug 客户端（例如 Lustbound / Companion Demo）
-    /// 在 RequestServerInfo 里自称 MessageVersion 3，但它自己的 ServerInfo 模型**没有**
-    /// MajorVersion / MinorVersion / MaxPingTime 这些成员，Newtonsoft 反序列化会直接抛
-    /// "Could not find member 'MajorVersion' on object of type 'ServerInfo'" 然后断开连接
-    /// （表现为：Intiface 能玩、连我们就玩不了）。
+    /// ⚠️ 兼容形态只能给"老版形态"（= Buttplug v1 的字段集）：有些老版客户端
+    /// （例如 Lustbound / Companion Demo）在 RequestServerInfo 里自称 MessageVersion 3，
+    /// 但它的 ServerInfo 模型既**没有** MajorVersion / MinorVersion（多给会抛
+    /// "Could not find member 'MajorVersion'"），又**必须**有 MaxPingTime
+    /// （少给会抛 "Required property 'MaxPingTime' not found"）。
+    /// 两种情况都会让它当场断开，表现为"Intiface 能玩、连我们就玩不了"。
     /// </summary>
     public static JObject ServerInfo(uint id, string serverName, int messageVersion, bool compat) => Message("ServerInfo", compat
         ? new JObject
@@ -67,6 +68,7 @@ internal static class ButtplugProtocol
             ["Id"] = id,
             ["ServerName"] = serverName,
             ["MessageVersion"] = messageVersion,
+            ["MaxPingTime"] = 0,
         }
         : new JObject
         {
