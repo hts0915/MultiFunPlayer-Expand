@@ -39,7 +39,7 @@ internal static class ButtplugProtocol
     public const int ErrorDevice = 5;
 
     /// <summary>只会说"兼容形态"的自写客户端（按名字模糊匹配，不区分大小写）。</summary>
-    private static readonly string[] CompatClientNames = ["bbfh", "beat banger"];
+    private static readonly string[] CompatClientNames = ["bbfh", "beat banger", "lustbound"];
 
     public static bool IsCompatClient(string clientName)
         => !string.IsNullOrEmpty(clientName)
@@ -53,15 +53,30 @@ internal static class ButtplugProtocol
         ["ErrorMessage"] = message,
     });
 
-    public static JObject ServerInfo(uint id, string serverName, int messageVersion) => Message("ServerInfo", new JObject
-    {
-        ["Id"] = id,
-        ["ServerName"] = serverName,
-        ["MajorVersion"] = MajorVersion,
-        ["MinorVersion"] = MinorVersion,
-        ["MessageVersion"] = messageVersion,
-        ["MaxPingTime"] = 0,
-    });
+    /// <summary>
+    /// ServerInfo 回复。
+    /// ⚠️ 兼容形态只能给"最小形态"：有些老版 Buttplug 客户端（例如 Lustbound / Companion Demo）
+    /// 在 RequestServerInfo 里自称 MessageVersion 3，但它自己的 ServerInfo 模型**没有**
+    /// MajorVersion / MinorVersion / MaxPingTime 这些成员，Newtonsoft 反序列化会直接抛
+    /// "Could not find member 'MajorVersion' on object of type 'ServerInfo'" 然后断开连接
+    /// （表现为：Intiface 能玩、连我们就玩不了）。
+    /// </summary>
+    public static JObject ServerInfo(uint id, string serverName, int messageVersion, bool compat) => Message("ServerInfo", compat
+        ? new JObject
+        {
+            ["Id"] = id,
+            ["ServerName"] = serverName,
+            ["MessageVersion"] = messageVersion,
+        }
+        : new JObject
+        {
+            ["Id"] = id,
+            ["ServerName"] = serverName,
+            ["MajorVersion"] = MajorVersion,
+            ["MinorVersion"] = MinorVersion,
+            ["MessageVersion"] = messageVersion,
+            ["MaxPingTime"] = 0,
+        });
 
     /// <summary>扫描结束（Intiface 在设备枚举完后会发这条；少发它有些客户端会一直等）。</summary>
     public static JObject ScanningFinished() => Message("ScanningFinished", new JObject { ["Id"] = 0 });

@@ -400,7 +400,7 @@ internal sealed class ButtplugServer : IDisposable
                         client.Name ?? "(未提供)", client.Remote, requested, client.MessageVersion,
                         client.Compat ? "兼容形态" : "标准形态");
 
-                    responses.Add(ButtplugProtocol.ServerInfo(id, _options.ServerName, client.MessageVersion));
+                    responses.Add(ButtplugProtocol.ServerInfo(id, _options.ServerName, client.MessageVersion, client.Compat));
                     break;
                 }
 
