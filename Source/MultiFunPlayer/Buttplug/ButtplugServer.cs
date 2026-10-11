@@ -1,5 +1,6 @@
 using MultiFunPlayer.UI.Controls.ViewModels;
 using NLog;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System.IO;
 using System.Net;
@@ -315,14 +316,37 @@ internal sealed class ButtplugServer : IDisposable
     {
         var responses = new List<JObject>();
 
-        JArray messages;
+        // ⚠️ 实测有些客户端（例如 Lustbound / Companion Demo 的 Buttplug.Client）会把**多个 JSON 数组
+        //    连着塞进同一帧**： [{"StopDeviceCmd":{...}}][{"LinearCmd":{...}}]
+        //    原来直接 JArray.Parse 会整帧解析失败 ⇒ 指令全丢、客户端等不到 Ok ⇒ 越玩越卡。
+        //    这里改用 SupportMultipleContent 的读取器：既能吃下一个数组，也能吃下"多段拼接"。
+        var messages = new List<JObject>();
         try
         {
-            messages = JArray.Parse(payload);
+            using var reader = new JsonTextReader(new StringReader(payload)) { SupportMultipleContent = true };
+            while (reader.Read())
+            {
+                if (reader.TokenType == JsonToken.StartArray)
+                {
+                    foreach (var item in JArray.Load(reader).OfType<JObject>())
+                        messages.Add(item);
+                }
+                else if (reader.TokenType == JsonToken.StartObject)
+                {
+                    messages.Add(JObject.Load(reader));
+                }
+            }
         }
-        catch
+        catch (Exception e)
         {
-            Logger.Warn("Buttplug 服务器：无法解析消息 \"{0}\"", payload);
+            Logger.Warn(e, "Buttplug 服务器：无法解析消息 \"{0}\"", payload);
+            responses.Add(ButtplugProtocol.Error(0, ButtplugProtocol.ErrorMessage, "消息不是合法的 JSON 数组"));
+            return Serialize(responses);
+        }
+
+        if (messages.Count == 0)
+        {
+            Logger.Warn("Buttplug 服务器：消息里没有任何内容 \"{0}\"", payload);
             responses.Add(ButtplugProtocol.Error(0, ButtplugProtocol.ErrorMessage, "消息不是合法的 JSON 数组"));
             return Serialize(responses);
         }
