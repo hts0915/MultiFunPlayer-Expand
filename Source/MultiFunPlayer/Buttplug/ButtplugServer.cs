@@ -363,6 +363,9 @@ internal sealed class ButtplugServer : IDisposable
 
             if (IsHighFrequency(type))
             {
+                // 又收到控制指令 ⇒ 取消上一次 StopDeviceCmd 排下的"延迟交还"
+                client.ReleaseDeadline = null;
+
                 // 控制指令可能每秒几十条：Debug 级别记录每一条（排查时可把日志级别调到 Trace/Debug），
                 // Info 级别只记第一条，避免刷爆日志
                 Logger.Debug("Buttplug 指令 {0} [{1}]：{2}", type, DescribeClient(client), body.ToString(Newtonsoft.Json.Formatting.None));
@@ -454,8 +457,9 @@ internal sealed class ButtplugServer : IDisposable
                 break;
 
             case "StopAllDevices":
-                _bridge.ReleaseAll();
                 LastCommand = "StopAllDevices";
+                // 与 StopDeviceCmd 相同：延迟交还，避免"交还→再接管"反复横跳
+                ScheduleSoftRelease(client);
                 responses.Add(ButtplugProtocol.Ok(id));
                 break;
 
@@ -463,8 +467,11 @@ internal sealed class ButtplugServer : IDisposable
                 if (!CheckDeviceIndex(body, id, responses))
                     return;
 
-                _bridge.ReleaseAll();
                 LastCommand = "StopDeviceCmd";
+                // ⚠️ 不再"立刻"交还控制权：实测这类客户端按 LinearCmd → StopDeviceCmd → LinearCmd
+                //    的节奏发指令（约 20 次/秒），立刻交还就会"交还→再接管"反复横跳，
+                //    每轮都要绕过脚本、重建关键帧、动运动提供器并和脚本互相抢 ⇒ 越玩越卡。
+                ScheduleSoftRelease(client);
                 responses.Add(ButtplugProtocol.Ok(id));
                 break;
 
@@ -726,6 +733,53 @@ internal sealed class ButtplugServer : IDisposable
     private string DeviceNameFor(ClientConnection client)
         => client.IntifaceExact ? "TCode v0.3 (Single Linear Axis)" : _bridge.DeviceName;
 
+    /// <summary>
+    /// StopDeviceCmd / StopAllDevices 之后**延迟**交还控制权（默认 1.5 秒）。
+    /// 实测这类客户端的指令节奏是 LinearCmd → StopDeviceCmd → LinearCmd → …（约 20 次/秒），
+    /// 若在 StopDeviceCmd 上立刻 ReleaseAll，就会"交还 → 再接管"反复横跳：
+    /// 每次都要绕过脚本、重建关键帧、动运动提供器，还和脚本互相抢 ⇒ 越玩越卡。
+    /// 这里改成延后交还；期间只要又收到控制指令就把截止时间清掉（等价于"只是短暂停顿"）。
+    /// </summary>
+    private void ScheduleSoftRelease(ClientConnection client)
+    {
+        client.ReleaseDeadline = DateTime.UtcNow.AddSeconds(1.5);
+        if (client.ReleaseScheduled)
+            return;
+
+        client.ReleaseScheduled = true;
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                while (true)
+                {
+                    await Task.Delay(300).ConfigureAwait(false);
+
+                    if (client.ReleaseDeadline is not { } deadline)
+                        return;             // 期间又来了控制指令 ⇒ 取消交还
+
+                    if (DateTime.UtcNow < deadline)
+                        continue;
+
+                    client.ReleaseDeadline = null;
+                    client.ReleaseScheduled = false;
+
+                    if (ClientCount > 0 && _bridge.HasTakenOverAxes)
+                    {
+                        _bridge.ReleaseAll();
+                        RaiseStatus();
+                        Logger.Info("Buttplug 客户端停顿超过 1.5 秒，交还控制权 [{0}]", DescribeClient(client));
+                    }
+                    return;
+                }
+            }
+            catch (Exception e)
+            {
+                Logger.Warn(e, "Buttplug 延迟交还控制权时出错 [{0}]", DescribeClient(client));
+            }
+        });
+    }
+
     private sealed class ClientConnection    {
         public string Remote { get; init; }
         public WebSocket Socket { get; set; }
@@ -734,6 +788,10 @@ internal sealed class ButtplugServer : IDisposable
         public bool Compat { get; set; }
         /// <summary>要求与 Intiface Central 逐字一致的老客户端（多余字段/多余消息都会让它崩）。</summary>
         public bool IntifaceExact { get; set; }
+        /// <summary>StopDeviceCmd 之后计划交还控制权的时刻；期间又收到控制指令就清掉。</summary>
+        public DateTime? ReleaseDeadline { get; set; }
+        /// <summary>是否已经有一个等待交还的循环在跑。</summary>
+        public bool ReleaseScheduled { get; set; }
         public bool LoggedFirstCommand { get; set; }
     }
 }
