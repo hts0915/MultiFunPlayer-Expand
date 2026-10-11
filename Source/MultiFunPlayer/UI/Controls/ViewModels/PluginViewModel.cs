@@ -69,7 +69,10 @@ internal sealed class PluginViewModel : Conductor<PluginContainer>.Collection.On
                 AddItem(newItem, newIndex);
                 break;
             case NotifyCollectionChangedAction.Reset:
-                foreach(var item in Items)
+                // ⚠️ 必须遍历快照：RemoveItem 会修改 Items 本身，
+                //    直接 foreach (var item in Items) 会在关闭程序（PluginManager.Dispose → Clear）
+                //    时抛 "Collection was modified; enumeration operation may not execute"。
+                foreach(var item in Items.ToArray())
                     RemoveItem(item);
                 if (Items.Count != 0)
                     throw new UnreachableException();
