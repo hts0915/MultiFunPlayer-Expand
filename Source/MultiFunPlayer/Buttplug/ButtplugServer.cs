@@ -416,7 +416,7 @@ internal sealed class ButtplugServer : IDisposable
                 //    会让它反序列化失败并随后断开 ⇒ 对它逐字照抄。
                 if (!client.IntifaceExact)
                 {
-                    responses.Add(ButtplugProtocol.DeviceAdded(_bridge.DeviceName, _bridge.Actuators, client.MessageVersion, client.Compat, client.IntifaceExact));
+                    responses.Add(ButtplugProtocol.DeviceAdded(DeviceNameFor(client), _bridge.Actuators, client.MessageVersion, client.Compat, client.IntifaceExact));
                     responses.Add(ButtplugProtocol.ScanningFinished());
                 }
                 break;
@@ -426,7 +426,7 @@ internal sealed class ButtplugServer : IDisposable
                 break;
 
             case "RequestDeviceList":
-                responses.Add(ButtplugProtocol.DeviceList(id, _bridge.DeviceName, _bridge.Actuators, client.MessageVersion, client.Compat, client.IntifaceExact));
+                responses.Add(ButtplugProtocol.DeviceList(id, DeviceNameFor(client), _bridge.Actuators, client.MessageVersion, client.Compat, client.IntifaceExact));
                 break;
 
             case "StopAllDevices":
@@ -695,8 +695,14 @@ internal sealed class ButtplugServer : IDisposable
 
     public void Dispose() => Stop();
 
-    private sealed class ClientConnection
-    {
+    /// <summary>
+    /// 对"要求与 Intiface 完全一致"的客户端，设备名也照抄 Intiface 的写法
+    /// （Intiface 对只暴露 L0 的 TCode 设备报的就是这个名字）；其它客户端仍用配置里的 DeviceName。
+    /// </summary>
+    private string DeviceNameFor(ClientConnection client)
+        => client.IntifaceExact ? "TCode v0.3 (Single Linear Axis)" : _bridge.DeviceName;
+
+    private sealed class ClientConnection    {
         public string Remote { get; init; }
         public WebSocket Socket { get; set; }
         public int MessageVersion { get; set; } = ButtplugProtocol.MessageVersion;
