@@ -103,19 +103,37 @@ internal static class ButtplugProtocol
         // 之前按 v3 文档把 LinearCmd 写成 {"StepCount":[...]}，会让官方客户端抛
         //    TypeError: _c.forEach is not a function
         // 客户端随后丢弃这条 DeviceList 并一直等 ⇒ 网页表现为"连上了却一直转圈"。
-        if (linear.Count > 0)
-            messages["LinearCmd"] = new JArray(linear.Select(a => Feature(a, "Position")));
-
-        if (rotate.Count > 0)
-            messages["RotateCmd"] = new JArray(rotate.Select(a => Feature(a, "Rotate")));
-
-        if (scalar.Count > 0)
-            messages["ScalarCmd"] = new JArray(scalar.Select(a => Feature(a, "Vibrate")));
-
-        if (messageVersion < 3 && scalar.Count > 0)
+        // ⚠️ DeviceMessages 的形态**随协议版本而变**，混用会让客户端"看不到设备"：
+        //    v3：LinearCmd / RotateCmd / ScalarCmd 都是**执行器数组**
+        //        [{ "ActuatorType":.., "FeatureDescriptor":.., "StepCount":100 }, ..]
+        //    v1 / v2：LinearCmd / RotateCmd 是**对象** { "StepCount": 100 }，
+        //        振动是 VibrateCmd { "FeatureCount": n }（+ SingleMotorVibrateCmd {}）。
+        // 实测：Nudica 的新游戏（JOI Demo）自称 MessageVersion 2，
+        //      我们给了 v3 的数组 ⇒ 它解析不了设备、之后一条指令都不发 ⇒ 设备不动。
+        if (messageVersion >= 3)
         {
-            messages["VibrateCmd"] = new JObject { ["FeatureCount"] = scalar.Count };
-            messages["SingleMotorVibrateCmd"] = new JObject();
+            if (linear.Count > 0)
+                messages["LinearCmd"] = new JArray(linear.Select(a => Feature(a, "Position")));
+
+            if (rotate.Count > 0)
+                messages["RotateCmd"] = new JArray(rotate.Select(a => Feature(a, "Rotate")));
+
+            if (scalar.Count > 0)
+                messages["ScalarCmd"] = new JArray(scalar.Select(a => Feature(a, "Vibrate")));
+        }
+        else
+        {
+            if (linear.Count > 0)
+                messages["LinearCmd"] = new JObject { ["StepCount"] = 100 };
+
+            if (rotate.Count > 0)
+                messages["RotateCmd"] = new JObject { ["StepCount"] = 100 };
+
+            if (scalar.Count > 0)
+            {
+                messages["VibrateCmd"] = new JObject { ["FeatureCount"] = scalar.Count };
+                messages["SingleMotorVibrateCmd"] = new JObject();
+            }
         }
 
         messages["StopDeviceCmd"] = new JObject();
