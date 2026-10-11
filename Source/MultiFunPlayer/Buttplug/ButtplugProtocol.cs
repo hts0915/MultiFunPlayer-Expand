@@ -106,10 +106,12 @@ internal static class ButtplugProtocol
         // ⚠️ DeviceMessages 的形态**随协议版本而变**，混用会让客户端"看不到设备"：
         //    v3：LinearCmd / RotateCmd / ScalarCmd 都是**执行器数组**
         //        [{ "ActuatorType":.., "FeatureDescriptor":.., "StepCount":100 }, ..]
-        //    v1 / v2：LinearCmd / RotateCmd 是**对象** { "StepCount": 100 }，
+        //    v1 / v2（实测 Intiface 的原样输出）：
+        //        "LinearCmd":{ "FeatureCount":1, "StepCount":[100] }
+        //        即 FeatureCount = 执行器个数、StepCount = 与之对应的数组；
         //        振动是 VibrateCmd { "FeatureCount": n }（+ SingleMotorVibrateCmd {}）。
         // 实测：Nudica 的新游戏（JOI Demo）自称 MessageVersion 2，
-        //      我们给了 v3 的数组 ⇒ 它解析不了设备、之后一条指令都不发 ⇒ 设备不动。
+        //      我们给它 v3 的数组、或 {"StepCount":100} 都不认 ⇒ 它一条指令都不发 ⇒ 设备不动。
         if (messageVersion >= 3)
         {
             if (linear.Count > 0)
@@ -124,10 +126,18 @@ internal static class ButtplugProtocol
         else
         {
             if (linear.Count > 0)
-                messages["LinearCmd"] = new JObject { ["StepCount"] = 100 };
+                messages["LinearCmd"] = new JObject
+                {
+                    ["FeatureCount"] = linear.Count,
+                    ["StepCount"] = new JArray(linear.Select(_ => 100)),
+                };
 
             if (rotate.Count > 0)
-                messages["RotateCmd"] = new JObject { ["StepCount"] = 100 };
+                messages["RotateCmd"] = new JObject
+                {
+                    ["FeatureCount"] = rotate.Count,
+                    ["StepCount"] = new JArray(rotate.Select(_ => 100)),
+                };
 
             if (scalar.Count > 0)
             {
