@@ -395,10 +395,11 @@ internal sealed class ButtplugServer : IDisposable
                     // 自写客户端（例如 Beat Banger 的 bbfh-client）只认"兼容形态"的能力描述，
                     // 用标准形态它会崩（它会无脑遍历 LinearCmd / RotateCmd / ScalarCmd）
                     client.Compat = _options.ForceCompat || ButtplugProtocol.IsCompatClient(client.Name);
+                    client.IntifaceExact = ButtplugProtocol.IsIntifaceExactClient(client.Name);
 
                     Logger.Info("Buttplug 客户端握手 [名称: {0}, 地址: {1}, 请求协议版本: v{2} → 使用 v{3}, 能力描述: {4}]",
                         client.Name ?? "(未提供)", client.Remote, requested, client.MessageVersion,
-                        client.Compat ? "兼容形态" : "标准形态");
+                        client.IntifaceExact ? "Intiface 完全一致形态" : client.Compat ? "兼容形态" : "标准形态");
 
                     responses.Add(ButtplugProtocol.ServerInfo(id, _options.ServerName, client.MessageVersion, client.Compat));
                     break;
@@ -410,8 +411,14 @@ internal sealed class ButtplugServer : IDisposable
 
             case "StartScanning":
                 responses.Add(ButtplugProtocol.Ok(id));
-                responses.Add(ButtplugProtocol.DeviceAdded(_bridge.DeviceName, _bridge.Actuators, client.MessageVersion, client.Compat));
-                responses.Add(ButtplugProtocol.ScanningFinished());
+                // ⚠️ "要求与 Intiface 完全一致"的老客户端（Lustbound / Companion Demo）：
+                //    实测 Intiface 对 StartScanning **只回一条 Ok**，多发 DeviceAdded / ScanningFinished
+                //    会让它反序列化失败并随后断开 ⇒ 对它逐字照抄。
+                if (!client.IntifaceExact)
+                {
+                    responses.Add(ButtplugProtocol.DeviceAdded(_bridge.DeviceName, _bridge.Actuators, client.MessageVersion, client.Compat, client.IntifaceExact));
+                    responses.Add(ButtplugProtocol.ScanningFinished());
+                }
                 break;
 
             case "StopScanning":
@@ -419,7 +426,7 @@ internal sealed class ButtplugServer : IDisposable
                 break;
 
             case "RequestDeviceList":
-                responses.Add(ButtplugProtocol.DeviceList(id, _bridge.DeviceName, _bridge.Actuators, client.MessageVersion, client.Compat));
+                responses.Add(ButtplugProtocol.DeviceList(id, _bridge.DeviceName, _bridge.Actuators, client.MessageVersion, client.Compat, client.IntifaceExact));
                 break;
 
             case "StopAllDevices":
@@ -695,6 +702,8 @@ internal sealed class ButtplugServer : IDisposable
         public int MessageVersion { get; set; } = ButtplugProtocol.MessageVersion;
         public string Name { get; set; }
         public bool Compat { get; set; }
+        /// <summary>要求与 Intiface Central 逐字一致的老客户端（多余字段/多余消息都会让它崩）。</summary>
+        public bool IntifaceExact { get; set; }
         public bool LoggedFirstCommand { get; set; }
     }
 }

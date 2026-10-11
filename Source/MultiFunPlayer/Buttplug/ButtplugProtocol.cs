@@ -41,9 +41,23 @@ internal static class ButtplugProtocol
     /// <summary>只会说"兼容形态"的自写客户端（按名字模糊匹配，不区分大小写）。</summary>
     private static readonly string[] CompatClientNames = ["bbfh", "beat banger", "lustbound"];
 
+    /// <summary>
+    /// 要求"与 Intiface Central 完全一致"的老客户端。
+    /// 这类客户端的反序列化对**多余字段/多余消息**零容忍（多一个 DeviceDisplayName 都会抛
+    /// "Could not find member"），因此对它我们必须逐字照抄 Intiface 的实测输出：
+    ///   · 设备对象只给 DeviceIndex / DeviceName / DeviceMessages
+    ///   · FeatureDescriptor 给空串
+    ///   · 对 StartScanning 只回 Ok（不发 DeviceAdded / ScanningFinished）
+    /// </summary>
+    private static readonly string[] IntifaceExactClientNames = ["lustbound"];
+
     public static bool IsCompatClient(string clientName)
         => !string.IsNullOrEmpty(clientName)
         && CompatClientNames.Any(name => clientName.Contains(name, StringComparison.OrdinalIgnoreCase));
+
+    public static bool IsIntifaceExactClient(string clientName)
+        => !string.IsNullOrEmpty(clientName)
+        && IntifaceExactClientNames.Any(name => clientName.Contains(name, StringComparison.OrdinalIgnoreCase));
 
     public static JObject Ok(uint id) => Message("Ok", new JObject { ["Id"] = id });
     public static JObject Error(uint id, int code, string message) => Message("Error", new JObject
@@ -75,7 +89,7 @@ internal static class ButtplugProtocol
     public static JObject ScanningFinished() => Message("ScanningFinished", new JObject { ["Id"] = 0 });
 
     /// <summary>DeviceAdded / DeviceList 里描述一台设备的内容。</summary>
-    public static JObject DeviceInfo(string deviceName, IReadOnlyCollection<ButtplugActuator> actuators, int messageVersion, bool compat)
+    public static JObject DeviceInfo(string deviceName, IReadOnlyCollection<ButtplugActuator> actuators, int messageVersion, bool compat, bool intifaceExact = false)
     {
         var linear = actuators.Where(a => a.Kind == ButtplugActuatorKind.Linear).OrderBy(a => a.Index).ToList();
         var rotate = actuators.Where(a => a.Kind == ButtplugActuatorKind.Rotate).OrderBy(a => a.Index).ToList();
@@ -114,19 +128,21 @@ internal static class ButtplugProtocol
             ["DeviceMessages"] = messages,
         };
 
-        if (compat)
+        if (compat && !intifaceExact)
         {
-            // Beat Banger 的自写客户端会直接读这两个字段
+            // Beat Banger / bbfh 的自写客户端会直接读这两个字段；
+            // 但"要求与 Intiface 完全一致"的老库（Lustbound）多一个字段就会崩 ⇒ 对它不加。
             device["DeviceDisplayName"] = $"{deviceName}/SR6 (TCode v3)";
             device["DeviceMessageTimingGap"] = 0;
         }
 
         return device;
 
-        static JObject Feature(ButtplugActuator actuator, string actuatorType) => new()
+        JObject Feature(ButtplugActuator actuator, string actuatorType) => new()
         {
             ["ActuatorType"] = actuatorType,
-            ["FeatureDescriptor"] = DescribeFeature(actuator.Axis),
+            // Intiface 对单轴设备给的 FeatureDescriptor 是空串 ⇒ 逐字照抄
+            ["FeatureDescriptor"] = intifaceExact ? string.Empty : DescribeFeature(actuator.Axis),
             ["StepCount"] = 100,
         };
     }
@@ -148,8 +164,8 @@ internal static class ButtplugProtocol
         _ => axis.Name,
     };
 
-    public static JObject DeviceAdded(string deviceName, IReadOnlyCollection<ButtplugActuator> actuators, int messageVersion, bool compat)
-        => Message("DeviceAdded", DeviceInfo(deviceName, actuators, messageVersion, compat));
+    public static JObject DeviceAdded(string deviceName, IReadOnlyCollection<ButtplugActuator> actuators, int messageVersion, bool compat, bool intifaceExact = false)
+        => Message("DeviceAdded", DeviceInfo(deviceName, actuators, messageVersion, compat, intifaceExact));
 
     public static JObject DeviceRemoved(int deviceIndex) => Message("DeviceRemoved", new JObject
     {
@@ -157,9 +173,9 @@ internal static class ButtplugProtocol
         ["DeviceIndex"] = deviceIndex,
     });
 
-    public static JObject DeviceList(uint id, string deviceName, IReadOnlyCollection<ButtplugActuator> actuators, int messageVersion, bool compat)
+    public static JObject DeviceList(uint id, string deviceName, IReadOnlyCollection<ButtplugActuator> actuators, int messageVersion, bool compat, bool intifaceExact = false)
     {
-        var device = DeviceInfo(deviceName, actuators, messageVersion, compat);
+        var device = DeviceInfo(deviceName, actuators, messageVersion, compat, intifaceExact);
         device.Remove("Id");
         return Message("DeviceList", new JObject
         {
