@@ -5,13 +5,14 @@ import { WebSocket } from "ws";
 
 const url = process.argv[2] ?? "ws://127.0.0.1:12345";
 const clientName = process.argv[3] ?? "Lustbound";
+const messageVersion = Number(process.argv[4] ?? 3);   // 3 = 新版客户端；1/2 = 老库（DeviceMessages 形态不同）
 
 const ws = new WebSocket(url);
 let id = 0;
 
 ws.on("open", () => {
-    console.log("=== 已连接:", url, " 伪装客户端名:", clientName, "===");
-    ws.send(JSON.stringify([{ RequestServerInfo: { Id: ++id, ClientName: clientName, MessageVersion: 3 } }]));
+    console.log("=== 已连接:", url, " 伪装客户端名:", clientName, " 协议版本:", messageVersion, "===");
+    ws.send(JSON.stringify([{ RequestServerInfo: { Id: ++id, ClientName: clientName, MessageVersion: messageVersion } }]));
 });
 
 ws.on("message", (data) => {
